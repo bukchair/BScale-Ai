@@ -31,6 +31,8 @@ export function Integrations() {
 
   const [success, setSuccess] = useState<string | null>(null);
 
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+
   const handleExpand = (integration: Connection) => {
     if (expandedId === integration.id) {
       setExpandedId(null);
@@ -67,12 +69,20 @@ export function Integrations() {
       const result = await testConnection(id);
       if (result.success) {
         setSuccess(result.message);
-        setTimeout(() => setSuccess(null), 5000);
+        setToast({ message: result.message, type: 'success' });
+        setTimeout(() => {
+          setSuccess(null);
+          setToast(null);
+        }, 5000);
       } else {
         setError({ id, message: result.message });
+        setToast({ message: result.message, type: 'error' });
+        setTimeout(() => setToast(null), 5000);
       }
     } catch (err) {
       setError({ id, message: 'אירעה שגיאה במהלך בדיקת החיבור.' });
+      setToast({ message: 'אירעה שגיאה במהלך בדיקת החיבור.', type: 'error' });
+      setTimeout(() => setToast(null), 5000);
     } finally {
       setTestingId(null);
     }
@@ -447,6 +457,24 @@ export function Integrations() {
           בדוק את כל החיבורים
         </button>
       </div>
+      
+      {/* Toast Notification */}
+      <AnimatePresence>
+        {toast && (
+          <motion.div
+            initial={{ opacity: 0, y: 50, x: '-50%' }}
+            animate={{ opacity: 1, y: 0, x: '-50%' }}
+            exit={{ opacity: 0, y: 20, x: '-50%' }}
+            className={cn(
+              "fixed bottom-8 left-1/2 z-[100] px-6 py-3 rounded-2xl shadow-2xl flex items-center gap-3 min-w-[300px] border",
+              toast.type === 'success' ? "bg-emerald-600 border-emerald-500 text-white" : "bg-red-600 border-red-500 text-white"
+            )}
+          >
+            {toast.type === 'success' ? <CheckCircle2 className="w-5 h-5" /> : <AlertCircle className="w-5 h-5" />}
+            <p className="text-sm font-bold">{toast.message}</p>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {success && (
         <div className="bg-emerald-50 border border-emerald-200 p-4 rounded-xl flex items-start justify-between shadow-sm animate-in fade-in slide-in-from-top-2">

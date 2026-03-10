@@ -1,5 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 
+import { verifyWooCommerceConnection } from '../services/woocommerceService';
+
 export type ConnectionStatus = 'connected' | 'disconnected' | 'error' | 'connecting';
 
 export interface SubConnection {
@@ -197,10 +199,30 @@ export function ConnectionsProvider({ children }: { children: ReactNode }) {
     const connection = connections.find(c => c.id === id);
     if (!connection) return { success: false, message: 'חיבור לא נמצא' };
 
-    // Simulate real API check
-    await new Promise(resolve => setTimeout(resolve, 2000));
+    // Special logic for WooCommerce real verification
+    if (id === 'woocommerce' && connection.settings) {
+      const { storeUrl, wooKey, wooSecret } = connection.settings;
+      try {
+        await verifyWooCommerceConnection(storeUrl, wooKey, wooSecret);
+        setConnections(prev => prev.map(c => 
+          c.id === id ? { ...c, status: 'connected', score: 100 } : c
+        ));
+        return { 
+          success: true, 
+          message: `החיבור ל-WooCommerce אומת בהצלחה! הנתונים מסונכרנים.` 
+        };
+      } catch (err) {
+        console.error("WooCommerce real test failed:", err);
+        return { 
+          success: false, 
+          message: `נכשל אימות החיבור ל-WooCommerce: ${err instanceof Error ? err.message : 'שגיאה לא ידועה'}` 
+        };
+      }
+    }
 
-    const isSuccess = Math.random() > 0.1; // 90% success rate for simulation
+    // Default simulation for other integrations
+    await new Promise(resolve => setTimeout(resolve, 2000));
+    const isSuccess = Math.random() > 0.1;
 
     if (isSuccess) {
       setConnections(prev => prev.map(c => 

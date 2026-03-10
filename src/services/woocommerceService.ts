@@ -1,3 +1,27 @@
+export async function verifyWooCommerceConnection(url: string, key: string, secret: string) {
+  if (!url || !key || !secret || key === 'mock' || secret === 'mock') {
+    throw new Error('Missing or invalid credentials');
+  }
+
+  const baseUrl = url.endsWith('/') ? url.slice(0, -1) : url;
+  const apiUrl = `${baseUrl}/wp-json/wc/v3/system_status`; // Lighter request for verification
+  
+  const auth = btoa(`${key}:${secret}`);
+  
+  const response = await fetch(apiUrl, {
+    headers: {
+      'Authorization': `Basic ${auth}`
+    }
+  });
+  
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(errorData.message || `WooCommerce API Error: ${response.statusText}`);
+  }
+  
+  return true;
+}
+
 export async function fetchWooCommerceProducts(url: string, key: string, secret: string) {
   // Mock data for demo purposes
   const mockProducts = [
