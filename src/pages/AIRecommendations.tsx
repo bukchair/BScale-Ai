@@ -1,0 +1,256 @@
+import React, { useState } from 'react';
+import { useLanguage } from '../contexts/LanguageContext';
+import { Lightbulb, TrendingUp, AlertTriangle, ArrowRight, ArrowLeft, CheckCircle2, BarChart2, Facebook, Video, Megaphone, Zap } from 'lucide-react';
+import { cn } from '../lib/utils';
+
+interface Recommendation {
+  id: string;
+  platform: 'google' | 'meta' | 'tiktok' | 'cross';
+  type: 'budget' | 'creative' | 'targeting' | 'bid';
+  title: string;
+  description: string;
+  impact: string;
+  difficulty: 'easy' | 'medium' | 'hard';
+  status: 'pending' | 'applied' | 'dismissed';
+}
+
+const mockRecommendations: Recommendation[] = [
+  {
+    id: '1',
+    platform: 'cross',
+    type: 'budget',
+    title: 'הקצאה מחדש של תקציב: מ-TikTok לריטרגטינג ב-Meta',
+    description: 'קמפיינים ב-TikTok מביאים תנועה רבה בראש המשפך אך עם מעט המרות. העברת 500₪ ביום לריטרגטינג ב-Meta תלכוד כוונת רכישה זו.',
+    impact: '+18% ROAS כולל',
+    difficulty: 'easy',
+    status: 'pending'
+  },
+  {
+    id: '2',
+    platform: 'google',
+    type: 'bid',
+    title: 'הגדלת תקרת הצעות מחיר למילות מפתח מותג',
+    description: 'מתחרים עוקפים אותך בהצעות מחיר על מונחי מותג בהתאמה מדויקת. הגדלת ה-tCPA ב-15% בקמפיין "הגנת מותג" תשחזר את נתח החשיפות.',
+    impact: '+25% נפח המרות',
+    difficulty: 'easy',
+    status: 'pending'
+  },
+  {
+    id: '3',
+    platform: 'meta',
+    type: 'creative',
+    title: 'רענון קריאייטיב: "קולקציית אביב"',
+    description: 'זוהתה עייפות מודעות. ה-CTR ירד ב-32% ב-7 הימים האחרונים. צור וריאציות חדשות באמצעות מעבדת הקריאייטיב.',
+    impact: '-20% CPA',
+    difficulty: 'medium',
+    status: 'pending'
+  },
+  {
+    id: '4',
+    platform: 'tiktok',
+    type: 'targeting',
+    title: 'שינוי יעד ליצירת לידים',
+    description: 'קמפיינים למכירות ישירות ב-TikTok מציגים ביצועים חלשים (ROAS 1.2x). עבור ליצירת לידים כדי לאסוף אימיילים למשפך קבלת הפנים.',
+    impact: '-40% עלות לליד',
+    difficulty: 'medium',
+    status: 'pending'
+  }
+];
+
+const platformIcons = {
+  google: Megaphone,
+  meta: Facebook,
+  tiktok: Video,
+  cross: BarChart2
+};
+
+const platformColors = {
+  google: 'text-blue-600 bg-blue-50',
+  meta: 'text-indigo-600 bg-indigo-50',
+  tiktok: 'text-pink-600 bg-pink-50',
+  cross: 'text-purple-600 bg-purple-50'
+};
+
+export function AIRecommendations() {
+  const { t, dir } = useLanguage();
+  const [recs, setRecs] = useState<Recommendation[]>(mockRecommendations);
+
+  const handleApply = (id: string) => {
+    setRecs(recs.map(r => r.id === id ? { ...r, status: 'applied' } : r));
+  };
+
+  const pendingRecs = recs.filter(r => r.status === 'pending');
+  const appliedRecs = recs.filter(r => r.status === 'applied');
+
+  return (
+    <div className="space-y-6 max-w-7xl mx-auto">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">{t('nav.aiRecommendations') || 'המלצות AI'}</h1>
+          <p className="text-sm text-gray-500 mt-1">ניתוח חוצה פלטפורמות והצעות אופטימיזציה מבוססות בינה מלאכותית.</p>
+        </div>
+        <button className="bg-indigo-600 text-white px-4 py-2 rounded-xl text-sm font-bold hover:bg-indigo-700 transition-colors flex items-center gap-2 shadow-sm">
+          <Zap className="w-4 h-4" />
+          החל את כל הניצחונות המהירים
+        </button>
+      </div>
+
+      {/* Cross-Platform Analysis Summary */}
+      <div className="bg-gradient-to-br from-indigo-900 to-purple-900 rounded-2xl shadow-lg p-6 text-white relative overflow-hidden">
+        <div className={cn("absolute top-0 -mt-4 w-32 h-32 bg-white opacity-5 rounded-full blur-2xl", dir === 'rtl' ? "-left-4" : "-right-4")}></div>
+        <div className={cn("absolute bottom-0 -mb-4 w-24 h-24 bg-indigo-500 opacity-20 rounded-full blur-xl", dir === 'rtl' ? "-right-4" : "-left-4")}></div>
+        
+        <div className="relative z-10">
+          <div className="flex items-center gap-2 mb-4">
+            <Lightbulb className="w-6 h-6 text-amber-300" />
+            <h2 className="text-xl font-bold">ניתוח ביצועי AI</h2>
+          </div>
+          <p className="text-indigo-100 leading-relaxed mb-6 max-w-3xl">
+            בהתבסס על נתוני 30 הימים האחרונים ב-Google, Meta ו-TikTok, זיהינו מגמות מפתח: 
+            <strong className="text-white font-semibold"> Meta מביאה 40% מהתנועה בראש המשפך</strong>, אך 
+            <strong className="text-white font-semibold"> רשת החיפוש של Google לוכדת 65% מההמרות הסופיות</strong>. 
+            ל-TikTok יש את ה-CPA הנמוך ביותר למודעות למותג אך היא מתקשה במכירות ישירות.
+          </p>
+          
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4 border border-white/10">
+              <div className="flex items-center gap-2 mb-2">
+                <Megaphone className="w-4 h-4 text-blue-300" />
+                <span className="font-medium text-sm">Google Ads</span>
+              </div>
+              <div className="flex justify-between items-end">
+                <div>
+                  <p className="text-xs text-indigo-200">ROAS ממוצע</p>
+                  <p className="text-xl font-bold text-emerald-400" dir="ltr">3.2x</p>
+                </div>
+                <div className={dir === 'rtl' ? 'text-left' : 'text-right'}>
+                  <p className="text-xs text-indigo-200">CPA</p>
+                  <p className="text-lg font-semibold" dir="ltr">₪45</p>
+                </div>
+              </div>
+            </div>
+            
+            <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4 border border-white/10">
+              <div className="flex items-center gap-2 mb-2">
+                <Facebook className="w-4 h-4 text-indigo-300" />
+                <span className="font-medium text-sm">Meta Ads</span>
+              </div>
+              <div className="flex justify-between items-end">
+                <div>
+                  <p className="text-xs text-indigo-200">ROAS ממוצע</p>
+                  <p className="text-xl font-bold text-emerald-400" dir="ltr">2.1x</p>
+                </div>
+                <div className={dir === 'rtl' ? 'text-left' : 'text-right'}>
+                  <p className="text-xs text-indigo-200">CPA</p>
+                  <p className="text-lg font-semibold" dir="ltr">₪62</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4 border border-white/10">
+              <div className="flex items-center gap-2 mb-2">
+                <Video className="w-4 h-4 text-pink-300" />
+                <span className="font-medium text-sm">TikTok Ads</span>
+              </div>
+              <div className="flex justify-between items-end">
+                <div>
+                  <p className="text-xs text-indigo-200">ROAS ממוצע</p>
+                  <p className="text-xl font-bold text-amber-400" dir="ltr">1.2x</p>
+                </div>
+                <div className={dir === 'rtl' ? 'text-left' : 'text-right'}>
+                  <p className="text-xs text-indigo-200">CPA</p>
+                  <p className="text-lg font-semibold" dir="ltr">₪85</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Recommendations List */}
+      <div>
+        <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
+          שיפורים מוצעים
+          <span className="bg-indigo-100 text-indigo-700 text-xs py-0.5 px-2 rounded-full font-bold">
+            {pendingRecs.length}
+          </span>
+        </h3>
+        
+        <div className="grid grid-cols-1 gap-4">
+          {pendingRecs.map((rec) => {
+            const Icon = platformIcons[rec.platform];
+            const colorClass = platformColors[rec.platform];
+            
+            return (
+              <div key={rec.id} className="bg-white rounded-2xl shadow-sm border border-gray-200 p-5 hover:shadow-md transition-shadow">
+                <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
+                  <div className="flex items-start gap-4">
+                    <div className={cn("w-12 h-12 rounded-xl flex items-center justify-center shrink-0", colorClass)}>
+                      <Icon className="w-6 h-6" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2 mb-1">
+                        <h4 className="text-base font-bold text-gray-900">{rec.title}</h4>
+                        <span className={cn(
+                          "text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full",
+                          rec.difficulty === 'easy' ? "bg-emerald-100 text-emerald-700" :
+                          rec.difficulty === 'medium' ? "bg-amber-100 text-amber-700" :
+                          "bg-red-100 text-red-700"
+                        )}>
+                          {rec.difficulty === 'easy' ? 'קל' : rec.difficulty === 'medium' ? 'בינוני' : 'קשה'}
+                        </span>
+                      </div>
+                      <p className="text-sm text-gray-600 mb-3 max-w-3xl leading-relaxed">
+                        {rec.description}
+                      </p>
+                      <div className="flex items-center gap-2 text-sm font-bold text-emerald-600 bg-emerald-50 w-fit px-2.5 py-1 rounded-md">
+                        <TrendingUp className="w-4 h-4" />
+                        השפעה צפויה: <span dir="ltr">{rec.impact}</span>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-center gap-2 shrink-0 md:self-center mt-4 md:mt-0">
+                    <button className="px-4 py-2 text-sm font-bold text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-xl transition-colors">
+                      התעלם
+                    </button>
+                    <button 
+                      onClick={() => handleApply(rec.id)}
+                      className="px-4 py-2 text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl transition-colors flex items-center gap-2"
+                    >
+                      החל עכשיו
+                      {dir === 'rtl' ? <ArrowLeft className="w-4 h-4" /> : <ArrowRight className="w-4 h-4" />}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Applied History */}
+      {appliedRecs.length > 0 && (
+        <div className="pt-6">
+          <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-4">הוחלו לאחרונה</h3>
+          <div className="space-y-3">
+            {appliedRecs.map((rec) => (
+              <div key={rec.id} className="bg-gray-50 rounded-xl border border-gray-200 p-4 flex items-center justify-between opacity-75">
+                <div className="flex items-center gap-3">
+                  <CheckCircle2 className="w-5 h-5 text-emerald-500" />
+                  <div>
+                    <p className="text-sm font-bold text-gray-900 line-through decoration-gray-400">{rec.title}</p>
+                    <p className="text-xs text-gray-500">הוחל בהצלחה</p>
+                  </div>
+                </div>
+                <span className="text-xs font-bold text-gray-500 bg-gray-200 px-2 py-1 rounded" dir="ltr">
+                  {rec.impact}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
