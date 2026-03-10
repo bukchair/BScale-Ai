@@ -29,29 +29,32 @@ async function startServer() {
         formattedUrl = `https://${formattedUrl}`;
       }
       
+      const baseUrl = formattedUrl.endsWith('/') ? formattedUrl.slice(0, -1) : formattedUrl;
+      const endpointPath = endpoint || 'system_status';
+
       const tryFetch = async (targetUrl: string) => {
         const urlObj = new URL(targetUrl);
         
-        // Add WooCommerce OAuth parameters directly to the URL
-        // This is the most compatible way for many WordPress/WooCommerce setups
+        // Add auth to query params as a fallback
         urlObj.searchParams.append('consumer_key', key);
         urlObj.searchParams.append('consumer_secret', secret);
 
+        const auth = Buffer.from(`${key}:${secret}`).toString('base64');
         const headers: Record<string, string> = {
+          'Authorization': `Basic ${auth}`,
           'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-          'Accept': 'application/json'
+          'Accept': 'application/json',
+          'Referer': baseUrl + '/'
         };
 
         console.log(`Attempting WooCommerce request to: ${urlObj.origin}${urlObj.pathname}`);
         
         return await fetch(urlObj.toString(), {
           method: 'GET',
-          headers
+          headers,
+          redirect: 'follow'
         });
       };
-
-      const baseUrl = formattedUrl.endsWith('/') ? formattedUrl.slice(0, -1) : formattedUrl;
-      const endpointPath = endpoint || 'system_status';
       
       // Try 1: Standard REST API path
       let apiUrl = `${baseUrl}/wp-json/wc/v3/${endpointPath}`;
@@ -59,14 +62,14 @@ async function startServer() {
 
       // Try 2: If 405 or 404, try with index.php
       if (response.status === 405 || response.status === 404) {
-        console.log(`First attempt failed with ${response.status}, trying with index.php...`);
+        console.log(`Attempt 1 failed (${response.status}), trying with index.php...`);
         apiUrl = `${baseUrl}/index.php/wp-json/wc/v3/${endpointPath}`;
         response = await tryFetch(apiUrl);
       }
 
-      // Try 3: If still failing, try with /wc-api/v3/ (Legacy but sometimes works)
+      // Try 3: Legacy API if still failing
       if (response.status === 405 || response.status === 404) {
-        console.log(`Second attempt failed with ${response.status}, trying legacy path...`);
+        console.log(`Attempt 2 failed (${response.status}), trying legacy API path...`);
         apiUrl = `${baseUrl}/wc-api/v3/${endpointPath}`;
         response = await tryFetch(apiUrl);
       }
