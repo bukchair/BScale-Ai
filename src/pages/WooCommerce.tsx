@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { ShoppingCart, Package, DollarSign, Tag, Loader2, AlertCircle, RefreshCw, Sparkles, Image as ImageIcon, CheckCircle2, Search } from 'lucide-react';
+import { ShoppingCart, Package, DollarSign, Tag, Loader2, AlertCircle, RefreshCw, Sparkles, Image as ImageIcon, CheckCircle2, Search, Zap, Mail } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useConnections } from '../contexts/ConnectionsContext';
-import { fetchWooCommerceProducts } from '../services/woocommerceService';
+import { fetchWooCommerceProducts, updateWooCommerceProduct } from '../services/woocommerceService';
 import { optimizeProductSEO, SEOOptimizationResult } from '../services/seoService';
 import { cn } from '../lib/utils';
 import { useLanguage } from '../contexts/LanguageContext';
@@ -27,6 +27,7 @@ export function WooCommerce() {
   const [showListOnMobile, setShowListOnMobile] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
   const [isOptimizing, setIsOptimizing] = useState(false);
+  const [isUpdating, setIsUpdating] = useState(false);
   const [optimizationResult, setOptimizationResult] = useState<SEOOptimizationResult | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -67,6 +68,28 @@ export function WooCommerce() {
       setError(t('woocommerce.optimizationFailed'));
     } finally {
       setIsOptimizing(false);
+    }
+  };
+
+  const handleApprove = async () => {
+    if (!selectedProduct || !optimizationResult) return;
+    
+    setIsUpdating(true);
+    setError(null);
+    try {
+      await updateWooCommerceProduct(storeUrl || '', wooKey || 'mock', wooSecret || 'mock', selectedProduct.id, {
+        name: optimizationResult.seo_title,
+        short_description: optimizationResult.short_description,
+        description: optimizationResult.description
+      });
+      setOptimizationResult(null);
+      await fetchProducts(); // Refresh product list
+      alert(t('woocommerce.updateSuccess'));
+    } catch (err) {
+      console.error("Update failed:", err);
+      setError(t('woocommerce.updateFailed'));
+    } finally {
+      setIsUpdating(false);
     }
   };
 
@@ -290,10 +313,23 @@ export function WooCommerce() {
                         <p className="text-xs text-indigo-800 leading-relaxed whitespace-pre-wrap">{optimizationResult.description}</p>
                       </div>
 
-                      <button className="w-full bg-indigo-600 text-white py-2 rounded-xl text-xs font-bold hover:bg-indigo-700 transition-colors flex items-center justify-center gap-2">
-                        <CheckCircle2 className="w-4 h-4" />
-                        {t('woocommerce.updateInWooCommerce')}
-                      </button>
+                      <div className="flex gap-2">
+                        <button 
+                          onClick={handleApprove}
+                          disabled={isUpdating}
+                          className="flex-1 bg-emerald-600 text-white py-2 rounded-xl text-xs font-bold hover:bg-emerald-700 transition-colors flex items-center justify-center gap-2"
+                        >
+                          {isUpdating ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
+                          {t('woocommerce.updateInWooCommerce')}
+                        </button>
+                        <button 
+                          onClick={() => alert("Ad creation from product not implemented yet.")}
+                          className="flex-1 bg-indigo-600 text-white py-2 rounded-xl text-xs font-bold hover:bg-indigo-700 transition-colors flex items-center justify-center gap-2"
+                        >
+                          <Zap className="w-4 h-4" />
+                          {t('woocommerce.createAd')}
+                        </button>
+                      </div>
                     </div>
                   </motion.div>
                 )}

@@ -35,6 +35,7 @@ async function startServer() {
       
       const baseUrl = formattedUrl.endsWith('/') ? formattedUrl.slice(0, -1) : formattedUrl;
       const endpointPath = endpoint || 'system_status';
+      const method = req.body.method || 'GET';
 
       const tryFetch = async (targetUrl: string) => {
         const urlObj = new URL(targetUrl);
@@ -48,16 +49,23 @@ async function startServer() {
           'Authorization': `Basic ${auth}`,
           'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
           'Accept': 'application/json',
-          'Referer': baseUrl + '/'
+          'Referer': baseUrl + '/',
+          'Content-Type': 'application/json'
         };
 
-        console.log(`Attempting WooCommerce request to: ${urlObj.origin}${urlObj.pathname}`);
+        console.log(`Attempting WooCommerce ${method} request to: ${urlObj.origin}${urlObj.pathname}`);
         
-        return await fetch(urlObj.toString(), {
-          method: 'GET',
+        const options: RequestInit = {
+          method,
           headers,
           redirect: 'follow'
-        });
+        };
+
+        if (method === 'PUT' && req.body.data) {
+          options.body = JSON.stringify(req.body.data);
+        }
+        
+        return await fetch(urlObj.toString(), options);
       };
       
       // Try 1: Standard REST API path

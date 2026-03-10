@@ -117,3 +117,22 @@ export async function fetchWooCommerceProducts(url: string, key: string, secret:
     return mockProducts;
   }
 }
+
+export async function updateWooCommerceProduct(url: string, key: string, secret: string, productId: number, data: any) {
+  try {
+    const response = await fetch('/api/proxy/woocommerce', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url, key, secret, endpoint: `products/${productId}`, method: 'PUT', data })
+    });
+    
+    if (!response.ok) {
+      throw new Error(`WooCommerce API Error: ${response.statusText}`);
+    }
+    
+    return await response.json();
+  } catch (error) {
+    console.error("WooCommerce Update Error:", error);
+    throw error;
+  }
+}

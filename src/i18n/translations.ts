@@ -451,6 +451,9 @@ export const translations = {
       keywords: 'Keywords',
       improvedFullDescription: 'Improved Full Description',
       updateInWooCommerce: 'Update Product in WooCommerce',
+      createAd: 'Create Ad from Product',
+      updateSuccess: 'Product updated successfully!',
+      updateFailed: 'Failed to update product.',
     },
     search: {
       subtitle: 'Analyze search terms and manage negative keywords in Google Ads.',
