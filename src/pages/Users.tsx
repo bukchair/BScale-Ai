@@ -54,10 +54,12 @@ export function Users() {
     }
   };
 
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+
   const handleDeleteUser = async (userId: string) => {
-    if (!window.confirm('האם אתה בטוח שברצונך למחוק משתמש זה?')) return;
     try {
       await deleteDoc(doc(db, 'users', userId));
+      setDeleteConfirmId(null);
     } catch (error) {
       console.error("Error deleting user:", error);
     }
@@ -250,7 +252,7 @@ export function Users() {
                     <td className="px-6 py-4 text-left">
                       <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                         <button 
-                          onClick={() => handleDeleteUser(user.uid)}
+                          onClick={() => setDeleteConfirmId(user.uid)}
                           disabled={user.email === 'asher205@gmail.com'}
                           className="text-gray-400 hover:text-red-600 p-1.5 rounded-lg hover:bg-red-50 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
                         >
@@ -275,6 +277,32 @@ export function Users() {
           )}
         </div>
       </div>
+      {/* Delete Confirmation Modal */}
+      {deleteConfirmId && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl p-6 max-w-sm w-full shadow-2xl animate-in zoom-in-95 duration-200">
+            <div className="w-12 h-12 bg-red-50 rounded-full flex items-center justify-center text-red-600 mb-4">
+              <Trash2 className="w-6 h-6" />
+            </div>
+            <h3 className="text-lg font-bold text-gray-900 mb-2">מחיקת משתמש</h3>
+            <p className="text-sm text-gray-500 mb-6">האם אתה בטוח שברצונך למחוק את המשתמש? פעולה זו אינה ניתנת לביטול.</p>
+            <div className="flex gap-3">
+              <button 
+                onClick={() => setDeleteConfirmId(null)}
+                className="flex-1 px-4 py-2 border border-gray-200 rounded-xl text-sm font-bold text-gray-700 hover:bg-gray-50 transition-colors"
+              >
+                ביטול
+              </button>
+              <button 
+                onClick={() => handleDeleteUser(deleteConfirmId)}
+                className="flex-1 px-4 py-2 bg-red-600 rounded-xl text-sm font-bold text-white hover:bg-red-700 transition-colors"
+              >
+                מחק משתמש
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

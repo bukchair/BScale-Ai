@@ -27,12 +27,10 @@ export function WooCommerce() {
   const { storeUrl, wooKey, wooSecret } = wooConnection?.settings || {};
 
   const fetchProducts = async () => {
-    if (!storeUrl || !wooKey || !wooSecret) return;
-    
     setIsLoading(true);
     setError(null);
     try {
-      const data = await fetchWooCommerceProducts(storeUrl, wooKey, wooSecret);
+      const data = await fetchWooCommerceProducts(storeUrl || '', wooKey || 'mock', wooSecret || 'mock');
       setProducts(data);
     } catch (err) {
       setError('אירעה שגיאה בטעינת מוצרים מ-WooCommerce. וודא שהמפתחות וה-URL תקינים.');
@@ -43,10 +41,10 @@ export function WooCommerce() {
   };
 
   useEffect(() => {
-    if (isConnected && storeUrl && wooKey && wooSecret) {
+    if (isConnected) {
       fetchProducts();
     }
-  }, [isConnected, storeUrl, wooKey, wooSecret]);
+  }, [isConnected]);
 
   if (!isConnected) {
     return (
@@ -65,7 +63,13 @@ export function WooCommerce() {
     <div className="space-y-6 max-w-7xl mx-auto">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">ניהול מוצרים (WooCommerce)</h1>
+          <div className="flex items-center gap-2">
+            <h1 className="text-2xl font-bold text-gray-900">ניהול מוצרים (WooCommerce)</h1>
+            <span className="bg-emerald-100 text-emerald-700 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider flex items-center gap-1">
+              <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
+              פעיל
+            </span>
+          </div>
           <p className="text-sm text-gray-500 mt-1">נהל את קטלוג המוצרים שלך ובצע אופטימיזציה מבוססת AI.</p>
         </div>
         <button 
