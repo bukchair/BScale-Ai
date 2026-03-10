@@ -24,31 +24,47 @@ async function startServer() {
     }
 
     try {
-      const baseUrl = url.endsWith('/') ? url.slice(0, -1) : url;
-      const apiUrl = `${baseUrl}/wp-json/wc/v3/${endpoint || 'system_status'}`;
-      const auth = Buffer.from(`${key}:${secret}`).toString('base64');
+      let formattedUrl = url;
+      if (!url.startsWith('http://') && !url.startsWith('https://')) {
+        formattedUrl = `https://${url}`;
+      }
+      const baseUrl = formattedUrl.endsWith('/') ? formattedUrl.slice(0, -1) : formattedUrl;
+      const endpointPath = endpoint || 'system_status';
+      
+      // Use query parameters for better compatibility with different server configurations
+      const apiUrl = new URL(`${baseUrl}/wp-json/wc/v3/${endpointPath}`);
+      apiUrl.searchParams.append('consumer_key', key);
+      apiUrl.searchParams.append('consumer_secret', secret);
 
-      console.log(`Proxying request to: ${apiUrl}`);
+      console.log(`Proxying request to: ${apiUrl.toString().replace(secret, '****')}`);
 
-      const response = await fetch(apiUrl, {
+      const response = await fetch(apiUrl.toString(), {
         headers: {
-          'Authorization': `Basic ${auth}`,
           'Content-Type': 'application/json',
-          'User-Agent': 'BScale-AI-Proxy/1.0'
+          'User-Agent': 'BScale-AI-Proxy/1.0',
+          'Accept': 'application/json'
         }
       });
 
+      console.log(`WooCommerce response status: ${response.status}`);
       const contentType = response.headers.get('content-type');
-      let data;
+      const text = await response.text();
       
-      if (contentType && contentType.includes('application/json')) {
-        data = await response.json();
+      let data;
+      if (text) {
+        try {
+          data = JSON.parse(text);
+        } catch (e) {
+          console.warn("Failed to parse WooCommerce response as JSON:", text.substring(0, 200));
+          return res.status(response.status || 500).json({ 
+            message: `The server returned a non-JSON response (${response.status}).`,
+            debug: text.substring(0, 100)
+          });
+        }
       } else {
-        const text = await response.text();
-        console.warn("Received non-JSON response from WooCommerce:", text.substring(0, 200));
-        return res.status(response.status).json({ 
-          message: `The server returned a non-JSON response (${response.status}). This often happens if the URL is incorrect or a security plugin is blocking the request.`,
-          debug: text.substring(0, 100)
+        console.warn("Received empty response from WooCommerce");
+        return res.status(response.status || 500).json({ 
+          message: `The server returned an empty response (${response.status}).`
         });
       }
       

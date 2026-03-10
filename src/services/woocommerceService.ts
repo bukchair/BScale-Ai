@@ -10,7 +10,18 @@ export async function verifyWooCommerceConnection(url: string, key: string, secr
       body: JSON.stringify({ url, key, secret, endpoint: 'system_status' })
     });
 
-    const data = await response.json();
+    let data;
+    const text = await response.text();
+    
+    if (text) {
+      try {
+        data = JSON.parse(text);
+      } catch (e) {
+        throw new Error(`Failed to parse server response: ${text.substring(0, 100)}`);
+      }
+    } else {
+      throw new Error(`Empty response from server (Status: ${response.status})`);
+    }
     
     if (!response.ok) {
       throw new Error(data.message || `WooCommerce API Error: ${response.statusText}`);
@@ -80,7 +91,20 @@ export async function fetchWooCommerceProducts(url: string, key: string, secret:
       body: JSON.stringify({ url, key, secret, endpoint: 'products' })
     });
     
-    const data = await response.json();
+    let data;
+    const text = await response.text();
+
+    if (text) {
+      try {
+        data = JSON.parse(text);
+      } catch (e) {
+        console.warn("Failed to parse products response, falling back to mock data");
+        return mockProducts;
+      }
+    } else {
+      console.warn("Empty products response, falling back to mock data");
+      return mockProducts;
+    }
 
     if (!response.ok) {
       console.warn(`WooCommerce API Error: ${response.statusText}. Falling back to mock data.`);
