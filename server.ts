@@ -29,24 +29,20 @@ async function startServer() {
         formattedUrl = `https://${formattedUrl}`;
       }
       
-      const tryFetch = async (targetUrl: string, useHeaders: boolean, useQueryParams: boolean) => {
+      const tryFetch = async (targetUrl: string) => {
         const urlObj = new URL(targetUrl);
+        
+        // Add WooCommerce OAuth parameters directly to the URL
+        // This is the most compatible way for many WordPress/WooCommerce setups
+        urlObj.searchParams.append('consumer_key', key);
+        urlObj.searchParams.append('consumer_secret', secret);
+
         const headers: Record<string, string> = {
           'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
           'Accept': 'application/json'
         };
 
-        if (useHeaders) {
-          const auth = Buffer.from(`${key}:${secret}`).toString('base64');
-          headers['Authorization'] = `Basic ${auth}`;
-        }
-
-        if (useQueryParams) {
-          urlObj.searchParams.append('consumer_key', key);
-          urlObj.searchParams.append('consumer_secret', secret);
-        }
-
-        console.log(`Attempting WooCommerce request to: ${urlObj.origin}${urlObj.pathname} (Headers: ${useHeaders}, Params: ${useQueryParams})`);
+        console.log(`Attempting WooCommerce request to: ${urlObj.origin}${urlObj.pathname}`);
         
         return await fetch(urlObj.toString(), {
           method: 'GET',
@@ -59,21 +55,20 @@ async function startServer() {
       
       // Try 1: Standard REST API path
       let apiUrl = `${baseUrl}/wp-json/wc/v3/${endpointPath}`;
-      let response = await tryFetch(apiUrl, true, true); // Try both for maximum compatibility
+      let response = await tryFetch(apiUrl);
 
-      // Try 2: If 405 or 404, try with index.php (common in some WP setups)
+      // Try 2: If 405 or 404, try with index.php
       if (response.status === 405 || response.status === 404) {
         console.log(`First attempt failed with ${response.status}, trying with index.php...`);
         apiUrl = `${baseUrl}/index.php/wp-json/wc/v3/${endpointPath}`;
-        response = await tryFetch(apiUrl, true, true);
+        response = await tryFetch(apiUrl);
       }
 
-      // Try 3: If still failing and doesn't have www, try adding it (or vice versa)
-      if ((response.status === 405 || response.status === 404) && !baseUrl.includes('://www.')) {
-        const wwwBaseUrl = baseUrl.replace('://', '://www.');
-        console.log(`Attempting with www: ${wwwBaseUrl}`);
-        apiUrl = `${wwwBaseUrl}/wp-json/wc/v3/${endpointPath}`;
-        response = await tryFetch(apiUrl, true, true);
+      // Try 3: If still failing, try with /wc-api/v3/ (Legacy but sometimes works)
+      if (response.status === 405 || response.status === 404) {
+        console.log(`Second attempt failed with ${response.status}, trying legacy path...`);
+        apiUrl = `${baseUrl}/wc-api/v3/${endpointPath}`;
+        response = await tryFetch(apiUrl);
       }
 
       console.log(`Final WooCommerce response status: ${response.status}`);

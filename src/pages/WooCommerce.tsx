@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { ShoppingCart, Package, DollarSign, Tag, Loader2, AlertCircle, RefreshCw, Sparkles } from 'lucide-react';
+import { ShoppingCart, Package, DollarSign, Tag, Loader2, AlertCircle, RefreshCw, Sparkles, Image as ImageIcon, CheckCircle2 } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
 import { useConnections } from '../contexts/ConnectionsContext';
 import { fetchWooCommerceProducts } from '../services/woocommerceService';
+import { optimizeProductSEO, SEOOptimizationResult } from '../services/seoService';
 import { cn } from '../lib/utils';
 import { useLanguage } from '../contexts/LanguageContext';
 
@@ -14,6 +16,7 @@ interface Product {
   description: string;
   price: string;
   categories: { name: string }[];
+  images: { src: string; alt: string }[];
 }
 
 export function WooCommerce() {
@@ -22,6 +25,8 @@ export function WooCommerce() {
   const [products, setProducts] = useState<Product[]>([]);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [isOptimizing, setIsOptimizing] = useState(false);
+  const [optimizationResult, setOptimizationResult] = useState<SEOOptimizationResult | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const wooConnection = connections.find(c => c.id === 'woocommerce');
@@ -42,11 +47,37 @@ export function WooCommerce() {
     }
   };
 
+  const handleOptimize = async () => {
+    if (!selectedProduct) return;
+    
+    setIsOptimizing(true);
+    setError(null);
+    try {
+      const result = await optimizeProductSEO({
+        name: selectedProduct.name,
+        short_description: selectedProduct.short_description,
+        description: selectedProduct.description,
+        sku: selectedProduct.sku,
+        categories: selectedProduct.categories
+      });
+      setOptimizationResult(result);
+    } catch (err) {
+      console.error("Optimization failed:", err);
+      setError("נכשל ביצוע אופטימיזציית AI. אנא נסה שוב מאוחר יותר.");
+    } finally {
+      setIsOptimizing(false);
+    }
+  };
+
   useEffect(() => {
     if (isConnected) {
       fetchProducts();
     }
   }, [isConnected]);
+
+  useEffect(() => {
+    setOptimizationResult(null);
+  }, [selectedProduct]);
 
   if (!isConnected) {
     return (
@@ -96,7 +127,7 @@ export function WooCommerce() {
           <div className="px-4 py-4 border-b border-gray-100 bg-gray-50/50">
             <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wider">{t('woocommerce.productList')} ({products.length})</h3>
           </div>
-          <ul className="divide-y divide-gray-100 h-[600px] overflow-y-auto">
+          <ul className="divide-y divide-gray-100 h-[700px] overflow-y-auto">
             {isLoading && products.length === 0 ? (
               <li className="p-12 text-center text-gray-400">
                 <Loader2 className="w-8 h-8 animate-spin mx-auto mb-2" />
@@ -109,23 +140,34 @@ export function WooCommerce() {
                 <li 
                   key={product.id} 
                   className={cn(
-                    "px-4 py-4 hover:bg-indigo-50/30 cursor-pointer transition-all border-r-4 border-transparent",
+                    "px-4 py-4 hover:bg-indigo-50/30 cursor-pointer transition-all border-r-4 border-transparent flex gap-3",
                     selectedProduct?.id === product.id ? 'bg-indigo-50/50 border-indigo-500' : ''
                   )}
                   onClick={() => setSelectedProduct(product)}
                 >
-                  <div className="flex justify-between items-start mb-1">
-                    <p className="text-sm font-bold text-gray-900 truncate flex-1">{product.name}</p>
-                    <p className="text-sm font-black text-indigo-600 mr-2">₪{product.price}</p>
+                  <div className="w-12 h-12 bg-gray-100 rounded-lg overflow-hidden shrink-0 border border-gray-200">
+                    {product.images?.[0] ? (
+                      <img src={product.images[0].src} alt={product.images[0].alt} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center text-gray-400">
+                        <ImageIcon className="w-5 h-5" />
+                      </div>
+                    )}
                   </div>
-                  <div className="flex justify-between items-center">
-                    <p className="text-[10px] font-mono text-gray-400">{t('woocommerce.sku')}: {product.sku || '---'}</p>
-                    <span className={cn(
-                      "text-[9px] font-bold px-2 py-0.5 rounded-full uppercase tracking-tighter",
-                      (product.stock_quantity || 0) > 0 ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'
-                    )}>
-                      {(product.stock_quantity || 0) > 0 ? `${t('woocommerce.inStock')} (${product.stock_quantity})` : t('woocommerce.outOfStock')}
-                    </span>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex justify-between items-start mb-1">
+                      <p className="text-sm font-bold text-gray-900 truncate flex-1">{product.name}</p>
+                      <p className="text-sm font-black text-indigo-600 mr-2 shrink-0">₪{product.price}</p>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <p className="text-[10px] font-mono text-gray-400">{t('woocommerce.sku')}: {product.sku || '---'}</p>
+                      <span className={cn(
+                        "text-[9px] font-bold px-2 py-0.5 rounded-full uppercase tracking-tighter",
+                        (product.stock_quantity || 0) > 0 ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'
+                      )}>
+                        {(product.stock_quantity || 0) > 0 ? `${t('woocommerce.inStock')} (${product.stock_quantity})` : t('woocommerce.outOfStock')}
+                      </span>
+                    </div>
                   </div>
                 </li>
               ))
@@ -133,7 +175,7 @@ export function WooCommerce() {
           </ul>
         </div>
 
-        <div className="lg:col-span-2 bg-white shadow-sm rounded-2xl border border-gray-200 overflow-hidden flex flex-col min-h-[600px]">
+        <div className="lg:col-span-2 bg-white shadow-sm rounded-2xl border border-gray-200 overflow-hidden flex flex-col min-h-[700px]">
           {selectedProduct ? (
             <>
               <div className="px-6 py-5 border-b border-gray-100 flex justify-between items-center bg-gray-50/30">
@@ -141,28 +183,91 @@ export function WooCommerce() {
                   <Package className="w-5 h-5 text-indigo-500" />
                   {selectedProduct.name}
                 </h3>
-                <button className="bg-indigo-600 text-white px-4 py-1.5 rounded-lg text-xs font-bold hover:bg-indigo-700 transition-colors flex items-center gap-2 shadow-sm">
-                  <Sparkles className="w-3.5 h-3.5" />
+                <button 
+                  onClick={handleOptimize}
+                  disabled={isOptimizing}
+                  className="bg-indigo-600 text-white px-4 py-1.5 rounded-lg text-xs font-bold hover:bg-indigo-700 transition-colors flex items-center gap-2 shadow-sm disabled:opacity-50"
+                >
+                  {isOptimizing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
                   {t('woocommerce.aiOptimization')}
                 </button>
               </div>
               <div className="p-6 space-y-6 flex-1 overflow-y-auto">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div className="bg-gray-50 dark:bg-white/5 p-4 rounded-xl border border-gray-100 dark:border-white/5">
-                    <div className="flex items-center gap-2 text-gray-500 mb-1">
-                      <DollarSign className="w-4 h-4" />
-                      <span className="text-xs font-bold uppercase tracking-wider">{t('woocommerce.price')}</span>
-                    </div>
-                    <p className="text-2xl font-black text-gray-900">₪{selectedProduct.price}</p>
+                <div className="flex gap-6">
+                  <div className="w-32 h-32 bg-gray-100 rounded-2xl overflow-hidden border border-gray-200 shrink-0">
+                    {selectedProduct.images?.[0] ? (
+                      <img src={selectedProduct.images[0].src} alt={selectedProduct.images[0].alt} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center text-gray-400">
+                        <ImageIcon className="w-8 h-8" />
+                      </div>
+                    )}
                   </div>
-                  <div className="bg-gray-50 dark:bg-white/5 p-4 rounded-xl border border-gray-100 dark:border-white/5">
-                    <div className="flex items-center gap-2 text-gray-500 mb-1">
-                      <Tag className="w-4 h-4" />
-                      <span className="text-xs font-bold uppercase tracking-wider">{t('woocommerce.category')}</span>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 flex-1">
+                    <div className="bg-gray-50 p-4 rounded-xl border border-gray-100">
+                      <div className="flex items-center gap-2 text-gray-500 mb-1">
+                        <DollarSign className="w-4 h-4" />
+                        <span className="text-xs font-bold uppercase tracking-wider">{t('woocommerce.price')}</span>
+                      </div>
+                      <p className="text-2xl font-black text-gray-900">₪{selectedProduct.price}</p>
                     </div>
-                    <p className="text-lg font-bold text-gray-900">{selectedProduct.categories?.[0]?.name || 'כללי'}</p>
+                    <div className="bg-gray-50 p-4 rounded-xl border border-gray-100">
+                      <div className="flex items-center gap-2 text-gray-500 mb-1">
+                        <Tag className="w-4 h-4" />
+                        <span className="text-xs font-bold uppercase tracking-wider">{t('woocommerce.category')}</span>
+                      </div>
+                      <p className="text-lg font-bold text-gray-900">{selectedProduct.categories?.[0]?.name || 'כללי'}</p>
+                    </div>
                   </div>
                 </div>
+
+                {optimizationResult && (
+                  <motion.div 
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="bg-indigo-50 border border-indigo-100 rounded-2xl p-6 space-y-4"
+                  >
+                    <div className="flex items-center justify-between">
+                      <h4 className="text-indigo-900 font-bold flex items-center gap-2">
+                        <Sparkles className="w-5 h-5" />
+                        שיפורי AI ו-SEO מוצעים
+                      </h4>
+                      <span className="text-[10px] bg-indigo-200 text-indigo-700 px-2 py-0.5 rounded-full font-bold uppercase">חדש</span>
+                    </div>
+                    
+                    <div className="space-y-4">
+                      <div>
+                        <label className="block text-[10px] font-bold text-indigo-400 uppercase tracking-widest mb-1">כותרת SEO מוצעת</label>
+                        <p className="text-sm font-bold text-indigo-900">{optimizationResult.seo_title}</p>
+                      </div>
+                      
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-[10px] font-bold text-indigo-400 uppercase tracking-widest mb-1">תיאור קצר משופר</label>
+                          <p className="text-xs text-indigo-800 leading-relaxed">{optimizationResult.short_description}</p>
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-bold text-indigo-400 uppercase tracking-widest mb-1">מילות מפתח</label>
+                          <div className="flex flex-wrap gap-1 mt-1">
+                            {optimizationResult.seo_keywords.map((kw, i) => (
+                              <span key={i} className="bg-white/50 text-indigo-600 px-2 py-0.5 rounded text-[10px] font-medium border border-indigo-100">{kw}</span>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block text-[10px] font-bold text-indigo-400 uppercase tracking-widest mb-1">תיאור מלא משופר</label>
+                        <p className="text-xs text-indigo-800 leading-relaxed whitespace-pre-wrap">{optimizationResult.description}</p>
+                      </div>
+
+                      <button className="w-full bg-indigo-600 text-white py-2 rounded-xl text-xs font-bold hover:bg-indigo-700 transition-colors flex items-center justify-center gap-2">
+                        <CheckCircle2 className="w-4 h-4" />
+                        עדכן מוצר ב-WooCommerce
+                      </button>
+                    </div>
+                  </motion.div>
+                )}
 
                 <div>
                   <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">{t('woocommerce.shortDescription')}</label>
