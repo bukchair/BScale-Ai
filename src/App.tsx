@@ -24,7 +24,6 @@ import { WooCommerce } from './pages/WooCommerce';
 import { useLanguage } from './contexts/LanguageContext';
 
 export default function App() {
-  console.log('App component is rendering');
   const { dir } = useLanguage();
   const [view, setView] = useState<'landing' | 'auth' | 'app'>('landing');
   const [activeTab, setActiveTab] = useState('dashboard');
