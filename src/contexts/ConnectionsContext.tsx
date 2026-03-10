@@ -2,6 +2,8 @@ import React, { createContext, useContext, useState, useEffect, ReactNode } from
 import { doc, onSnapshot, setDoc, updateDoc } from 'firebase/firestore';
 import { auth, db } from '../lib/firebase';
 import { verifyWooCommerceConnection } from '../services/woocommerceService';
+import { fetchMetaAdAccounts } from '../services/metaService';
+import { fetchGoogleAdAccounts } from '../services/googleService';
 
 export type ConnectionStatus = 'connected' | 'disconnected' | 'error' | 'connecting';
 
@@ -248,6 +250,26 @@ export function ConnectionsProvider({ children }: { children: ReactNode }) {
           success: false, 
           message: `נכשל אימות החיבור ל-WooCommerce: ${err instanceof Error ? err.message : 'שגיאה לא ידועה'}` 
         };
+      }
+    }
+
+    // Special logic for Meta real verification
+    if (id === 'meta' && connection.settings?.metaToken) {
+      try {
+        await fetchMetaAdAccounts(connection.settings.metaToken);
+        return { success: true, message: 'החיבור ל-Meta אומת בהצלחה.' };
+      } catch (err) {
+        return { success: false, message: 'נכשל אימות החיבור ל-Meta.' };
+      }
+    }
+
+    // Special logic for Google real verification
+    if (id === 'google' && connection.settings?.googleAccessToken) {
+      try {
+        await fetchGoogleAdAccounts(connection.settings.googleAccessToken);
+        return { success: true, message: 'החיבור ל-Google אומת בהצלחה.' };
+      } catch (err) {
+        return { success: false, message: 'נכשל אימות החיבור ל-Google.' };
       }
     }
 

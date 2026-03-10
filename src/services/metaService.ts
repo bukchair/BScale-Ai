@@ -1,3 +1,15 @@
+export async function fetchMetaAdAccounts(accessToken: string) {
+  const response = await fetch(`https://graph.facebook.com/v19.0/me/adaccounts?access_token=${accessToken}`);
+  
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.message || 'Failed to fetch Meta ad accounts');
+  }
+  
+  const data = await response.json();
+  return data.data;
+}
+
 export async function fetchMetaCampaigns(accessToken: string, adAccountId: string) {
   const response = await fetch(`/api/meta/campaigns?ad_account_id=${adAccountId}`, {
     headers: {

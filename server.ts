@@ -49,9 +49,12 @@ async function startServer() {
           'Authorization': `Basic ${auth}`,
           'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
           'Accept': 'application/json',
-          'Referer': baseUrl + '/',
-          'Content-Type': 'application/json'
+          'Referer': baseUrl + '/'
         };
+
+        if (method === 'PUT' || method === 'POST') {
+          headers['Content-Type'] = 'application/json';
+        }
 
         console.log(`Attempting WooCommerce ${method} request to: ${urlObj.origin}${urlObj.pathname}`);
         
@@ -61,7 +64,7 @@ async function startServer() {
           redirect: 'follow'
         };
 
-        if (method === 'PUT' && req.body.data) {
+        if ((method === 'PUT' || method === 'POST') && req.body.data) {
           options.body = JSON.stringify(req.body.data);
         }
         
