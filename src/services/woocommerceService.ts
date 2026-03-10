@@ -3,23 +3,24 @@ export async function verifyWooCommerceConnection(url: string, key: string, secr
     throw new Error('Missing or invalid credentials');
   }
 
-  const baseUrl = url.endsWith('/') ? url.slice(0, -1) : url;
-  const apiUrl = `${baseUrl}/wp-json/wc/v3/system_status`; // Lighter request for verification
-  
-  const auth = btoa(`${key}:${secret}`);
-  
-  const response = await fetch(apiUrl, {
-    headers: {
-      'Authorization': `Basic ${auth}`
+  try {
+    const response = await fetch('/api/proxy/woocommerce', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url, key, secret, endpoint: 'system_status' })
+    });
+
+    const data = await response.json();
+    
+    if (!response.ok) {
+      throw new Error(data.message || `WooCommerce API Error: ${response.statusText}`);
     }
-  });
-  
-  if (!response.ok) {
-    const errorData = await response.json().catch(() => ({}));
-    throw new Error(errorData.message || `WooCommerce API Error: ${response.statusText}`);
+    
+    return true;
+  } catch (error) {
+    console.error("WooCommerce Verification Error:", error);
+    throw error;
   }
-  
-  return true;
 }
 
 export async function fetchWooCommerceProducts(url: string, key: string, secret: string) {
@@ -72,24 +73,21 @@ export async function fetchWooCommerceProducts(url: string, key: string, secret:
     return mockProducts;
   }
   
-  const baseUrl = url.endsWith('/') ? url.slice(0, -1) : url;
-  const apiUrl = `${baseUrl}/wp-json/wc/v3/products`;
-  
-  const auth = btoa(`${key}:${secret}`);
-  
   try {
-    const response = await fetch(apiUrl, {
-      headers: {
-        'Authorization': `Basic ${auth}`
-      }
+    const response = await fetch('/api/proxy/woocommerce', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url, key, secret, endpoint: 'products' })
     });
     
+    const data = await response.json();
+
     if (!response.ok) {
       console.warn(`WooCommerce API Error: ${response.statusText}. Falling back to mock data.`);
       return mockProducts;
     }
     
-    return await response.json();
+    return data;
   } catch (error) {
     console.error("WooCommerce Fetch Error, falling back to mock data:", error);
     return mockProducts;

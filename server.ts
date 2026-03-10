@@ -15,6 +15,39 @@ async function startServer() {
     res.json({ status: "ok" });
   });
 
+  // WooCommerce Proxy Endpoint
+  app.post("/api/proxy/woocommerce", express.json(), async (req, res) => {
+    const { url, key, secret, endpoint } = req.body;
+
+    if (!url || !key || !secret) {
+      return res.status(400).json({ message: "Missing credentials" });
+    }
+
+    try {
+      const baseUrl = url.endsWith('/') ? url.slice(0, -1) : url;
+      const apiUrl = `${baseUrl}/wp-json/wc/v3/${endpoint || 'system_status'}`;
+      const auth = Buffer.from(`${key}:${secret}`).toString('base64');
+
+      const response = await fetch(apiUrl, {
+        headers: {
+          'Authorization': `Basic ${auth}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      const data = await response.json();
+      
+      if (!response.ok) {
+        return res.status(response.status).json(data);
+      }
+
+      res.json(data);
+    } catch (error) {
+      console.error("Proxy Error:", error);
+      res.status(500).json({ message: "Failed to connect to WooCommerce store. Please check the URL and ensure it's accessible." });
+    }
+  });
+
   // Vite middleware for development
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
