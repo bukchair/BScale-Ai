@@ -24,30 +24,59 @@ async function startServer() {
     }
 
     try {
-      let formattedUrl = url;
-      if (!url.startsWith('http://') && !url.startsWith('https://')) {
-        formattedUrl = `https://${url}`;
+      let formattedUrl = url.trim();
+      if (!formattedUrl.startsWith('http://') && !formattedUrl.startsWith('https://')) {
+        formattedUrl = `https://${formattedUrl}`;
       }
+      
+      const tryFetch = async (targetUrl: string, useHeaders: boolean, useQueryParams: boolean) => {
+        const urlObj = new URL(targetUrl);
+        const headers: Record<string, string> = {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+          'Accept': 'application/json'
+        };
+
+        if (useHeaders) {
+          const auth = Buffer.from(`${key}:${secret}`).toString('base64');
+          headers['Authorization'] = `Basic ${auth}`;
+        }
+
+        if (useQueryParams) {
+          urlObj.searchParams.append('consumer_key', key);
+          urlObj.searchParams.append('consumer_secret', secret);
+        }
+
+        console.log(`Attempting WooCommerce request to: ${urlObj.origin}${urlObj.pathname} (Headers: ${useHeaders}, Params: ${useQueryParams})`);
+        
+        return await fetch(urlObj.toString(), {
+          method: 'GET',
+          headers
+        });
+      };
+
       const baseUrl = formattedUrl.endsWith('/') ? formattedUrl.slice(0, -1) : formattedUrl;
       const endpointPath = endpoint || 'system_status';
       
-      // Use query parameters for better compatibility with different server configurations
-      const apiUrl = new URL(`${baseUrl}/wp-json/wc/v3/${endpointPath}`);
-      apiUrl.searchParams.append('consumer_key', key);
-      apiUrl.searchParams.append('consumer_secret', secret);
+      // Try 1: Standard REST API path
+      let apiUrl = `${baseUrl}/wp-json/wc/v3/${endpointPath}`;
+      let response = await tryFetch(apiUrl, true, true); // Try both for maximum compatibility
 
-      console.log(`Proxying request to: ${apiUrl.toString().replace(secret, '****')}`);
+      // Try 2: If 405 or 404, try with index.php (common in some WP setups)
+      if (response.status === 405 || response.status === 404) {
+        console.log(`First attempt failed with ${response.status}, trying with index.php...`);
+        apiUrl = `${baseUrl}/index.php/wp-json/wc/v3/${endpointPath}`;
+        response = await tryFetch(apiUrl, true, true);
+      }
 
-      const response = await fetch(apiUrl.toString(), {
-        headers: {
-          'Content-Type': 'application/json',
-          'User-Agent': 'BScale-AI-Proxy/1.0',
-          'Accept': 'application/json'
-        }
-      });
+      // Try 3: If still failing and doesn't have www, try adding it (or vice versa)
+      if ((response.status === 405 || response.status === 404) && !baseUrl.includes('://www.')) {
+        const wwwBaseUrl = baseUrl.replace('://', '://www.');
+        console.log(`Attempting with www: ${wwwBaseUrl}`);
+        apiUrl = `${wwwBaseUrl}/wp-json/wc/v3/${endpointPath}`;
+        response = await tryFetch(apiUrl, true, true);
+      }
 
-      console.log(`WooCommerce response status: ${response.status}`);
-      const contentType = response.headers.get('content-type');
+      console.log(`Final WooCommerce response status: ${response.status}`);
       const text = await response.text();
       
       let data;
