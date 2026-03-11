@@ -268,8 +268,25 @@ export function ConnectionsProvider({ children }: { children: ReactNode }) {
       let accessToken = connection.settings?.googleAccessToken || '';
       const refreshToken = connection.settings?.googleRefreshToken;
       const expiry = Number(connection.settings?.googleExpiry || 0);
+      const hasManualGoogleSettings = Boolean(
+        connection.settings?.googleAdsId ||
+        connection.settings?.ga4PropertyId ||
+        connection.settings?.ga4Id ||
+        connection.settings?.gscSiteUrl
+      );
 
       if (!accessToken && !refreshToken) {
+        if (hasManualGoogleSettings) {
+          const updatedConnections = connections.map(c =>
+            c.id === 'google' ? { ...c, status: 'connected' as ConnectionStatus, score: 85 } : c
+          );
+          setConnections(updatedConnections);
+          await persistConnections(updatedConnections);
+          return {
+            success: true,
+            message: 'החיבור נשמר במצב ידני. לנתונים חיים מומלץ לבצע Reconnect ל-Google.'
+          };
+        }
         return { success: false, message: 'חסר Google access token. יש לבצע חיבור מחדש ל-Google.' };
       }
 
@@ -339,9 +356,32 @@ export function ConnectionsProvider({ children }: { children: ReactNode }) {
             return { success: true, message: 'החיבור ל-Google אומת בהצלחה לאחר רענון טוקן.' };
           }
         } catch (refreshErr) {
+          if (hasManualGoogleSettings) {
+            const updatedConnections = connections.map(c =>
+              c.id === 'google' ? { ...c, status: 'connected' as ConnectionStatus, score: 85 } : c
+            );
+            setConnections(updatedConnections);
+            await persistConnections(updatedConnections);
+            return {
+              success: true,
+              message: 'החיבור נשמר במצב ידני. אימות OAuth נכשל, אך ההגדרות נשמרו.'
+            };
+          }
           return {
             success: false,
             message: `נכשל אימות החיבור ל-Google: ${refreshErr instanceof Error ? refreshErr.message : 'שגיאה לא ידועה'}`,
+          };
+        }
+
+        if (hasManualGoogleSettings) {
+          const updatedConnections = connections.map(c =>
+            c.id === 'google' ? { ...c, status: 'connected' as ConnectionStatus, score: 85 } : c
+          );
+          setConnections(updatedConnections);
+          await persistConnections(updatedConnections);
+          return {
+            success: true,
+            message: 'החיבור נשמר במצב ידני. אימות OAuth נכשל, אך ניתן להמשיך בהגדרות החיבור.'
           };
         }
 

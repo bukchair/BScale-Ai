@@ -37,6 +37,17 @@ export function Integrations() {
 
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
 
+  const withFallback = (key: string, fallback: string) => {
+    const translated = t(key);
+    return translated === key ? fallback : translated;
+  };
+
+  const getConnectionDisplayName = (connection?: Connection) => {
+    if (!connection) return 'Integration';
+    const translated = t(connection.name);
+    return translated === connection.name ? connection.id : translated;
+  };
+
   const handleTikTokConnect = async () => {
     try {
       const response = await fetch(`/api/auth/tiktok/url`);
@@ -219,10 +230,10 @@ export function Integrations() {
       // Show a more realistic verification process
       await updateConnectionSettings(id, settingsToSave);
       setExpandedId(null);
-      setSuccess(t('integrations.success', { name: t(connections.find(c => c.id === id)?.name || '') }));
+      setSuccess(t('integrations.success', { name: getConnectionDisplayName(connections.find(c => c.id === id)) }));
       setTimeout(() => setSuccess(null), 5000);
     } catch (err) {
-      setError({ id, message: t('integrations.error', { name: t(connections.find(c => c.id === id)?.name || '') }) });
+      setError({ id, message: t('integrations.error', { name: getConnectionDisplayName(connections.find(c => c.id === id)) }) });
     }
   };
 
@@ -728,7 +739,7 @@ export function Integrations() {
                 <Icon className="w-4 h-4" />
               </div>
               <div className="min-w-0">
-                <h3 className="text-[13px] font-bold text-gray-900 truncate tracking-tight">{t(integration.name)}</h3>
+                <h3 className="text-[13px] font-bold text-gray-900 truncate tracking-tight">{getConnectionDisplayName(integration)}</h3>
                 <div className="flex items-center gap-1.5">
                   {isConnected ? (
                     <span className="flex items-center text-[9px] font-bold text-emerald-600 uppercase tracking-tighter">
@@ -864,7 +875,11 @@ export function Integrations() {
           <div className="flex items-center">
             <AlertCircle className={cn("h-5 w-5 text-red-500", dir === 'rtl' ? "ml-3" : "mr-3")} />
             <div>
-              <h3 className="text-sm font-bold text-red-800">{t('integrations.error', { name: t(connections.find(i => i.id === error.id)?.name || '') })}</h3>
+              <h3 className="text-sm font-bold text-red-800">
+                {t('integrations.error', {
+                  name: getConnectionDisplayName(connections.find(i => i.id === error.id))
+                })}
+              </h3>
               <p className="text-sm text-red-700 mt-1">{error.message}</p>
             </div>
           </div>
@@ -879,7 +894,7 @@ export function Integrations() {
           <section>
             <div className="flex items-center gap-2 mb-3">
               <div className="w-1 h-4 bg-indigo-600 rounded-full" />
-              <h2 className="text-sm font-black text-gray-900 uppercase tracking-wider">{t('integrations.aiEngine')}</h2>
+              <h2 className="text-sm font-black text-gray-900 uppercase tracking-wider">{withFallback('integrations.aiEngine', 'AI Engine')}</h2>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-3">
               {aiConnections.map(renderConnectionCard)}
@@ -891,7 +906,7 @@ export function Integrations() {
           <section>
             <div className="flex items-center gap-2 mb-3">
               <div className="w-1 h-4 bg-indigo-600 rounded-full" />
-              <h2 className="text-sm font-black text-gray-900 uppercase tracking-wider">{t('integrations.googleWorkspace')}</h2>
+              <h2 className="text-sm font-black text-gray-900 uppercase tracking-wider">{withFallback('integrations.googleWorkspace', 'Google Workspace')}</h2>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-3">
               {googleConnections.map(renderConnectionCard)}
@@ -903,7 +918,7 @@ export function Integrations() {
           <section>
             <div className="flex items-center gap-2 mb-3">
               <div className="w-1 h-4 bg-indigo-600 rounded-full" />
-              <h2 className="text-sm font-black text-gray-900 uppercase tracking-wider">{t('integrations.socialMedia')}</h2>
+              <h2 className="text-sm font-black text-gray-900 uppercase tracking-wider">{withFallback('integrations.socialMedia', 'Social Media')}</h2>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-3">
               {socialConnections.map(renderConnectionCard)}
@@ -915,7 +930,7 @@ export function Integrations() {
           <section>
             <div className="flex items-center gap-2 mb-3">
               <div className="w-1 h-4 bg-indigo-600 rounded-full" />
-              <h2 className="text-sm font-black text-gray-900 uppercase tracking-wider">{t('integrations.ecommerce')}</h2>
+              <h2 className="text-sm font-black text-gray-900 uppercase tracking-wider">{withFallback('integrations.ecommerce', 'E-commerce')}</h2>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-3">
               {ecommerceConnections.map(renderConnectionCard)}
