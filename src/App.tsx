@@ -25,19 +25,63 @@ import { useLanguage } from './contexts/LanguageContext';
 import { auth, onAuthStateChanged, syncUserProfile } from './lib/firebase';
 import { AppNavigationProvider } from './contexts/AppNavigationContext';
 
+const TAB_IDS = [
+  'dashboard',
+  'profitability',
+  'budget',
+  'ai-recommendations',
+  'search-analysis',
+  'seo',
+  'products',
+  'audiences',
+  'creative-lab',
+  'approvals-automations',
+  'connections',
+  'users',
+  'settings',
+] as const;
+
+const TAB_SET = new Set<string>(TAB_IDS);
+
 export default function App() {
   const { dir } = useLanguage();
   const [view, setView] = useState<'landing' | 'auth' | 'app'>('landing');
-  const [activeTab, setActiveTab] = useState('dashboard');
+  const getTabFromUrl = () => {
+    if (typeof window === 'undefined') return 'dashboard';
+    const tabFromUrl = new URLSearchParams(window.location.search).get('tab');
+    return tabFromUrl && TAB_SET.has(tabFromUrl) ? tabFromUrl : 'dashboard';
+  };
+
+  const updateUrlWithTab = (tab: string, replace = false) => {
+    if (typeof window === 'undefined') return;
+    const url = new URL(window.location.href);
+    url.searchParams.set('tab', tab);
+    const nextUrl = `${url.pathname}?${url.searchParams.toString()}${url.hash}`;
+    if (replace) {
+      window.history.replaceState({}, '', nextUrl);
+    } else {
+      window.history.pushState({}, '', nextUrl);
+    }
+  };
+
+  const [activeTab, setActiveTab] = useState(getTabFromUrl());
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [userProfile, setUserProfile] = useState<any>(null);
+
+  const navigateToTab = (tab: string, replace = false) => {
+    const normalizedTab = TAB_SET.has(tab) ? tab : 'dashboard';
+    setActiveTab(normalizedTab);
+    setIsSidebarOpen(false);
+    updateUrlWithTab(normalizedTab, replace);
+  };
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user) {
         const profile = await syncUserProfile(user);
         setUserProfile(profile);
+        navigateToTab(getTabFromUrl(), true);
         setView('app');
       } else {
         setUserProfile(null);
@@ -48,6 +92,14 @@ export default function App() {
     });
 
     return () => unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    const handlePopState = () => {
+      setActiveTab(getTabFromUrl());
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
   }, []);
 
   if (isLoading) {
@@ -103,14 +155,13 @@ export default function App() {
     <AppNavigationProvider
       activeTab={activeTab}
       navigateTo={(tab: string) => {
-        setActiveTab(tab);
-        setIsSidebarOpen(false);
+        navigateToTab(tab);
       }}
     >
       <div className="flex h-screen bg-gray-50 dark:bg-[#050505] text-gray-900 dark:text-white transition-colors duration-300" dir={dir}>
         <Sidebar 
           activeTab={activeTab} 
-          setActiveTab={setActiveTab} 
+          setActiveTab={navigateToTab} 
           isOpen={isSidebarOpen} 
           setIsOpen={setIsSidebarOpen} 
           userProfile={userProfile}
