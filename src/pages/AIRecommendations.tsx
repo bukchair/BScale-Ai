@@ -114,6 +114,14 @@ export function AIRecommendations() {
     setRecs(recs.map(r => r.id === id ? { ...r, status: 'applied' } : r));
   };
 
+  const handleDismiss = (id: string) => {
+    setRecs(recs.map(r => r.id === id ? { ...r, status: 'dismissed' } : r));
+  };
+
+  const handleApplyAll = () => {
+    setRecs(recs.map((r) => (r.status === 'pending' ? { ...r, status: 'applied' } : r)));
+  };
+
   const pendingRecs = recs.filter(r => r.status === 'pending');
   const appliedRecs = recs.filter(r => r.status === 'applied');
 
@@ -135,7 +143,10 @@ export function AIRecommendations() {
               {t('ai.refresh')}
             </button>
           )}
-          <button className="bg-indigo-600 text-white px-4 py-2 rounded-xl text-sm font-bold hover:bg-indigo-700 transition-colors flex items-center gap-2 shadow-sm">
+          <button
+            onClick={handleApplyAll}
+            className="bg-indigo-600 text-white px-4 py-2 rounded-xl text-sm font-bold hover:bg-indigo-700 transition-colors flex items-center gap-2 shadow-sm"
+          >
             <Zap className="w-4 h-4" />
             {t('ai.applyAll')}
           </button>
@@ -262,7 +273,10 @@ export function AIRecommendations() {
                   </div>
                   
                   <div className="flex items-center gap-2 shrink-0 md:self-center mt-4 md:mt-0">
-                    <button className="px-4 py-2 text-sm font-bold text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-xl transition-colors">
+                    <button
+                      onClick={() => handleDismiss(rec.id)}
+                      className="px-4 py-2 text-sm font-bold text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-xl transition-colors"
+                    >
                       {t('common.dismiss')}
                     </button>
                     <button 

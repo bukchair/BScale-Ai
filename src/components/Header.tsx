@@ -6,6 +6,7 @@ import { useConnections } from '../contexts/ConnectionsContext';
 import { LanguageSwitcher } from './LanguageSwitcher';
 import { ThemeSwitcher } from './ThemeSwitcher';
 import { cn } from '../lib/utils';
+import { useAppNavigation } from '../contexts/AppNavigationContext';
 
 interface HeaderProps {
   onMenuClick: () => void;
@@ -13,18 +14,28 @@ interface HeaderProps {
 
 export function Header({ onMenuClick }: HeaderProps) {
   const { t, dir } = useLanguage();
+  const { navigateTo } = useAppNavigation();
   const { dateRange, setDateRange, customRange, setCustomRange } = useDateRange();
   const { connections, overallQualityScore, connectedCount, totalCount } = useConnections();
   const [isConnectionsOpen, setIsConnectionsOpen] = useState(false);
   const [isDatePickerOpen, setIsDatePickerOpen] = useState(false);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
+  const [dismissedNotificationIds, setDismissedNotificationIds] = useState<number[]>([]);
 
   const notifications = [
     { id: 1, type: 'ai', title: t('notifications.items.ai_ready'), desc: t('notifications.items.ai_ready_desc'), time: t('notifications.time.hoursAgo', { count: 2 }), icon: CheckCircle, color: 'text-emerald-500' },
     { id: 2, type: 'budget', title: t('notifications.items.budget_alert'), desc: t('notifications.items.budget_alert_desc'), time: t('notifications.time.hoursAgo', { count: 5 }), icon: AlertTriangle, color: 'text-amber-500' },
     { id: 3, type: 'feature', title: t('notifications.items.new_feature'), desc: t('notifications.items.new_feature_desc'), time: t('notifications.time.daysAgo', { count: 1 }), icon: Search, color: 'text-indigo-500' },
     { id: 4, type: 'error', title: t('notifications.items.connection_error'), desc: t('notifications.items.connection_error_desc'), time: t('notifications.time.daysAgo', { count: 2 }), icon: AlertTriangle, color: 'text-red-500' },
-  ];
+  ].filter((n) => !dismissedNotificationIds.includes(n.id));
+
+  const handleNotificationClick = (type: string) => {
+    if (type === 'ai') navigateTo('ai-recommendations');
+    if (type === 'budget') navigateTo('budget');
+    if (type === 'feature') navigateTo('seo');
+    if (type === 'error') navigateTo('connections');
+    setIsNotificationsOpen(false);
+  };
 
   const handleDateClick = (range: DateRangeType) => {
     setDateRange(range);
@@ -149,7 +160,13 @@ export function Header({ onMenuClick }: HeaderProps) {
                   ))}
                 </div>
 
-                <button className="w-full py-2 bg-indigo-600 text-white text-sm font-bold rounded-lg hover:bg-indigo-700 transition-colors shadow-sm">
+                <button
+                  onClick={() => {
+                    navigateTo('connections');
+                    setIsConnectionsOpen(false);
+                  }}
+                  className="w-full py-2 bg-indigo-600 text-white text-sm font-bold rounded-lg hover:bg-indigo-700 transition-colors shadow-sm"
+                >
                   {t('dashboard.manageConnections')}
                 </button>
               </div>
@@ -184,7 +201,10 @@ export function Header({ onMenuClick }: HeaderProps) {
                   <h4 className="text-sm font-bold text-gray-900 dark:text-white">{t('notifications.title')}</h4>
                   <p className="text-[10px] text-gray-500 dark:text-gray-400 mt-0.5">{t('notifications.subtitle')}</p>
                 </div>
-                <button className="text-[10px] font-bold text-indigo-600 dark:text-indigo-400 hover:underline">
+                <button
+                  onClick={() => setDismissedNotificationIds((prev) => [...prev, ...notifications.map((n) => n.id)])}
+                  className="text-[10px] font-bold text-indigo-600 dark:text-indigo-400 hover:underline"
+                >
                   {t('notifications.clearAll')}
                 </button>
               </div>
@@ -195,6 +215,7 @@ export function Header({ onMenuClick }: HeaderProps) {
                     {notifications.map((notif) => (
                       <button 
                         key={notif.id}
+                        onClick={() => handleNotificationClick(notif.type)}
                         className="w-full p-4 flex gap-3 hover:bg-gray-50 dark:hover:bg-white/5 transition-colors text-start"
                       >
                         <div className={cn("p-2 rounded-lg bg-gray-100 dark:bg-white/5 shrink-0", notif.color)}>
@@ -221,7 +242,13 @@ export function Header({ onMenuClick }: HeaderProps) {
               </div>
 
               <div className="p-3 bg-gray-50 dark:bg-white/5 border-t border-gray-200 dark:border-white/10 text-center">
-                <button className="text-xs font-bold text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors">
+                <button
+                  onClick={() => {
+                    navigateTo('approvals-automations');
+                    setIsNotificationsOpen(false);
+                  }}
+                  className="text-xs font-bold text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors"
+                >
                   {t('common.viewAll')}
                 </button>
               </div>

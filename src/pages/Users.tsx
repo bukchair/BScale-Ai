@@ -3,7 +3,7 @@ import { useLanguage } from '../contexts/LanguageContext';
 import { Users as UsersIcon, Shield, UserPlus, MoreVertical, Search, Edit2, Trash2, Building, Mail, CheckCircle2, XCircle, Loader2 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { db, auth } from '../lib/firebase';
-import { collection, onSnapshot, query, doc, updateDoc, deleteDoc } from 'firebase/firestore';
+import { collection, onSnapshot, query, doc, updateDoc, deleteDoc, setDoc } from 'firebase/firestore';
 
 interface UserProfile {
   uid: string;
@@ -29,6 +29,10 @@ export function Users() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedRole, setSelectedRole] = useState<string>('all');
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [newUserName, setNewUserName] = useState('');
+  const [newUserEmail, setNewUserEmail] = useState('');
+  const [newUserRole, setNewUserRole] = useState<UserProfile['role']>('viewer');
 
   useEffect(() => {
     const q = query(collection(db, 'users'));
@@ -65,6 +69,27 @@ export function Users() {
     }
   };
 
+  const handleCreateUser = async () => {
+    if (!newUserName.trim() || !newUserEmail.trim()) return;
+    const uid = crypto.randomUUID();
+    try {
+      await setDoc(doc(db, 'users', uid), {
+        uid,
+        name: newUserName.trim(),
+        email: newUserEmail.trim(),
+        role: newUserRole,
+        createdAt: new Date().toISOString(),
+        storeIds: [],
+      });
+      setIsCreateModalOpen(false);
+      setNewUserName('');
+      setNewUserEmail('');
+      setNewUserRole('viewer');
+    } catch (error) {
+      console.error('Error creating user:', error);
+    }
+  };
+
   const filteredUsers = users.filter(user => {
     const matchesSearch = (user.name?.toLowerCase() || '').includes(searchTerm.toLowerCase()) || 
                          (user.email?.toLowerCase() || '').includes(searchTerm.toLowerCase());
@@ -94,7 +119,10 @@ export function Users() {
           <h1 className="text-2xl font-bold text-gray-900">{t('nav.users')}</h1>
           <p className="text-sm text-gray-500 mt-1">{t('users.subtitle')}</p>
         </div>
-        <button className="bg-indigo-600 text-white px-4 py-2 rounded-xl text-sm font-bold hover:bg-indigo-700 transition-colors flex items-center gap-2 shadow-sm">
+        <button
+          onClick={() => setIsCreateModalOpen(true)}
+          className="bg-indigo-600 text-white px-4 py-2 rounded-xl text-sm font-bold hover:bg-indigo-700 transition-colors flex items-center gap-2 shadow-sm"
+        >
           <UserPlus className="w-4 h-4" />
           {t('users.addNewUser')}
         </button>
@@ -298,6 +326,51 @@ export function Users() {
                 className="flex-1 px-4 py-2 bg-red-600 rounded-xl text-sm font-bold text-white hover:bg-red-700 transition-colors"
               >
                 {t('users.delete')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {isCreateModalOpen && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl p-6 max-w-sm w-full shadow-2xl">
+            <h3 className="text-lg font-bold text-gray-900 mb-4">{t('users.addNewUser')}</h3>
+            <div className="space-y-3">
+              <input
+                value={newUserName}
+                onChange={(e) => setNewUserName(e.target.value)}
+                placeholder="Full name"
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm"
+              />
+              <input
+                value={newUserEmail}
+                onChange={(e) => setNewUserEmail(e.target.value)}
+                placeholder="Email"
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm"
+              />
+              <select
+                value={newUserRole}
+                onChange={(e) => setNewUserRole(e.target.value as UserProfile['role'])}
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm"
+              >
+                {Object.entries(roleLabels).map(([key, role]) => (
+                  <option key={key} value={key}>{t(role.labelKey)}</option>
+                ))}
+              </select>
+            </div>
+            <div className="flex gap-3 mt-6">
+              <button
+                onClick={() => setIsCreateModalOpen(false)}
+                className="flex-1 px-4 py-2 border border-gray-200 rounded-xl text-sm font-bold text-gray-700 hover:bg-gray-50"
+              >
+                {t('users.cancel')}
+              </button>
+              <button
+                onClick={handleCreateUser}
+                className="flex-1 px-4 py-2 bg-indigo-600 rounded-xl text-sm font-bold text-white hover:bg-indigo-700"
+              >
+                {t('users.addNewUser')}
               </button>
             </div>
           </div>

@@ -6,6 +6,7 @@ import { fetchWooCommerceProducts, updateWooCommerceProduct } from '../services/
 import { optimizeProductSEO, SEOOptimizationResult } from '../services/seoService';
 import { cn } from '../lib/utils';
 import { useLanguage } from '../contexts/LanguageContext';
+import { useAppNavigation } from '../contexts/AppNavigationContext';
 
 interface Product {
   id: number;
@@ -22,6 +23,7 @@ interface Product {
 export function WooCommerce() {
   const { connections } = useConnections();
   const { t, dir } = useLanguage();
+  const { navigateTo } = useAppNavigation();
   const [products, setProducts] = useState<Product[]>([]);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [showListOnMobile, setShowListOnMobile] = useState(true);
@@ -112,7 +114,10 @@ export function WooCommerce() {
         <ShoppingCart className="w-16 h-16 text-gray-300 mb-4" />
         <h2 className="text-xl font-bold text-gray-900 mb-2">{t('woocommerce.notConnected')}</h2>
         <p className="text-gray-500 mb-6 max-w-md">{t('woocommerce.notConnectedDesc')}</p>
-        <button className="bg-indigo-600 text-white px-6 py-2 rounded-xl font-bold hover:bg-indigo-700 transition-colors">
+        <button
+          onClick={() => navigateTo('connections')}
+          className="bg-indigo-600 text-white px-6 py-2 rounded-xl font-bold hover:bg-indigo-700 transition-colors"
+        >
           {t('woocommerce.goToIntegrations')}
         </button>
       </div>
@@ -323,7 +328,15 @@ export function WooCommerce() {
                           {t('woocommerce.updateInWooCommerce')}
                         </button>
                         <button 
-                          onClick={() => alert(t('woocommerce.createAdNotImplemented'))}
+                          onClick={() => {
+                            localStorage.setItem('creativeLab:selectedProduct', JSON.stringify({
+                              id: selectedProduct.id,
+                              name: selectedProduct.name,
+                              shortDesc: selectedProduct.short_description,
+                              longDesc: selectedProduct.description,
+                            }));
+                            navigateTo('creative-lab');
+                          }}
                           className="flex-1 bg-indigo-600 text-white py-2 rounded-xl text-xs font-bold hover:bg-indigo-700 transition-colors flex items-center justify-center gap-2"
                         >
                           <Zap className="w-4 h-4" />

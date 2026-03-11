@@ -3,7 +3,7 @@ import { useLanguage } from '../contexts/LanguageContext';
 import { Users, Target, TrendingUp, Zap, Plus, ArrowLeft, BarChart2 } from 'lucide-react';
 import { cn } from '../lib/utils';
 
-const audiences = [
+const initialAudiences = [
   { id: 1, name: 'נוטשי עגלה (30 ימים)', size: 4500, matchRate: 85, roas: 4.2, platform: 'Meta', status: 'פעיל' },
   { id: 2, name: 'לקוחות עם ערך חיי לקוח (LTV) גבוה', size: 1200, matchRate: 92, roas: 6.8, platform: 'Google', status: 'פעיל' },
   { id: 3, name: 'רוכשים אחרונים (7 ימים)', size: 850, matchRate: 88, roas: 2.1, platform: 'Meta', status: 'פעיל' },
@@ -37,6 +37,39 @@ const recommendations = [
 
 export function Audiences() {
   const { t, dir } = useLanguage();
+  const [audiences, setAudiences] = React.useState(initialAudiences);
+
+  const handleCreateAudience = () => {
+    const name = window.prompt('שם הקהל החדש');
+    if (!name) return;
+    setAudiences((prev) => [
+      ...prev,
+      {
+        id: Date.now(),
+        name,
+        size: 0,
+        matchRate: 0,
+        roas: 0,
+        platform: 'Meta',
+        status: 'למידה',
+      },
+    ]);
+  };
+
+  const handleApplyRecommendation = (rec: any) => {
+    setAudiences((prev) => [
+      ...prev,
+      {
+        id: Date.now(),
+        name: rec.title,
+        size: Number(String(rec.estimatedSize).replace(/[^\d]/g, '')) || 0,
+        matchRate: 80,
+        roas: Number(String(rec.potentialRoas).replace(/[^\d.]/g, '')) || 2.5,
+        platform: rec.platform.includes('Meta') ? 'Meta' : 'Google',
+        status: 'למידה',
+      },
+    ]);
+  };
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
@@ -46,7 +79,10 @@ export function Audiences() {
           <p className="text-sm text-gray-500 mt-1">נהל את קהלי היעד שלך וגלה סגמנטים מבוססי בינה מלאכותית.</p>
         </div>
         <div className="flex items-center gap-2">
-          <button className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors text-sm font-medium">
+          <button
+            onClick={handleCreateAudience}
+            className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors text-sm font-medium"
+          >
             <Plus className="w-4 h-4" />
             צור קהל
           </button>
@@ -154,7 +190,11 @@ export function Audiences() {
             
             <div className="space-y-4">
               {recommendations.map((rec, idx) => (
-                <div key={idx} className="bg-white/5 p-4 rounded-xl border border-white/10 hover:bg-white/10 transition-colors group cursor-pointer">
+                <button
+                  key={idx}
+                  onClick={() => handleApplyRecommendation(rec)}
+                  className="w-full text-start bg-white/5 p-4 rounded-xl border border-white/10 hover:bg-white/10 transition-colors group cursor-pointer"
+                >
                   <h3 className="text-sm font-bold text-white mb-1">{rec.title}</h3>
                   <p className="text-xs text-indigo-200 mb-3 leading-relaxed">{rec.description}</p>
                   <div className="flex items-center justify-between text-xs">
@@ -168,7 +208,7 @@ export function Audiences() {
                     </div>
                     <ArrowLeft className="w-4 h-4 text-indigo-300 opacity-0 group-hover:opacity-100 transition-opacity" />
                   </div>
-                </div>
+                </button>
               ))}
             </div>
           </div>

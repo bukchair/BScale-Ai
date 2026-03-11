@@ -6,9 +6,20 @@ import { cn } from '../lib/utils';
 export function Settings() {
   const { t, dir } = useLanguage();
   const [activeTab, setActiveTab] = useState<'profile' | 'agency' | 'billing' | 'notifications' | 'security'>('profile');
+  const [toast, setToast] = useState<string | null>(null);
+
+  const showToast = (message: string) => {
+    setToast(message);
+    window.setTimeout(() => setToast(null), 2500);
+  };
 
   return (
     <div className="space-y-6 max-w-5xl mx-auto">
+      {toast && (
+        <div className="bg-emerald-50 border border-emerald-200 text-emerald-800 px-4 py-3 rounded-xl text-sm font-bold">
+          {toast}
+        </div>
+      )}
       <div>
         <h1 className="text-2xl font-bold text-gray-900">{t('settings.title')}</h1>
         <p className="text-sm text-gray-500 mt-1">{t('settings.subtitle')}</p>
@@ -83,7 +94,10 @@ export function Settings() {
                     אב
                   </div>
                   <div>
-                    <button className="px-4 py-2 bg-white border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors">
+                    <button
+                      onClick={() => showToast(t('settings.changePhoto'))}
+                      className="px-4 py-2 bg-white border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+                    >
                       {t('settings.changePhoto')}
                     </button>
                     <p className="text-xs text-gray-500 mt-2">{t('settings.photoRequirements')}</p>
@@ -106,7 +120,10 @@ export function Settings() {
                 </div>
               </div>
               <div className="p-6 bg-gray-50 border-t border-gray-200 flex justify-end">
-                <button className="flex items-center gap-2 px-6 py-2.5 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 transition-colors shadow-sm">
+                <button
+                  onClick={() => showToast(t('settings.saveChanges'))}
+                  className="flex items-center gap-2 px-6 py-2.5 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 transition-colors shadow-sm"
+                >
                   <Save className="w-4 h-4" />
                   {t('settings.saveChanges')}
                 </button>
@@ -135,7 +152,10 @@ export function Settings() {
                 </div>
               </div>
               <div className="p-6 bg-gray-50 border-t border-gray-200 flex justify-end">
-                <button className="flex items-center gap-2 px-6 py-2.5 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 transition-colors shadow-sm">
+                <button
+                  onClick={() => showToast(t('settings.saveChanges'))}
+                  className="flex items-center gap-2 px-6 py-2.5 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 transition-colors shadow-sm"
+                >
                   <Save className="w-4 h-4" />
                   {t('settings.saveChanges')}
                 </button>
@@ -171,7 +191,10 @@ export function Settings() {
                         <span className="text-xs text-gray-500">/mo</span>
                       </div>
                       <p className="text-xs text-gray-500 mb-4">{plan.desc}</p>
-                      <button className={cn("w-full py-2 rounded-lg text-xs font-bold transition-colors", plan.id === 'diy' ? "bg-indigo-600 text-white" : "bg-white border border-gray-200 text-gray-700 hover:bg-gray-50")}>
+                      <button
+                        onClick={() => showToast(plan.id === 'diy' ? t('settings.currentPlan') : t('settings.upgrade'))}
+                        className={cn("w-full py-2 rounded-lg text-xs font-bold transition-colors", plan.id === 'diy' ? "bg-indigo-600 text-white" : "bg-white border border-gray-200 text-gray-700 hover:bg-gray-50")}
+                      >
                         {plan.id === 'diy' ? t('settings.currentPlan') : t('settings.upgrade')}
                       </button>
                     </div>
@@ -191,7 +214,12 @@ export function Settings() {
                       <p className="text-xs text-gray-500">תוקף 12/2025</p>
                     </div>
                   </div>
-                  <button className="text-xs font-bold text-indigo-600 hover:underline">{t('settings.edit')}</button>
+                  <button
+                    onClick={() => showToast(t('settings.edit'))}
+                    className="text-xs font-bold text-indigo-600 hover:underline"
+                  >
+                    {t('settings.edit')}
+                  </button>
                 </div>
               </div>
             </div>
@@ -242,7 +270,10 @@ export function Settings() {
                 </div>
               </div>
               <div className="p-6 bg-gray-50 border-t border-gray-200 flex justify-end">
-                <button className="flex items-center gap-2 px-6 py-2.5 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 transition-colors shadow-sm">
+                <button
+                  onClick={() => showToast(t('settings.saveChanges'))}
+                  className="flex items-center gap-2 px-6 py-2.5 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 transition-colors shadow-sm"
+                >
                   <Save className="w-4 h-4" />
                   {t('settings.saveChanges')}
                 </button>
@@ -280,14 +311,20 @@ export function Settings() {
                       <p className="text-sm font-medium text-gray-900">{t('settings.twoFactorDesc')}</p>
                       <p className="text-xs text-gray-500 mt-1">{t('settings.recommended')}</p>
                     </div>
-                    <button className="px-4 py-2 bg-white border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors">
+                    <button
+                      onClick={() => showToast(t('settings.enable2fa'))}
+                      className="px-4 py-2 bg-white border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+                    >
                       {t('settings.enable2fa')}
                     </button>
                   </div>
                 </div>
               </div>
               <div className="p-6 bg-gray-50 border-t border-gray-200 flex justify-end">
-                <button className="flex items-center gap-2 px-6 py-2.5 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 transition-colors shadow-sm">
+                <button
+                  onClick={() => showToast(t('settings.updatePassword'))}
+                  className="flex items-center gap-2 px-6 py-2.5 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 transition-colors shadow-sm"
+                >
                   <Save className="w-4 h-4" />
                   {t('settings.updatePassword')}
                 </button>

@@ -4,6 +4,7 @@ import { useDateRange } from '../contexts/DateRangeContext';
 import { DollarSign, TrendingUp, TrendingDown, Activity, Download, Filter, Zap, BarChart3, PieChart, CheckCircle2 } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart as RechartsBarChart, Bar, Legend } from 'recharts';
 import { cn } from '../lib/utils';
+import { useAppNavigation } from '../contexts/AppNavigationContext';
 
 const financialData = [
   { name: 'Jan', revenue: 12000, spend: 4000, profit: 8000 },
@@ -23,8 +24,45 @@ const platformData = [
 
 export function Profitability() {
   const { t, dir } = useLanguage();
+  const { navigateTo } = useAppNavigation();
   const { dateRange } = useDateRange();
   const [reportType, setReportType] = useState<'period' | 'campaigns' | 'platforms'>('period');
+  const [showTopPerformersOnly, setShowTopPerformersOnly] = useState(false);
+
+  const filteredFinancialData = showTopPerformersOnly
+    ? financialData.filter((row) => (row.revenue / row.spend) >= 2.5)
+    : financialData;
+
+  const filteredPlatformData = showTopPerformersOnly
+    ? platformData.filter((platform) => platform.roas >= 2.5)
+    : platformData;
+
+  const handleExportReport = () => {
+    const rows =
+      reportType === 'period'
+        ? filteredFinancialData.map((row) => ({
+            month: row.name,
+            revenue: row.revenue,
+            spend: row.spend,
+            grossProfit: row.profit,
+            roas: (row.revenue / row.spend).toFixed(2),
+          }))
+        : filteredPlatformData.map((platform) => ({
+            platform: platform.name,
+            spend: platform.spend,
+            roas: platform.roas,
+          }));
+
+    const headers = Object.keys(rows[0] || {});
+    const csv = [headers.join(','), ...rows.map((row) => headers.map((h) => (row as any)[h]).join(','))].join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `profitability-${reportType}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
@@ -34,11 +72,17 @@ export function Profitability() {
           <p className="text-sm text-gray-500 mt-1">{t('profitability.subtitle')}</p>
         </div>
         <div className="flex items-center gap-2">
-          <button className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors text-sm font-medium">
+          <button
+            onClick={() => setShowTopPerformersOnly((prev) => !prev)}
+            className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors text-sm font-medium"
+          >
             <Filter className="w-4 h-4" />
-            {t('common.filter')}
+            {showTopPerformersOnly ? `${t('common.filter')}: ON` : `${t('common.filter')}: OFF`}
           </button>
-          <button className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors text-sm font-medium">
+          <button
+            onClick={handleExportReport}
+            className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors text-sm font-medium"
+          >
             <Download className="w-4 h-4" />
             {t('common.export') || 'Export Report'}
           </button>
@@ -145,7 +189,10 @@ export function Profitability() {
               <p className="text-4xl font-black" dir="ltr">+₪12,500</p>
               <p className="text-indigo-200 text-xs mt-2">{t('profitability.basedOnAi')}</p>
             </div>
-            <button className="mt-6 w-full py-3 bg-white text-indigo-600 font-bold rounded-xl hover:bg-indigo-50 transition-all shadow-lg active:scale-95">
+            <button
+              onClick={() => navigateTo('ai-recommendations')}
+              className="mt-6 w-full py-3 bg-white text-indigo-600 font-bold rounded-xl hover:bg-indigo-50 transition-all shadow-lg active:scale-95"
+            >
               {t('profitability.applyRecommendations')}
             </button>
           </div>
@@ -186,7 +233,7 @@ export function Profitability() {
             <div className="space-y-6">
               <div className="h-80" dir="ltr">
                 <ResponsiveContainer width="100%" height="100%" minWidth={0}>
-                  <AreaChart data={financialData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                  <AreaChart data={filteredFinancialData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                     <defs>
                       <linearGradient id="colorRev" x1="0" y1="0" x2="0" y2="1">
                         <stop offset="5%" stopColor="#10B981" stopOpacity={0.1}/>
@@ -223,7 +270,7 @@ export function Profitability() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-50">
-                    {financialData.map((row, i) => (
+                    {filteredFinancialData.map((row, i) => (
                       <tr key={i} className="hover:bg-gray-50 transition-colors">
                         <td className="py-4 font-bold text-gray-900">{row.name}</td>
                         <td className="py-4 text-emerald-600 font-bold">₪{row.revenue.toLocaleString()}</td>
@@ -242,7 +289,7 @@ export function Profitability() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
               <div className="h-80" dir="ltr">
                 <ResponsiveContainer width="100%" height="100%" minWidth={0}>
-                  <RechartsBarChart data={platformData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                  <RechartsBarChart data={filteredPlatformData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F3F4F6" />
                     <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#9CA3AF' }} />
                     <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#9CA3AF' }} />
@@ -253,7 +300,7 @@ export function Profitability() {
               </div>
               <div className="space-y-4">
                 <h3 className="font-bold text-gray-900">{t('profitability.performanceByPlatform')}</h3>
-                {platformData.map((platform, i) => (
+                {filteredPlatformData.map((platform, i) => (
                   <div key={i} className="p-4 bg-gray-50 rounded-xl flex items-center justify-between">
                     <div className="flex items-center gap-3">
                       <div className="w-10 h-10 bg-white rounded-lg border border-gray-200 flex items-center justify-center font-bold text-xs text-gray-500">

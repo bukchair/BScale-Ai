@@ -4,6 +4,7 @@ import { Search, TrendingUp, TrendingDown, AlertTriangle, CheckCircle2, Globe, Z
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, Legend } from 'recharts';
 import { cn } from '../lib/utils';
 import { optimizeProductSEO } from '../lib/gemini';
+import { useAppNavigation } from '../contexts/AppNavigationContext';
 
 const seoTrafficData = [
   { date: '01/03', clicks: 120, impressions: 4500, position: 12.4 },
@@ -25,15 +26,15 @@ const topKeywords = [
 
 export function SEOReports() {
   const { t, dir } = useLanguage();
+  const { navigateTo } = useAppNavigation();
   const [activeTab, setActiveTab] = useState<'overview' | 'keywords' | 'pages' | 'products'>('overview');
   const [optimizingId, setOptimizingId] = useState<number | null>(null);
   const [optimizedProducts, setOptimizedProducts] = useState<Record<number, any>>({});
-
-  const products = [
+  const [products, setProducts] = useState([
     { id: 1, name: 'נעלי ריצה Nike Air Zoom', shortDesc: 'נעלי ריצה נוחות.', longDesc: 'נעלי ריצה מקצועיות עם סוליה בולמת זעזועים. מתאימות לריצות ארוכות.', image: 'https://picsum.photos/seed/nike/100/100', seoScore: 65, issues: ['תיאור קצר מדי', 'חסר Alt-Text לתמונה', 'כותרת לא מכילה מילות מפתח'] },
     { id: 2, name: 'מכנסי אימון Adidas', shortDesc: 'מכנסי אימון.', longDesc: 'מכנסי אימון קלים ונושמים.', image: 'https://picsum.photos/seed/adidas/100/100', seoScore: 82, issues: ['תיאור מטא לא אופטימלי'] },
     { id: 3, name: 'שעון Garmin Forerunner', shortDesc: 'שעון חכם למעקב.', longDesc: 'שעון חכם עם מד דופק, GPS ומעקב שינה. עמיד במים.', image: 'https://picsum.photos/seed/garmin/100/100', seoScore: 45, issues: ['אין תיאור מוצר', 'תמונה באיכות נמוכה', 'כותרת לא ברורה'] },
-  ];
+  ]);
 
   const handleOptimizeProduct = async (product: any) => {
     setOptimizingId(product.id);
@@ -46,6 +47,53 @@ export function SEOReports() {
     setOptimizingId(null);
   };
 
+  const handleQuickImproveDescription = (productId: number) => {
+    setProducts((prev) =>
+      prev.map((p) =>
+        p.id === productId
+          ? {
+              ...p,
+              shortDesc: `${p.shortDesc} שופר בעזרת AI.`,
+              seoScore: Math.min(100, p.seoScore + 8),
+              issues: p.issues.filter((issue) => !issue.includes('תיאור')),
+            }
+          : p
+      )
+    );
+  };
+
+  const handleImageOptimization = (productId: number) => {
+    setProducts((prev) =>
+      prev.map((p) =>
+        p.id === productId
+          ? {
+              ...p,
+              seoScore: Math.min(100, p.seoScore + 6),
+              issues: p.issues.filter((issue) => !issue.includes('תמונה') && !issue.includes('Alt')),
+            }
+          : p
+      )
+    );
+  };
+
+  const handleApplySeoChanges = (productId: number) => {
+    const optimized = optimizedProducts[productId];
+    if (!optimized) return;
+    setProducts((prev) =>
+      prev.map((p) =>
+        p.id === productId
+          ? {
+              ...p,
+              shortDesc: optimized.shortDescription || p.shortDesc,
+              longDesc: optimized.longDescription || p.longDesc,
+              seoScore: Math.min(100, p.seoScore + 15),
+              issues: [],
+            }
+          : p
+      )
+    );
+  };
+
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -54,7 +102,10 @@ export function SEOReports() {
           <p className="text-sm text-gray-500 mt-1">ביצועים אורגניים, דירוג מילות מפתח ואופטימיזציית מוצרים מבוססת AI.</p>
         </div>
         <div className="flex items-center gap-2">
-          <button className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors text-sm font-medium">
+          <button
+            onClick={() => navigateTo('connections')}
+            className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors text-sm font-medium"
+          >
             <Globe className="w-4 h-4" />
             חבר GSC
           </button>
@@ -151,7 +202,10 @@ export function SEOReports() {
             <div className="bg-black/20 rounded-xl p-6 border border-white/10 flex flex-col justify-center items-center text-center">
               <p className="text-sm text-indigo-200 mb-2">עלייה משוערת בתנועה</p>
               <p className="text-4xl font-black text-emerald-400">+450 קליקים/חודש</p>
-              <button className="mt-6 px-6 py-2.5 bg-white text-indigo-900 font-bold rounded-lg hover:bg-indigo-50 transition-colors text-sm w-full shadow-lg">
+              <button
+                onClick={() => setActiveTab('products')}
+                className="mt-6 px-6 py-2.5 bg-white text-indigo-900 font-bold rounded-lg hover:bg-indigo-50 transition-colors text-sm w-full shadow-lg"
+              >
                 צור תיאורי מטא
               </button>
             </div>
@@ -248,7 +302,10 @@ export function SEOReports() {
             <div className="space-y-6">
               <div className="flex items-center justify-between">
                 <h3 className="text-lg font-bold text-gray-900">אופטימיזציית מוצרים (AI)</h3>
-                <button className="px-4 py-2 bg-indigo-600 text-white text-sm font-bold rounded-lg hover:bg-indigo-700 transition-colors shadow-sm flex items-center gap-2">
+                <button
+                  onClick={() => setActiveTab('products')}
+                  className="px-4 py-2 bg-indigo-600 text-white text-sm font-bold rounded-lg hover:bg-indigo-700 transition-colors shadow-sm flex items-center gap-2"
+                >
                   <Zap className="w-4 h-4" />
                   נתח את כל המוצרים
                 </button>
@@ -285,11 +342,17 @@ export function SEOReports() {
                       </div>
                       
                       <div className="flex items-center gap-3">
-                        <button className="px-3 py-1.5 bg-white border border-gray-200 text-gray-700 text-xs font-bold rounded-lg hover:bg-gray-50 transition-colors flex items-center gap-1.5">
+                        <button
+                          onClick={() => handleQuickImproveDescription(product.id)}
+                          className="px-3 py-1.5 bg-white border border-gray-200 text-gray-700 text-xs font-bold rounded-lg hover:bg-gray-50 transition-colors flex items-center gap-1.5"
+                        >
                           <FileText className="w-3.5 h-3.5" />
                           שפר תיאור
                         </button>
-                        <button className="px-3 py-1.5 bg-white border border-gray-200 text-gray-700 text-xs font-bold rounded-lg hover:bg-gray-50 transition-colors flex items-center gap-1.5">
+                        <button
+                          onClick={() => handleImageOptimization(product.id)}
+                          className="px-3 py-1.5 bg-white border border-gray-200 text-gray-700 text-xs font-bold rounded-lg hover:bg-gray-50 transition-colors flex items-center gap-1.5"
+                        >
                           <Globe className="w-3.5 h-3.5" />
                           אופטימיזציית תמונה
                         </button>
@@ -334,7 +397,10 @@ export function SEOReports() {
                             </div>
                           )}
                           <div className="pt-2">
-                            <button className="px-4 py-2 bg-indigo-600 text-white text-sm font-bold rounded-lg hover:bg-indigo-700 transition-colors">
+                            <button
+                              onClick={() => handleApplySeoChanges(product.id)}
+                              className="px-4 py-2 bg-indigo-600 text-white text-sm font-bold rounded-lg hover:bg-indigo-700 transition-colors"
+                            >
                               החל שינויים בווקומרס
                             </button>
                           </div>

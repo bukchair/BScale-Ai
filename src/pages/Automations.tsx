@@ -3,19 +3,19 @@ import { useLanguage } from '../contexts/LanguageContext';
 import { ShieldAlert, CheckCircle2, XCircle, Clock, Zap, Settings, Play, Pause, AlertTriangle, ListTodo, Search, Filter, Download, User } from 'lucide-react';
 import { cn } from '../lib/utils';
 
-const pendingApprovals = [
+const initialPendingApprovals = [
   { id: 1, type: 'הקצאת תקציב מחדש', description: 'העבר ₪500 מ-"חיפוש מותג" ל-"Performance Max" עקב ROAS גבוה יותר.', platform: 'Google Ads', impact: 'גבוה', time: 'לפני שעתיים' },
   { id: 2, type: 'עדכון קופירייטינג', description: 'עדכן את טקסט המודעה ב-Meta כך שיכלול "משלוח חינם" על סמך ניתוח מתחרים.', platform: 'Meta', impact: 'בינוני', time: 'לפני 5 שעות' },
   { id: 3, type: 'החרגת מילות מפתח', description: 'הוסף "חינם" ו-"זול" כמילות מפתח שליליות כדי להפחית הוצאות מבוזבזות.', platform: 'Google Ads', impact: 'גבוה', time: 'לפני יום' },
 ];
 
-const automations = [
+const initialAutomations = [
   { id: 1, name: 'השהיה אוטומטית של ביצועים נמוכים', description: 'השהה מודעות עם ROAS < 1.0 לאחר 3 ימים והוצאה של ₪100.', status: 'פעיל', platform: 'כל הפלטפורמות' },
   { id: 2, name: 'הגדלת תקציב', description: 'הגדל תקציב ב-10% עבור קמפיינים ששומרים על ROAS > 3.0 במשך 7 ימים.', status: 'מושהה', platform: 'Meta' },
   { id: 3, name: 'התאמות הצעות מחיר', description: 'הגדל הצעות מחיר ב-15% בשעות שיא של המרות (18:00 - 22:00).', status: 'פעיל', platform: 'Google Ads' },
 ];
 
-const activities = [
+const initialActivities = [
   { id: 1, user: 'Asher B.', action: 'אישר המלצת AI', details: 'הקצאת תקציב מחדש: הועברו ₪500 ל-Performance Max', time: 'לפני 10 דקות', type: 'approval', icon: CheckCircle2, color: 'text-emerald-500', bg: 'bg-emerald-50' },
   { id: 2, user: 'System AI', action: 'יצר קופירייטינג חדש', details: 'נוצרו 3 וריאציות לקמפיין "מבצע קיץ"', time: 'לפני שעה', type: 'ai', icon: Zap, color: 'text-indigo-500', bg: 'bg-indigo-50' },
   { id: 3, user: 'Asher B.', action: 'עדכן הגדרות', target: 'חיוב', details: 'שונה אמצעי תשלום ראשי', time: 'לפני 3 שעות', type: 'settings', icon: Settings, color: 'text-gray-500', bg: 'bg-gray-50' },
@@ -28,6 +28,123 @@ export function Automations() {
   const { t, dir } = useLanguage();
   const [activeTab, setActiveTab] = useState<'approvals' | 'rules' | 'log'>('approvals');
   const [searchTerm, setSearchTerm] = useState('');
+  const [pendingApprovals, setPendingApprovals] = useState(initialPendingApprovals);
+  const [automations, setAutomations] = useState(initialAutomations);
+  const [activities, setActivities] = useState(initialActivities);
+
+  const addActivity = (action: string, details: string, type: any = 'action') => {
+    const iconMap: Record<string, any> = {
+      approval: CheckCircle2,
+      ai: Zap,
+      settings: Settings,
+      error: AlertTriangle,
+      action: User,
+      automation: Zap,
+    };
+    const colorMap: Record<string, string> = {
+      approval: 'text-emerald-500',
+      ai: 'text-indigo-500',
+      settings: 'text-gray-500',
+      error: 'text-red-500',
+      action: 'text-blue-500',
+      automation: 'text-amber-500',
+    };
+    const bgMap: Record<string, string> = {
+      approval: 'bg-emerald-50',
+      ai: 'bg-indigo-50',
+      settings: 'bg-gray-50',
+      error: 'bg-red-50',
+      action: 'bg-blue-50',
+      automation: 'bg-amber-50',
+    };
+
+    setActivities((prev) => [
+      {
+        id: Date.now(),
+        user: 'You',
+        action,
+        details,
+        time: 'עכשיו',
+        type,
+        icon: iconMap[type] || User,
+        color: colorMap[type] || 'text-blue-500',
+        bg: bgMap[type] || 'bg-blue-50',
+      },
+      ...prev,
+    ]);
+  };
+
+  const handleCreateRule = () => {
+    const name = window.prompt('שם החוק החדש');
+    if (!name) return;
+    setAutomations((prev) => [
+      ...prev,
+      {
+        id: Date.now(),
+        name,
+        description: 'חוק חדש נוצר ידנית.',
+        status: 'פעיל',
+        platform: 'כל הפלטפורמות',
+      },
+    ]);
+    addActivity('יצר חוק אוטומציה', `נוצר חוק חדש: ${name}`, 'automation');
+    setActiveTab('rules');
+  };
+
+  const handleApproval = (id: number, approved: boolean) => {
+    const item = pendingApprovals.find((a) => a.id === id);
+    setPendingApprovals((prev) => prev.filter((a) => a.id !== id));
+    if (item) {
+      addActivity(
+        approved ? 'אישר המלצה' : 'דחה המלצה',
+        `${item.type}: ${item.description}`,
+        approved ? 'approval' : 'action'
+      );
+    }
+  };
+
+  const handleToggleRule = (id: number) => {
+    setAutomations((prev) =>
+      prev.map((rule) =>
+        rule.id === id ? { ...rule, status: rule.status === 'פעיל' ? 'מושהה' : 'פעיל' } : rule
+      )
+    );
+    const current = automations.find((r) => r.id === id);
+    if (current) {
+      addActivity(
+        current.status === 'פעיל' ? 'השהה חוק אוטומציה' : 'הפעיל חוק אוטומציה',
+        current.name,
+        'automation'
+      );
+    }
+  };
+
+  const handleEditRule = (id: number) => {
+    const current = automations.find((r) => r.id === id);
+    if (!current) return;
+    const name = window.prompt('עדכן שם חוק', current.name);
+    if (!name || name === current.name) return;
+    setAutomations((prev) => prev.map((rule) => (rule.id === id ? { ...rule, name } : rule)));
+    addActivity('עדכן חוק אוטומציה', `${current.name} -> ${name}`, 'settings');
+  };
+
+  const handleExportActivities = () => {
+    const rows = activities.map((a) => ({
+      user: a.user,
+      action: a.action,
+      details: a.details,
+      time: a.time,
+    }));
+    const headers = Object.keys(rows[0] || {});
+    const csv = [headers.join(','), ...rows.map((row) => headers.map((h) => (row as any)[h]).join(','))].join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'automations-activity-log.csv';
+    a.click();
+    URL.revokeObjectURL(url);
+  };
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
@@ -37,7 +154,10 @@ export function Automations() {
           <p className="text-sm text-gray-500 mt-1">סקור המלצות AI ונהל חוקים אוטומטיים.</p>
         </div>
         <div className="flex items-center gap-2">
-          <button className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors text-sm font-bold shadow-sm">
+          <button
+            onClick={handleCreateRule}
+            className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors text-sm font-bold shadow-sm"
+          >
             <Zap className="w-4 h-4" />
             צור חוק חדש
           </button>
@@ -86,7 +206,10 @@ export function Automations() {
                   )}
                 />
               </div>
-              <button className="p-1.5 bg-white border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors shadow-sm">
+              <button
+                onClick={handleExportActivities}
+                className="p-1.5 bg-white border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors shadow-sm"
+              >
                 <Download className="w-4 h-4" />
               </button>
             </div>
@@ -111,10 +234,16 @@ export function Automations() {
                     </div>
                   </div>
                   <div className="flex items-center gap-2 w-full sm:w-auto">
-                    <button className="flex-1 sm:flex-none flex items-center justify-center gap-1 px-3 py-2 bg-white border border-red-200 text-red-600 rounded-lg hover:bg-red-50 transition-colors text-sm font-bold">
+                    <button
+                      onClick={() => handleApproval(approval.id, false)}
+                      className="flex-1 sm:flex-none flex items-center justify-center gap-1 px-3 py-2 bg-white border border-red-200 text-red-600 rounded-lg hover:bg-red-50 transition-colors text-sm font-bold"
+                    >
                       <XCircle className="w-4 h-4" /> דחה
                     </button>
-                    <button className="flex-1 sm:flex-none flex items-center justify-center gap-1 px-3 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors text-sm font-bold">
+                    <button
+                      onClick={() => handleApproval(approval.id, true)}
+                      className="flex-1 sm:flex-none flex items-center justify-center gap-1 px-3 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors text-sm font-bold"
+                    >
                       <CheckCircle2 className="w-4 h-4" /> אשר
                     </button>
                   </div>
@@ -142,15 +271,24 @@ export function Automations() {
                   </div>
                   <div className="flex items-center gap-2 w-full sm:w-auto">
                     {rule.status === 'פעיל' ? (
-                      <button className="flex-1 sm:flex-none flex items-center justify-center gap-1 px-3 py-2 bg-white border border-amber-200 text-amber-600 rounded-lg hover:bg-amber-50 transition-colors text-sm font-bold">
+                      <button
+                        onClick={() => handleToggleRule(rule.id)}
+                        className="flex-1 sm:flex-none flex items-center justify-center gap-1 px-3 py-2 bg-white border border-amber-200 text-amber-600 rounded-lg hover:bg-amber-50 transition-colors text-sm font-bold"
+                      >
                         <Pause className="w-4 h-4" /> השהה
                       </button>
                     ) : (
-                      <button className="flex-1 sm:flex-none flex items-center justify-center gap-1 px-3 py-2 bg-white border border-emerald-200 text-emerald-600 rounded-lg hover:bg-emerald-50 transition-colors text-sm font-bold">
+                      <button
+                        onClick={() => handleToggleRule(rule.id)}
+                        className="flex-1 sm:flex-none flex items-center justify-center gap-1 px-3 py-2 bg-white border border-emerald-200 text-emerald-600 rounded-lg hover:bg-emerald-50 transition-colors text-sm font-bold"
+                      >
                         <Play className="w-4 h-4" /> הפעל
                       </button>
                     )}
-                    <button className="flex-1 sm:flex-none flex items-center justify-center gap-1 px-3 py-2 bg-white border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors text-sm font-bold">
+                    <button
+                      onClick={() => handleEditRule(rule.id)}
+                      className="flex-1 sm:flex-none flex items-center justify-center gap-1 px-3 py-2 bg-white border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors text-sm font-bold"
+                    >
                       <Settings className="w-4 h-4" /> ערוך
                     </button>
                   </div>

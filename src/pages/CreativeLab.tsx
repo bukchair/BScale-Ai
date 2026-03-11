@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useLanguage } from '../contexts/LanguageContext';
 import { Sparkles, Image as ImageIcon, Type, Send, Wand2, Layout, Plus, Loader2, Download, ShoppingCart, ChevronDown } from 'lucide-react';
 import { cn } from '../lib/utils';
@@ -18,6 +18,48 @@ export function CreativeLab() {
   const [generatedContent, setGeneratedContent] = useState<any>(null);
   const [selectedProduct, setSelectedProduct] = useState<any>(null);
   const [isProductDropdownOpen, setIsProductDropdownOpen] = useState(false);
+  const [aspectRatio, setAspectRatio] = useState<'1:1' | '9:16' | '16:9'>('1:1');
+
+  useEffect(() => {
+    const prefilledProduct = localStorage.getItem('creativeLab:selectedProduct');
+    if (!prefilledProduct) return;
+    try {
+      const parsed = JSON.parse(prefilledProduct);
+      setSelectedProduct(parsed);
+      if (!prompt) {
+        setPrompt(`צור קריאייטיב עבור ${parsed.name}. תיאור: ${parsed.shortDesc || ''}`);
+      }
+    } catch (err) {
+      console.error('Failed to parse prefilled product', err);
+    } finally {
+      localStorage.removeItem('creativeLab:selectedProduct');
+    }
+  }, []);
+
+  const handleCopyText = async (text: string) => {
+    await navigator.clipboard.writeText(text);
+  };
+
+  const handleDownloadByUrl = async (url: string, filename: string) => {
+    const response = await fetch(url);
+    const blob = await response.blob();
+    const objectUrl = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = objectUrl;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(objectUrl);
+  };
+
+  const handleDownloadTextFile = (content: string, filename: string) => {
+    const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+    const objectUrl = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = objectUrl;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(objectUrl);
+  };
 
   const handleGenerate = async () => {
     if (!prompt && !selectedProduct) return;
@@ -181,9 +223,24 @@ export function CreativeLab() {
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">יחס גובה-רוחב</label>
                   <div className="grid grid-cols-3 gap-2">
-                    <button className="px-3 py-2 border border-gray-200 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 bg-white">1:1 (ריבוע)</button>
-                    <button className="px-3 py-2 border border-gray-200 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50">9:16 (סטורי)</button>
-                    <button className="px-3 py-2 border border-gray-200 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50">16:9 (לרוחב)</button>
+                    <button
+                      onClick={() => setAspectRatio('1:1')}
+                      className={cn("px-3 py-2 border border-gray-200 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50", aspectRatio === '1:1' ? "bg-white ring-2 ring-indigo-500/30" : "")}
+                    >
+                      1:1 (ריבוע)
+                    </button>
+                    <button
+                      onClick={() => setAspectRatio('9:16')}
+                      className={cn("px-3 py-2 border border-gray-200 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50", aspectRatio === '9:16' ? "bg-white ring-2 ring-indigo-500/30" : "")}
+                    >
+                      9:16 (סטורי)
+                    </button>
+                    <button
+                      onClick={() => setAspectRatio('16:9')}
+                      className={cn("px-3 py-2 border border-gray-200 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50", aspectRatio === '16:9' ? "bg-white ring-2 ring-indigo-500/30" : "")}
+                    >
+                      16:9 (לרוחב)
+                    </button>
                   </div>
                 </div>
               )}
@@ -240,17 +297,27 @@ export function CreativeLab() {
                 <div className="relative group rounded-xl overflow-hidden border border-gray-200">
                   <img src={generatedContent.url} alt="Generated Ad" className="w-full h-auto object-cover" referrerPolicy="no-referrer" />
                   <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-4">
-                    <button className="px-4 py-2 bg-white text-gray-900 font-medium rounded-lg hover:bg-gray-100 transition-colors flex items-center gap-2">
+                    <button
+                      onClick={() => handleDownloadByUrl(generatedContent.url, 'creative-main.jpg')}
+                      className="px-4 py-2 bg-white text-gray-900 font-medium rounded-lg hover:bg-gray-100 transition-colors flex items-center gap-2"
+                    >
                       <Download className="w-4 h-4" /> הורדה
                     </button>
-                    <button className="px-4 py-2 bg-indigo-600 text-white font-medium rounded-lg hover:bg-indigo-700 transition-colors flex items-center gap-2">
+                    <button
+                      onClick={() => window.alert('מוכן לפרסום ב-Meta')}
+                      className="px-4 py-2 bg-indigo-600 text-white font-medium rounded-lg hover:bg-indigo-700 transition-colors flex items-center gap-2"
+                    >
                       <Send className="w-4 h-4" /> פרסם ב-Meta
                     </button>
                   </div>
                 </div>
                 <div className="grid grid-cols-3 gap-4">
                   {generatedContent.variations.map((url: string, idx: number) => (
-                    <button key={idx} className="relative rounded-lg overflow-hidden border border-gray-200 hover:ring-2 hover:ring-indigo-500 transition-all">
+                    <button
+                      key={idx}
+                      onClick={() => handleDownloadByUrl(url, `creative-variation-${idx + 1}.jpg`)}
+                      className="relative rounded-lg overflow-hidden border border-gray-200 hover:ring-2 hover:ring-indigo-500 transition-all"
+                    >
                       <img src={url} alt={`Variation ${idx + 1}`} className="w-full aspect-square object-cover" referrerPolicy="no-referrer" />
                     </button>
                   ))}
@@ -269,10 +336,18 @@ export function CreativeLab() {
                   {generatedContent.options.map((option: any, idx: number) => (
                     <div key={idx} className="p-4 border border-gray-200 rounded-xl bg-white shadow-sm hover:shadow-md transition-shadow relative group">
                       <div className="absolute top-4 left-4 opacity-0 group-hover:opacity-100 transition-opacity flex gap-2" dir="ltr">
-                        <button className="p-1.5 bg-gray-100 text-gray-600 rounded hover:bg-gray-200 transition-colors" title="העתק">
+                        <button
+                          onClick={() => handleCopyText(`${option.headline}\n${option.primaryText}\n${option.description}`)}
+                          className="p-1.5 bg-gray-100 text-gray-600 rounded hover:bg-gray-200 transition-colors"
+                          title="העתק"
+                        >
                           <Type className="w-4 h-4" />
                         </button>
-                        <button className="p-1.5 bg-indigo-100 text-indigo-600 rounded hover:bg-indigo-200 transition-colors" title="פרסם">
+                        <button
+                          onClick={() => window.alert('נשלח לפרסום')}
+                          className="p-1.5 bg-indigo-100 text-indigo-600 rounded hover:bg-indigo-200 transition-colors"
+                          title="פרסם"
+                        >
                           <Send className="w-4 h-4" />
                         </button>
                       </div>
@@ -316,10 +391,16 @@ export function CreativeLab() {
                 </div>
                 
                 <div className="flex gap-3 mt-6">
-                  <button className="flex-1 py-2.5 bg-white border border-gray-200 text-gray-700 font-bold rounded-xl hover:bg-gray-50 transition-colors text-sm flex items-center justify-center gap-2">
+                  <button
+                    onClick={() => handleDownloadTextFile(JSON.stringify(generatedContent.script, null, 2), 'video-script.txt')}
+                    className="flex-1 py-2.5 bg-white border border-gray-200 text-gray-700 font-bold rounded-xl hover:bg-gray-50 transition-colors text-sm flex items-center justify-center gap-2"
+                  >
                     <Download className="w-4 h-4" /> הורד תסריט
                   </button>
-                  <button className="flex-1 py-2.5 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 transition-colors text-sm flex items-center justify-center gap-2">
+                  <button
+                    onClick={() => window.alert('סטוריבורד נוצר בהצלחה')}
+                    className="flex-1 py-2.5 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 transition-colors text-sm flex items-center justify-center gap-2"
+                  >
                     <Sparkles className="w-4 h-4" /> צור סטוריבורד
                   </button>
                 </div>

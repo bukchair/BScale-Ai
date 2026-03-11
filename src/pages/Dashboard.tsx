@@ -8,9 +8,11 @@ import { useConnections } from '../contexts/ConnectionsContext';
 import { generateDashboardData } from '../lib/dataUtils';
 import { auth } from '../lib/firebase';
 import { fetchGA4LiveData, fetchGSCData, GA4LiveData } from '../services/googleService';
+import { useAppNavigation } from '../contexts/AppNavigationContext';
 
 export function Dashboard() {
   const { t, dir } = useLanguage();
+  const { navigateTo } = useAppNavigation();
   const { dateRange } = useDateRange();
   const { connections } = useConnections();
   const currentUser = auth.currentUser;
@@ -131,9 +133,9 @@ export function Dashboard() {
       ];
 
   const quickActions = [
-    { id: 'ai-recs', title: t('dashboard.viewAiRecs'), icon: Zap, color: 'bg-amber-100 dark:bg-amber-500/20 text-amber-600 dark:text-amber-400', desc: t('dashboard.viewAiRecsDesc') },
-    { id: 'create-ad', title: t('dashboard.createAdAi'), icon: Megaphone, color: 'bg-purple-100 dark:bg-purple-500/20 text-purple-600 dark:text-purple-400', desc: t('dashboard.createAdAiDesc') },
-    { id: 'seo-fix', title: t('dashboard.fixSeoIssues'), icon: LineChart, color: 'bg-emerald-100 dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400', desc: t('dashboard.fixSeoIssuesDesc') },
+    { id: 'ai-recs', title: t('dashboard.viewAiRecs'), icon: Zap, color: 'bg-amber-100 dark:bg-amber-500/20 text-amber-600 dark:text-amber-400', desc: t('dashboard.viewAiRecsDesc'), tab: 'ai-recommendations' },
+    { id: 'create-ad', title: t('dashboard.createAdAi'), icon: Megaphone, color: 'bg-purple-100 dark:bg-purple-500/20 text-purple-600 dark:text-purple-400', desc: t('dashboard.createAdAiDesc'), tab: 'creative-lab' },
+    { id: 'seo-fix', title: t('dashboard.fixSeoIssues'), icon: LineChart, color: 'bg-emerald-100 dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400', desc: t('dashboard.fixSeoIssuesDesc'), tab: 'seo' },
   ];
 
   const dateRangeLabel = 
@@ -162,7 +164,11 @@ export function Dashboard() {
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {quickActions.map((action) => (
-            <button key={action.id} className="bg-white dark:bg-[#111] p-5 rounded-2xl border border-gray-200 dark:border-white/10 shadow-sm hover:shadow-md hover:border-indigo-200 dark:hover:border-indigo-500/30 transition-all flex items-start gap-4 text-start group relative overflow-hidden">
+            <button
+              key={action.id}
+              onClick={() => navigateTo(action.tab)}
+              className="bg-white dark:bg-[#111] p-5 rounded-2xl border border-gray-200 dark:border-white/10 shadow-sm hover:shadow-md hover:border-indigo-200 dark:hover:border-indigo-500/30 transition-all flex items-start gap-4 text-start group relative overflow-hidden"
+            >
               <div className="absolute top-0 right-0 p-1 opacity-0 group-hover:opacity-100 transition-opacity">
                 <ArrowRight className={cn("w-4 h-4 text-indigo-500", dir === 'rtl' ? "rotate-180" : "")} />
               </div>
@@ -343,7 +349,10 @@ export function Dashboard() {
               <p className="text-sm text-gray-500 dark:text-gray-400">{t('dashboard.performanceDataFromGsc')}</p>
             </div>
           </div>
-          <button className="text-sm font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-500/10 hover:bg-indigo-100 dark:hover:bg-indigo-500/20 px-4 py-2 rounded-lg flex items-center gap-2 transition-colors">
+          <button
+            onClick={() => navigateTo('seo')}
+            className="text-sm font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-500/10 hover:bg-indigo-100 dark:hover:bg-indigo-500/20 px-4 py-2 rounded-lg flex items-center gap-2 transition-colors"
+          >
             {t('dashboard.goToSeoCenter')}
             <ArrowRight className={cn("w-4 h-4", dir === 'rtl' ? "rotate-180" : "")} />
           </button>

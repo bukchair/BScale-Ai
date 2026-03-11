@@ -2,8 +2,9 @@ import React, { useState } from 'react';
 import { useLanguage } from '../contexts/LanguageContext';
 import { Wallet, TrendingUp, AlertCircle, ArrowRight, ArrowLeft, CheckCircle2, Settings2, Zap, TrendingDown } from 'lucide-react';
 import { cn } from '../lib/utils';
+import { useAppNavigation } from '../contexts/AppNavigationContext';
 
-const platforms = [
+const initialPlatforms = [
   { id: 'google', name: 'Google Ads', currentSpend: 4500, allocatedBudget: 5000, roas: 3.2, status: 'optimal' },
   { id: 'meta', name: 'Meta Ads', currentSpend: 3200, allocatedBudget: 3000, roas: 2.8, status: 'overspending' },
   { id: 'tiktok', name: 'TikTok Ads', currentSpend: 2300, allocatedBudget: 4000, roas: 2.1, status: 'underperforming' },
@@ -11,9 +12,37 @@ const platforms = [
 
 export function Budget() {
   const { t, dir } = useLanguage();
+  const { navigateTo } = useAppNavigation();
   const [totalBudget, setTotalBudget] = useState(12000);
+  const [platforms, setPlatforms] = useState(initialPlatforms);
   const totalSpend = platforms.reduce((acc, p) => acc + p.currentSpend, 0);
   const remainingBudget = totalBudget - totalSpend;
+
+  const handleApplyTransfer = () => {
+    setPlatforms((prev) =>
+      prev.map((platform) => {
+        if (platform.id === 'google') {
+          const nextBudget = platform.allocatedBudget + 500;
+          return { ...platform, allocatedBudget: nextBudget };
+        }
+        if (platform.id === 'tiktok') {
+          const nextBudget = Math.max(platform.allocatedBudget - 500, 0);
+          return { ...platform, allocatedBudget: nextBudget };
+        }
+        return platform;
+      })
+    );
+  };
+
+  const handleEditPlatformBudget = (platformId: string) => {
+    const current = platforms.find((p) => p.id === platformId);
+    if (!current) return;
+    const input = window.prompt(`New budget for ${current.name}`, String(current.allocatedBudget));
+    if (!input) return;
+    const next = Number(input.replace(/[^\d.-]/g, ''));
+    if (Number.isNaN(next) || next < 0) return;
+    setPlatforms((prev) => prev.map((p) => (p.id === platformId ? { ...p, allocatedBudget: next } : p)));
+  };
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
@@ -22,7 +51,10 @@ export function Budget() {
           <h1 className="text-2xl font-bold text-gray-900">{t('nav.budget')}</h1>
           <p className="text-sm text-gray-500 mt-1">{t('budget.subtitle')}</p>
         </div>
-        <button className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors text-sm font-bold shadow-sm">
+        <button
+          onClick={() => navigateTo('settings')}
+          className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors text-sm font-bold shadow-sm"
+        >
           <Settings2 className="w-4 h-4" />
           {t('budget.settings')}
         </button>
@@ -104,7 +136,10 @@ export function Budget() {
               <p className="text-xs text-gray-500">{t('budget.increaseGoogleDesc')}</p>
             </div>
             <div className="shrink-0 w-full md:w-auto mt-4 md:mt-0">
-              <button className="w-full md:w-auto px-6 py-2 bg-indigo-600 text-white font-bold rounded-lg hover:bg-indigo-700 transition-colors text-sm shadow-sm">
+              <button
+                onClick={handleApplyTransfer}
+                className="w-full md:w-auto px-6 py-2 bg-indigo-600 text-white font-bold rounded-lg hover:bg-indigo-700 transition-colors text-sm shadow-sm"
+              >
                 {t('budget.applyTransfer')}
               </button>
             </div>
@@ -157,7 +192,10 @@ export function Budget() {
                     </span>
                   </td>
                   <td className={cn("px-6 py-4", dir === 'rtl' ? "text-left" : "text-right")}>
-                    <button className="text-indigo-600 hover:text-indigo-900 font-bold text-sm">
+                    <button
+                      onClick={() => handleEditPlatformBudget(platform.id)}
+                      className="text-indigo-600 hover:text-indigo-900 font-bold text-sm"
+                    >
                       {t('common.edit')}
                     </button>
                   </td>

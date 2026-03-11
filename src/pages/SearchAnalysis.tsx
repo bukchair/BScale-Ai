@@ -18,6 +18,11 @@ export function SearchAnalysis() {
   const { connections } = useConnections();
   const [activeTab, setActiveTab] = useState<'all' | 'ads' | 'organic' | 'negative'>('all');
   const [searchTerms, setSearchTerms] = useState<any[]>(mockSearchTerms);
+  const [negativeKeywords, setNegativeKeywords] = useState([
+    { id: 1, term: 'חינם', matchType: 'רחב', campaign: 'כל הקמפיינים', addedDate: '2024-03-01' },
+    { id: 2, term: 'דרושים', matchType: 'ביטוי', campaign: 'נעלי גברים', addedDate: '2024-03-05' },
+    { id: 3, term: 'יד שניה', matchType: 'מדויק', campaign: 'נעלי נשים', addedDate: '2024-03-10' },
+  ]);
 
   useEffect(() => {
     const googleConn = connections.find(c => c.id === 'google');
@@ -66,11 +71,64 @@ export function SearchAnalysis() {
     loadGscTerms();
   }, [connections]);
 
-  const negativeKeywords = [
-    { id: 1, term: 'חינם', matchType: 'רחב', campaign: 'כל הקמפיינים', addedDate: '2024-03-01' },
-    { id: 2, term: 'דרושים', matchType: 'ביטוי', campaign: 'נעלי גברים', addedDate: '2024-03-05' },
-    { id: 3, term: 'יד שניה', matchType: 'מדויק', campaign: 'נעלי נשים', addedDate: '2024-03-10' },
-  ];
+  const handleExport = () => {
+    const rows = searchTerms
+      .filter(term => activeTab === 'all' || (activeTab === 'ads' && term.source === 'Google Ads') || (activeTab === 'organic' && term.source === 'GSC'))
+      .map((term) => ({
+        term: term.term,
+        source: term.source,
+        clicks: term.clicks,
+        impressions: term.impressions || '',
+        position: term.position || '',
+        status: term.status
+      }));
+    const headers = Object.keys(rows[0] || {});
+    const csv = [headers.join(','), ...rows.map((row) => headers.map((h) => (row as any)[h]).join(','))].join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `search-analysis-${activeTab}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleAddNegativeKeyword = () => {
+    const keyword = window.prompt(t('search.addNegative'));
+    if (!keyword) return;
+    setNegativeKeywords((prev) => [
+      ...prev,
+      {
+        id: Date.now(),
+        term: keyword,
+        matchType: 'ביטוי',
+        campaign: 'כל הקמפיינים',
+        addedDate: new Date().toISOString().split('T')[0]
+      }
+    ]);
+    setActiveTab('negative');
+  };
+
+  const handleRemoveNegativeKeyword = (id: number) => {
+    setNegativeKeywords((prev) => prev.filter((kw) => kw.id !== id));
+  };
+
+  const handleAddAsNegative = (term: string) => {
+    setNegativeKeywords((prev) => {
+      if (prev.some((kw) => kw.term === term)) return prev;
+      return [
+        ...prev,
+        {
+          id: Date.now(),
+          term,
+          matchType: 'ביטוי',
+          campaign: 'כל הקמפיינים',
+          addedDate: new Date().toISOString().split('T')[0]
+        }
+      ];
+    });
+    setActiveTab('negative');
+  };
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
@@ -80,11 +138,17 @@ export function SearchAnalysis() {
           <p className="text-sm text-gray-500 mt-1">{t('search.subtitle')}</p>
         </div>
         <div className="flex items-center gap-2">
-          <button className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 text-gray-700 rounded-xl hover:bg-gray-50 transition-colors text-sm font-bold shadow-sm">
+          <button
+            onClick={() => setActiveTab((prev) => (prev === 'all' ? 'ads' : prev === 'ads' ? 'organic' : 'all'))}
+            className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 text-gray-700 rounded-xl hover:bg-gray-50 transition-colors text-sm font-bold shadow-sm"
+          >
             <Filter className="w-4 h-4" />
             {t('search.filters')}
           </button>
-          <button className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 transition-colors text-sm font-bold shadow-sm">
+          <button
+            onClick={handleExport}
+            className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 transition-colors text-sm font-bold shadow-sm"
+          >
             <Download className="w-4 h-4" />
             {t('search.export')}
           </button>
@@ -124,7 +188,10 @@ export function SearchAnalysis() {
             <div className="bg-black/20 rounded-xl p-6 border border-white/10 flex flex-col justify-center items-center text-center">
               <p className="text-sm text-indigo-200 mb-2">{t('search.monthlySavings')}</p>
               <p className="text-4xl font-black text-emerald-400" dir="ltr">₪1,760</p>
-              <button className="mt-6 px-6 py-2.5 bg-white text-indigo-900 font-bold rounded-xl hover:bg-indigo-50 transition-colors text-sm w-full shadow-lg">
+              <button
+                onClick={() => setActiveTab('negative')}
+                className="mt-6 px-6 py-2.5 bg-white text-indigo-900 font-bold rounded-xl hover:bg-indigo-50 transition-colors text-sm w-full shadow-lg"
+              >
                 {t('search.reviewAndApply')}
               </button>
             </div>
@@ -168,7 +235,10 @@ export function SearchAnalysis() {
           <div className="p-6">
             <div className="flex items-center justify-between mb-6">
               <h3 className="text-lg font-bold text-gray-900">{t('search.manageNegatives')}</h3>
-              <button className="px-4 py-2 bg-indigo-600 text-white text-sm font-bold rounded-lg hover:bg-indigo-700 transition-colors shadow-sm">
+              <button
+                onClick={handleAddNegativeKeyword}
+                className="px-4 py-2 bg-indigo-600 text-white text-sm font-bold rounded-lg hover:bg-indigo-700 transition-colors shadow-sm"
+              >
                 {t('search.addNegative')}
               </button>
             </div>
@@ -196,7 +266,10 @@ export function SearchAnalysis() {
                       <td className="px-6 py-4 text-gray-600">{kw.campaign}</td>
                       <td className="px-6 py-4 text-gray-500">{kw.addedDate}</td>
                       <td className={cn("px-6 py-4", dir === 'rtl' ? "text-left" : "text-right")}>
-                        <button className="text-red-600 hover:text-red-800 font-bold text-sm">
+                        <button
+                          onClick={() => handleRemoveNegativeKeyword(kw.id)}
+                          className="text-red-600 hover:text-red-800 font-bold text-sm"
+                        >
                           {t('search.remove')}
                         </button>
                       </td>
@@ -283,11 +356,17 @@ export function SearchAnalysis() {
                     </td>
                     <td className={cn("px-6 py-4", dir === 'rtl' ? "text-left" : "text-right")}>
                       {term.status === 'negative_candidate' ? (
-                        <button className="text-red-600 hover:text-red-800 font-bold text-sm bg-red-50 px-3 py-1.5 rounded-lg transition-colors">
+                        <button
+                          onClick={() => handleAddAsNegative(term.term)}
+                          className="text-red-600 hover:text-red-800 font-bold text-sm bg-red-50 px-3 py-1.5 rounded-lg transition-colors"
+                        >
                           {t('search.addAsNegative')}
                         </button>
                       ) : (
-                        <button className="text-indigo-600 hover:text-indigo-900 font-bold text-sm">
+                        <button
+                          onClick={() => window.alert(`${term.term}\n${term.source}`)}
+                          className="text-indigo-600 hover:text-indigo-900 font-bold text-sm"
+                        >
                           {t('search.viewDetails')}
                         </button>
                       )}
