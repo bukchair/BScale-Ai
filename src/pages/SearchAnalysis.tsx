@@ -1,9 +1,11 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useLanguage } from '../contexts/LanguageContext';
 import { Search, AlertTriangle, TrendingUp, TrendingDown, Filter, Download, Zap, CheckCircle2, XCircle } from 'lucide-react';
 import { cn } from '../lib/utils';
+import { useConnections } from '../contexts/ConnectionsContext';
+import { fetchGSCData } from '../services/googleService';
 
-const searchTerms = [
+const mockSearchTerms = [
   { term: 'נעלי ריצה זולות', clicks: 145, cost: 320, conversions: 0, roas: 0, source: 'Google Ads', status: 'review' },
   { term: 'נעלי הריצה הטובות ביותר 2024', clicks: 320, cost: 850, conversions: 12, roas: 4.2, source: 'Google Ads', status: 'optimal' },
   { type: 'organic', term: 'איך להתחיל לרוץ', impressions: 4500, clicks: 320, position: 4.2, source: 'GSC', status: 'opportunity' },
@@ -13,7 +15,56 @@ const searchTerms = [
 
 export function SearchAnalysis() {
   const { t, dir } = useLanguage();
+  const { connections } = useConnections();
   const [activeTab, setActiveTab] = useState<'all' | 'ads' | 'organic' | 'negative'>('all');
+  const [searchTerms, setSearchTerms] = useState<any[]>(mockSearchTerms);
+
+  useEffect(() => {
+    const googleConn = connections.find(c => c.id === 'google');
+    const accessToken = googleConn?.settings?.googleAccessToken;
+    const siteUrl = googleConn?.settings?.gscSiteUrl;
+
+    if (!googleConn || googleConn.status !== 'connected' || !accessToken || !siteUrl) {
+      setSearchTerms(mockSearchTerms);
+      return;
+    }
+
+    const loadGscTerms = async () => {
+      try {
+        const gscData = await fetchGSCData(accessToken, siteUrl);
+        const organicTerms = (gscData.rows || []).map((row: any) => {
+          const impressions = Number(row.impressions || 0);
+          const clicks = Number(row.clicks || 0);
+          const ctr = impressions > 0 ? clicks / impressions : 0;
+          const position = Number(row.position || 0);
+          const status =
+            position <= 4 ? 'optimal' :
+            ctr < 0.02 ? 'improve' :
+            'opportunity';
+
+          return {
+            type: 'organic',
+            term: row.keys?.[0] || '(not set)',
+            impressions,
+            clicks,
+            position: Number(position.toFixed(1)),
+            source: 'GSC',
+            status
+          };
+        });
+
+        setSearchTerms([
+          ...mockSearchTerms.filter(term => term.source === 'Google Ads'),
+          ...organicTerms
+        ]);
+      } catch (err) {
+        console.error("Failed to fetch GSC search terms:", err);
+        setSearchTerms(mockSearchTerms);
+      }
+    };
+
+    loadGscTerms();
+  }, [connections]);
 
   const negativeKeywords = [
     { id: 1, term: 'חינם', matchType: 'רחב', campaign: 'כל הקמפיינים', addedDate: '2024-03-01' },

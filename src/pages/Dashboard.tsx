@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, Legend } from 'recharts';
 import { DollarSign, Users, MousePointerClick, TrendingUp, Activity, Search, ShoppingCart, Target, Eye, ArrowRight, Zap, Megaphone, LineChart, Store } from 'lucide-react';
 import { cn } from '../lib/utils';
@@ -7,12 +7,15 @@ import { useDateRange } from '../contexts/DateRangeContext';
 import { useConnections } from '../contexts/ConnectionsContext';
 import { generateDashboardData } from '../lib/dataUtils';
 import { auth } from '../lib/firebase';
+import { fetchGA4LiveData, fetchGSCData, GA4LiveData } from '../services/googleService';
 
 export function Dashboard() {
   const { t, dir } = useLanguage();
   const { dateRange } = useDateRange();
   const { connections } = useConnections();
   const currentUser = auth.currentUser;
+  const [ga4LiveData, setGa4LiveData] = useState<GA4LiveData | null>(null);
+  const [gscTotals, setGscTotals] = useState<{ clicks: number; impressions: number; position: number; ctr: number } | null>(null);
 
   const connectedPlatforms = connections.filter(c => c.status === 'connected');
   const isWooConnected = connections.find(c => c.id === 'woocommerce')?.status === 'connected';
@@ -43,6 +46,89 @@ export function Dashboard() {
   }, [connectedPlatforms, isStoreConnected]);
 
   const { chartData, totalRevenue, totalSpend, roas, netProfit } = dashboardData;
+
+  useEffect(() => {
+    const googleConnection = connections.find(c => c.id === 'google');
+    const accessToken = googleConnection?.settings?.googleAccessToken;
+    const propertyId = googleConnection?.settings?.ga4PropertyId || googleConnection?.settings?.ga4Id;
+    const siteUrl = googleConnection?.settings?.gscSiteUrl;
+
+    if (!googleConnection || googleConnection.status !== 'connected' || !accessToken) {
+      setGa4LiveData(null);
+      setGscTotals(null);
+      return;
+    }
+
+    let isCancelled = false;
+
+    const loadGoogleData = async () => {
+      try {
+        if (propertyId) {
+          const ga4Data = await fetchGA4LiveData(accessToken, propertyId);
+          if (!isCancelled) {
+            setGa4LiveData(ga4Data);
+          }
+        }
+      } catch (err) {
+        console.error("Failed to load GA4 live data:", err);
+        if (!isCancelled) {
+          setGa4LiveData(null);
+        }
+      }
+
+      try {
+        if (siteUrl) {
+          const gscData = await fetchGSCData(accessToken, siteUrl);
+          const rows = gscData.rows || [];
+          const clicks = rows.reduce((sum: number, row: any) => sum + Number(row.clicks || 0), 0);
+          const impressions = rows.reduce((sum: number, row: any) => sum + Number(row.impressions || 0), 0);
+          const weightedPosition = rows.reduce((sum: number, row: any) => sum + (Number(row.position || 0) * Number(row.impressions || 0)), 0);
+          const position = impressions > 0 ? weightedPosition / impressions : 0;
+          const ctr = impressions > 0 ? (clicks / impressions) * 100 : 0;
+
+          if (!isCancelled) {
+            setGscTotals({ clicks, impressions, position, ctr });
+          }
+        }
+      } catch (err) {
+        console.error("Failed to load Search Console data:", err);
+        if (!isCancelled) {
+          setGscTotals(null);
+        }
+      }
+    };
+
+    loadGoogleData();
+    const intervalId = window.setInterval(loadGoogleData, 60000);
+
+    return () => {
+      isCancelled = true;
+      window.clearInterval(intervalId);
+    };
+  }, [connections]);
+
+  const topPages = ga4LiveData?.topPages?.length
+    ? ga4LiveData.topPages.map((page) => ({
+        name: page.name === '/' ? t('dashboard.homePage') : page.name,
+        percent: ga4LiveData.activeUsers > 0 ? Math.max(1, Math.round((page.users / ga4LiveData.activeUsers) * 100)) : 0
+      }))
+    : [
+        { name: t('dashboard.homePage'), percent: 41 },
+        { name: t('dashboard.products'), percent: 28 },
+        { name: t('dashboard.promotions'), percent: 18 },
+      ];
+
+  const trafficSources = ga4LiveData?.trafficSources?.length
+    ? ga4LiveData.trafficSources.slice(0, 3).map((source, idx) => ({
+        name: source.name,
+        percent: source.percent,
+        color: idx === 0 ? 'bg-emerald-500' : idx === 1 ? 'bg-blue-500' : 'bg-purple-500'
+      }))
+    : [
+        { name: t('dashboard.organicSearch'), percent: 45, color: 'bg-emerald-500' },
+        { name: t('dashboard.paidSearch'), percent: 30, color: 'bg-blue-500' },
+        { name: t('dashboard.direct'), percent: 15, color: 'bg-purple-500' },
+      ];
 
   const quickActions = [
     { id: 'ai-recs', title: t('dashboard.viewAiRecs'), icon: Zap, color: 'bg-amber-100 dark:bg-amber-500/20 text-amber-600 dark:text-amber-400', desc: t('dashboard.viewAiRecsDesc') },
@@ -161,11 +247,11 @@ export function Dashboard() {
               <div className={cn("absolute top-3 w-2 h-2 bg-blue-500 rounded-full", dir === 'rtl' ? "left-3" : "right-3")} />
               <div>
                 <p className="text-sm font-medium text-blue-800 dark:text-blue-300 uppercase tracking-wider mb-1">{t('dashboard.activeNow')}</p>
-                <p className="text-5xl font-black text-blue-600 dark:text-blue-400">42</p>
+                <p className="text-5xl font-black text-blue-600 dark:text-blue-400">{ga4LiveData?.activeUsers ?? 42}</p>
               </div>
               <div className="text-end">
                 <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">{t('dashboard.totalUsers')}</p>
-                <p className="text-xl font-bold text-gray-900 dark:text-white">1,247</p>
+                <p className="text-xl font-bold text-gray-900 dark:text-white">{(ga4LiveData?.totalUsers ?? 1247).toLocaleString()}</p>
               </div>
             </div>
 
@@ -173,11 +259,7 @@ export function Dashboard() {
               <div className="space-y-4">
                 <h3 className="text-sm font-bold text-gray-900 dark:text-white uppercase tracking-wider">{t('dashboard.topPages')}</h3>
                 <div className="space-y-3">
-                  {[
-                    { name: t('dashboard.homePage'), percent: 41 },
-                    { name: t('dashboard.products'), percent: 28 },
-                    { name: t('dashboard.promotions'), percent: 18 },
-                  ].map((page, i) => (
+                  {topPages.map((page, i) => (
                     <div key={i} className="flex items-center gap-3 text-sm">
                       <span className="w-24 font-medium text-gray-700 dark:text-gray-300 truncate">{page.name}</span>
                       <div className="flex-1 h-2 bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden">
@@ -192,11 +274,7 @@ export function Dashboard() {
               <div className="space-y-4">
                 <h3 className="text-sm font-bold text-gray-900 dark:text-white uppercase tracking-wider">{t('dashboard.trafficSources')}</h3>
                 <div className="space-y-3">
-                  {[
-                    { name: t('dashboard.organicSearch'), percent: 45, color: 'bg-emerald-500' },
-                    { name: t('dashboard.paidSearch'), percent: 30, color: 'bg-blue-500' },
-                    { name: t('dashboard.direct'), percent: 15, color: 'bg-purple-500' },
-                  ].map((source, i) => (
+                  {trafficSources.map((source, i) => (
                     <div key={i} className="flex items-center gap-3 text-sm">
                       <div className={cn("w-2 h-2 rounded-full", source.color)} />
                       <span className="w-24 font-medium text-gray-700 dark:text-gray-300 truncate">{source.name}</span>
@@ -274,22 +352,22 @@ export function Dashboard() {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <div className="bg-gray-50 dark:bg-[#1a1a1a] p-6 rounded-xl border border-gray-100 dark:border-white/5 text-center hover:border-blue-200 dark:hover:border-blue-500/30 transition-colors cursor-pointer group">
             <MousePointerClick className="w-6 h-6 text-blue-500 dark:text-blue-400 mx-auto mb-3 transition-transform group-hover:scale-110" />
-            <p className="text-3xl font-black text-gray-900 dark:text-white mb-1">3,842</p>
+            <p className="text-3xl font-black text-gray-900 dark:text-white mb-1">{(gscTotals?.clicks ?? 3842).toLocaleString()}</p>
             <p className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">{t('dashboard.clicks')}</p>
           </div>
           <div className="bg-gray-50 dark:bg-[#1a1a1a] p-6 rounded-xl border border-gray-100 dark:border-white/5 text-center hover:border-purple-200 dark:hover:border-purple-500/30 transition-colors cursor-pointer group">
             <Eye className="w-6 h-6 text-purple-500 dark:text-purple-400 mx-auto mb-3 transition-transform group-hover:scale-110" />
-            <p className="text-3xl font-black text-gray-900 dark:text-white mb-1">48,200</p>
+            <p className="text-3xl font-black text-gray-900 dark:text-white mb-1">{(gscTotals?.impressions ?? 48200).toLocaleString()}</p>
             <p className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">{t('dashboard.impressions')}</p>
           </div>
           <div className="bg-gray-50 dark:bg-[#1a1a1a] p-6 rounded-xl border border-gray-100 dark:border-white/5 text-center hover:border-orange-200 dark:hover:border-orange-500/30 transition-colors cursor-pointer group">
             <Target className="w-6 h-6 text-orange-500 dark:text-orange-400 mx-auto mb-3 transition-transform group-hover:scale-110" />
-            <p className="text-3xl font-black text-gray-900 dark:text-white mb-1">#14.3</p>
+            <p className="text-3xl font-black text-gray-900 dark:text-white mb-1">#{(gscTotals?.position ?? 14.3).toFixed(1)}</p>
             <p className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">{t('dashboard.avgPosition')}</p>
           </div>
           <div className="bg-gray-50 dark:bg-[#1a1a1a] p-6 rounded-xl border border-gray-100 dark:border-white/5 text-center hover:border-emerald-200 dark:hover:border-emerald-500/30 transition-colors cursor-pointer group">
             <TrendingUp className="w-6 h-6 text-emerald-500 dark:text-emerald-400 mx-auto mb-3 transition-transform group-hover:scale-110" />
-            <p className="text-3xl font-black text-gray-900 dark:text-white mb-1">7.97%</p>
+            <p className="text-3xl font-black text-gray-900 dark:text-white mb-1">{(gscTotals?.ctr ?? 7.97).toFixed(2)}%</p>
             <p className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">{t('dashboard.ctr')}</p>
           </div>
         </div>

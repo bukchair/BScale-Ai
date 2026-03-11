@@ -13,6 +13,15 @@ const __dirname = path.dirname(__filename);
 async function startServer() {
   const app = express();
   const PORT = Number(process.env.PORT) || 3000;
+  const getBearerToken = (req: express.Request) => req.headers.authorization?.split(" ")[1];
+
+  const getAxiosErrorMessage = (error: unknown, fallback: string) => {
+    if (axios.isAxiosError(error)) {
+      const apiMessage = (error.response?.data as any)?.error?.message || (error.response?.data as any)?.message;
+      return apiMessage || error.message || fallback;
+    }
+    return error instanceof Error ? error.message : fallback;
+  };
 
   // API routes FIRST
   app.get("/api/health", (req, res) => {
@@ -401,6 +410,74 @@ async function startServer() {
     }
   });
 
+  app.get("/api/google/discover", async (req, res) => {
+    const accessToken = getBearerToken(req);
+    if (!accessToken) {
+      return res.status(400).json({ message: "Missing access token" });
+    }
+
+    const discovered: Record<string, string> = {};
+    const warnings: string[] = [];
+
+    // Discover GA4 properties from account summaries
+    try {
+      const ga4Response = await axios.get("https://analyticsadmin.googleapis.com/v1alpha/accountSummaries", {
+        params: { pageSize: 200 },
+        headers: { Authorization: `Bearer ${accessToken}` }
+      });
+
+      const firstProperty = (ga4Response.data.accountSummaries || [])
+        .flatMap((summary: any) => summary.propertySummaries || [])
+        .find((property: any) => property?.property);
+
+      if (firstProperty?.property) {
+        discovered.ga4PropertyId = String(firstProperty.property).replace("properties/", "");
+        if (firstProperty.displayName) {
+          discovered.ga4PropertyName = firstProperty.displayName;
+        }
+      }
+    } catch (error) {
+      warnings.push(`GA4 discovery failed: ${getAxiosErrorMessage(error, "Unknown GA4 error")}`);
+    }
+
+    // Discover Search Console verified site
+    try {
+      const gscResponse = await axios.get("https://www.googleapis.com/webmasters/v3/sites", {
+        headers: { Authorization: `Bearer ${accessToken}` }
+      });
+      const site = (gscResponse.data.siteEntry || []).find((entry: any) =>
+        entry.permissionLevel && entry.permissionLevel !== "siteUnverified"
+      );
+      if (site?.siteUrl) {
+        discovered.gscSiteUrl = site.siteUrl;
+      }
+    } catch (error) {
+      warnings.push(`Search Console discovery failed: ${getAxiosErrorMessage(error, "Unknown GSC error")}`);
+    }
+
+    // Discover Google Ads customer if developer token is configured
+    if (process.env.GOOGLE_ADS_DEVELOPER_TOKEN) {
+      try {
+        const adsResponse = await axios.get("https://googleads.googleapis.com/v17/customers:listAccessibleCustomers", {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            "developer-token": process.env.GOOGLE_ADS_DEVELOPER_TOKEN
+          }
+        });
+        const firstCustomerResource = adsResponse.data.resourceNames?.[0];
+        if (firstCustomerResource) {
+          discovered.googleAdsId = String(firstCustomerResource).replace("customers/", "");
+        }
+      } catch (error) {
+        warnings.push(`Google Ads discovery failed: ${getAxiosErrorMessage(error, "Unknown Google Ads error")}`);
+      }
+    } else {
+      warnings.push("Google Ads discovery skipped: GOOGLE_ADS_DEVELOPER_TOKEN is not configured.");
+    }
+
+    res.json({ discovered, warnings });
+  });
+
   app.get("/api/google/ads/campaigns", async (req, res) => {
     const accessToken = req.headers.authorization?.split(" ")[1];
     const customerId = req.query.customer_id;
@@ -438,6 +515,71 @@ async function startServer() {
     } catch (error: any) {
       console.error("Google Ads API Error:", error.response?.data || error.message);
       res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.get("/api/google/analytics/live", async (req, res) => {
+    const accessToken = getBearerToken(req);
+    const propertyId = req.query.property_id;
+
+    if (!accessToken || !propertyId) {
+      return res.status(400).json({ message: "Missing access token or property ID" });
+    }
+
+    const normalizedPropertyId = String(propertyId).replace("properties/", "");
+    const realtimeUrl = `https://analyticsdata.googleapis.com/v1beta/properties/${normalizedPropertyId}:runRealtimeReport`;
+    const reportUrl = `https://analyticsdata.googleapis.com/v1beta/properties/${normalizedPropertyId}:runReport`;
+    const headers = { Authorization: `Bearer ${accessToken}` };
+
+    try {
+      const [activeNowRes, totalUsersRes, topPagesRes, sourcesRes] = await Promise.all([
+        axios.post(realtimeUrl, { metrics: [{ name: "activeUsers" }] }, { headers }),
+        axios.post(reportUrl, {
+          dateRanges: [{ startDate: "30daysAgo", endDate: "today" }],
+          metrics: [{ name: "totalUsers" }]
+        }, { headers }),
+        axios.post(realtimeUrl, {
+          dimensions: [{ name: "unifiedPagePathScreen" }],
+          metrics: [{ name: "activeUsers" }],
+          limit: 3,
+          orderBys: [{ metric: { metricName: "activeUsers" }, desc: true }]
+        }, { headers }),
+        axios.post(realtimeUrl, {
+          dimensions: [{ name: "sessionDefaultChannelGroup" }],
+          metrics: [{ name: "activeUsers" }],
+          limit: 5,
+          orderBys: [{ metric: { metricName: "activeUsers" }, desc: true }]
+        }, { headers })
+      ]);
+
+      const activeUsers = Number(activeNowRes.data.rows?.[0]?.metricValues?.[0]?.value || 0);
+      const totalUsers = Number(totalUsersRes.data.rows?.[0]?.metricValues?.[0]?.value || 0);
+
+      const topPages = (topPagesRes.data.rows || []).map((row: any) => ({
+        name: row.dimensionValues?.[0]?.value || "/",
+        users: Number(row.metricValues?.[0]?.value || 0)
+      }));
+
+      const sourceRows = (sourcesRes.data.rows || []).map((row: any) => ({
+        name: row.dimensionValues?.[0]?.value || "Other",
+        users: Number(row.metricValues?.[0]?.value || 0)
+      }));
+      const totalSourceUsers = sourceRows.reduce((sum: number, row: any) => sum + row.users, 0);
+      const trafficSources = sourceRows.map((row: any) => ({
+        name: row.name,
+        users: row.users,
+        percent: totalSourceUsers > 0 ? Math.round((row.users / totalSourceUsers) * 100) : 0
+      }));
+
+      res.json({
+        activeUsers,
+        totalUsers,
+        topPages,
+        trafficSources
+      });
+    } catch (error) {
+      console.error("GA4 live API Error:", (error as any)?.response?.data || (error as any)?.message || error);
+      res.status(500).json({ message: getAxiosErrorMessage(error, "Failed to fetch live GA4 data") });
     }
   });
 

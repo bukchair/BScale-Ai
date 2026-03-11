@@ -1,8 +1,7 @@
 export async function fetchGoogleAdAccounts(accessToken: string) {
-  const response = await fetch(`https://googleads.googleapis.com/v17/customers:listAccessibleCustomers`, {
+  const response = await fetch(`/api/google/discover`, {
     headers: {
-      'Authorization': `Bearer ${accessToken}`,
-      'developer-token': process.env.GOOGLE_ADS_DEVELOPER_TOKEN as string
+      'Authorization': `Bearer ${accessToken}`
     }
   });
   
@@ -12,7 +11,7 @@ export async function fetchGoogleAdAccounts(accessToken: string) {
   }
   
   const data = await response.json();
-  return data.resourceNames;
+  return data.discovered?.googleAdsId ? [data.discovered.googleAdsId] : [];
 }
 
 export async function fetchGoogleCampaigns(accessToken: string, customerId: string, loginCustomerId?: string) {
@@ -73,6 +72,53 @@ export async function fetchGA4Report(accessToken: string, propertyId: string) {
   if (!response.ok) {
     const error = await response.json();
     throw new Error(error.message || 'Failed to fetch GA4 report');
+  }
+
+  return response.json();
+}
+
+export interface GoogleDiscoveryResult {
+  discovered: {
+    ga4PropertyId?: string;
+    ga4PropertyName?: string;
+    gscSiteUrl?: string;
+    googleAdsId?: string;
+  };
+  warnings?: string[];
+}
+
+export async function fetchGoogleDiscovery(accessToken: string): Promise<GoogleDiscoveryResult> {
+  const response = await fetch(`/api/google/discover`, {
+    headers: {
+      'Authorization': `Bearer ${accessToken}`
+    }
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.message || 'Failed to discover Google resources');
+  }
+
+  return response.json();
+}
+
+export interface GA4LiveData {
+  activeUsers: number;
+  totalUsers: number;
+  topPages: { name: string; users: number }[];
+  trafficSources: { name: string; users: number; percent: number }[];
+}
+
+export async function fetchGA4LiveData(accessToken: string, propertyId: string): Promise<GA4LiveData> {
+  const response = await fetch(`/api/google/analytics/live?property_id=${encodeURIComponent(propertyId)}`, {
+    headers: {
+      'Authorization': `Bearer ${accessToken}`
+    }
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.message || 'Failed to fetch GA4 live data');
   }
 
   return response.json();

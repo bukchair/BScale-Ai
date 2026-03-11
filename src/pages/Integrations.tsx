@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
 import { useConnections, Connection } from '../contexts/ConnectionsContext';
 import { useLanguage } from '../contexts/LanguageContext';
+import { fetchGoogleDiscovery } from '../services/googleService';
 
 const iconMap: Record<string, React.ElementType> = {
   'gemini': Sparkles,
@@ -30,6 +31,7 @@ export function Integrations() {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [formValues, setFormValues] = useState<Record<string, string>>({});
   const [testingId, setTestingId] = useState<string | null>(null);
+  const [discoveringGoogle, setDiscoveringGoogle] = useState(false);
 
   const [success, setSuccess] = useState<string | null>(null);
 
@@ -104,8 +106,42 @@ export function Integrations() {
     }
   };
 
+  const getDiscoveredGoogleSettings = async (accessToken: string) => {
+    const discovery = await fetchGoogleDiscovery(accessToken);
+    const discovered = discovery.discovered || {};
+    return {
+      googleAdsId: discovered.googleAdsId || '',
+      ga4PropertyId: discovered.ga4PropertyId || '',
+      gscSiteUrl: discovered.gscSiteUrl || '',
+      ga4PropertyName: discovered.ga4PropertyName || '',
+    };
+  };
+
+  const handleGoogleDiscovery = async () => {
+    const googleConn = connections.find(c => c.id === 'google');
+    const accessToken = formValues.googleAccessToken || googleConn?.settings?.googleAccessToken;
+    if (!accessToken) {
+      setToast({ message: "Google access token is missing. Please reconnect Google first.", type: 'error' });
+      return;
+    }
+
+    setDiscoveringGoogle(true);
+    try {
+      const discoveredSettings = await getDiscoveredGoogleSettings(accessToken);
+      const mergedSettings = { ...formValues, ...discoveredSettings };
+      setFormValues(mergedSettings);
+      await handleSave('google', mergedSettings);
+      setToast({ message: "Google resources scanned and synced successfully.", type: 'success' });
+    } catch (err) {
+      console.error("Google discovery failed:", err);
+      setToast({ message: "Failed to scan Google resources. Please try again.", type: 'error' });
+    } finally {
+      setDiscoveringGoogle(false);
+    }
+  };
+
   React.useEffect(() => {
-    const handleMessage = (event: MessageEvent) => {
+    const handleMessage = async (event: MessageEvent) => {
       console.log("Received postMessage:", event.data);
       // Simple origin check for development and production
       const isAllowedOrigin = event.origin.includes(window.location.hostname) || 
@@ -134,13 +170,22 @@ export function Integrations() {
 
       if (event.data?.type === 'OAUTH_AUTH_SUCCESS' && event.data?.platform === 'google') {
         const { tokens } = event.data;
-        // Update connection settings with the new tokens
-        handleSave('google', { 
+        // Update connection settings with tokens and discovered resource IDs
+        const tokenSettings = {
           googleAccessToken: tokens.access_token,
           googleRefreshToken: tokens.refresh_token || '',
           googleExpiry: (Date.now() + tokens.expires_in * 1000).toString(),
-        });
-        setToast({ message: "Successfully connected to Google Workspace!", type: 'success' });
+        };
+
+        try {
+          const discoveredSettings = await getDiscoveredGoogleSettings(tokens.access_token);
+          await handleSave('google', { ...tokenSettings, ...discoveredSettings });
+          setToast({ message: "Successfully connected to Google Workspace and synced resources!", type: 'success' });
+        } catch (err) {
+          console.error("Google discovery during OAuth failed:", err);
+          await handleSave('google', tokenSettings);
+          setToast({ message: "Connected to Google Workspace, but resource scan failed. You can run scan manually.", type: 'error' });
+        }
       }
 
       if (event.data?.type === 'OAUTH_AUTH_ERROR') {
@@ -279,6 +324,18 @@ export function Integrations() {
                     </button>
                   </div>
                   {isConnected && (
+                    <div className="sm:col-span-2">
+                      <button
+                        onClick={handleGoogleDiscovery}
+                        disabled={discoveringGoogle}
+                        className="w-full flex items-center justify-center gap-2 bg-indigo-50 text-indigo-700 py-2 rounded-lg font-bold hover:bg-indigo-100 transition-all border border-indigo-100 disabled:opacity-60"
+                      >
+                        {discoveringGoogle ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
+                        {discoveringGoogle ? "Scanning Google resources..." : "Scan Google resources"}
+                      </button>
+                    </div>
+                  )}
+                  {isConnected && (
                     <>
                       <div>
                         <label className="block text-[10px] font-bold text-gray-500 mb-1 uppercase tracking-wider">{t('integrations.adsAccountId')}</label>
@@ -286,7 +343,11 @@ export function Integrations() {
                       </div>
                       <div>
                         <label className="block text-[10px] font-bold text-gray-500 mb-1 uppercase tracking-wider">{t('integrations.ga4MeasurementId')}</label>
-                        <input type="text" placeholder="G-XXXXXXXXXX" className="w-full px-3 py-1.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-xs text-left" dir="ltr" value={formValues.ga4Id || ""} onChange={(e) => handleInputChange('ga4Id', e.target.value)} />
+                        <input type="text" placeholder="123456789 (property ID)" className="w-full px-3 py-1.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-xs text-left" dir="ltr" value={formValues.ga4PropertyId || formValues.ga4Id || ""} onChange={(e) => handleInputChange('ga4PropertyId', e.target.value)} />
+                      </div>
+                      <div className="sm:col-span-2">
+                        <label className="block text-[10px] font-bold text-gray-500 mb-1 uppercase tracking-wider">Search Console Site URL</label>
+                        <input type="text" placeholder="sc-domain:example.com or https://example.com/" className="w-full px-3 py-1.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-xs text-left" dir="ltr" value={formValues.gscSiteUrl || ""} onChange={(e) => handleInputChange('gscSiteUrl', e.target.value)} />
                       </div>
                       <div className="sm:col-span-2">
                         <label className="block text-[10px] font-bold text-gray-500 mb-1 uppercase tracking-wider">Google Access Token</label>
