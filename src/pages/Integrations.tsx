@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Plug, CheckCircle2, ShoppingCart, BarChart2, Mail, Search, Megaphone, Video, Facebook, AlertCircle, Loader2, X, Store, HelpCircle, ChevronDown, ChevronUp, Sparkles, Settings2, Key, Link as LinkIcon, Trash2, Plus } from 'lucide-react';
+import { Plug, CheckCircle2, ShoppingCart, BarChart2, Mail, Search, Megaphone, Video, Facebook, AlertCircle, Loader2, X, Store, HelpCircle, ChevronDown, ChevronUp, Sparkles, Settings2, Key, Link as LinkIcon, Trash2, Plus, ExternalLink } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
 import { useConnections, Connection } from '../contexts/ConnectionsContext';
@@ -394,6 +394,45 @@ export function Integrations() {
     return null;
   };
 
+  const getQuickGuideLinks = (integrationId: string): { label: string; url: string }[] => {
+    if (integrationId === 'gemini') {
+      return [
+        { label: 'AI Studio API Keys', url: 'https://aistudio.google.com/app/apikey' },
+      ];
+    }
+    if (integrationId === 'google') {
+      return [
+        { label: 'Google Ads', url: 'https://ads.google.com/aw/settings/account' },
+        { label: 'GA4 Admin', url: 'https://analytics.google.com/analytics/web/#/admin' },
+        { label: 'Search Console', url: 'https://search.google.com/search-console' },
+      ];
+    }
+    if (integrationId === 'meta') {
+      return [
+        { label: 'Ads Manager', url: 'https://adsmanager.facebook.com/' },
+        { label: 'Business Settings', url: 'https://business.facebook.com/settings' },
+        { label: 'Events Manager', url: 'https://business.facebook.com/events_manager2/list/pixel' },
+      ];
+    }
+    if (integrationId === 'tiktok') {
+      return [
+        { label: 'TikTok Ads', url: 'https://ads.tiktok.com/' },
+        { label: 'TikTok API Docs', url: 'https://ads.tiktok.com/marketing_api/docs' },
+      ];
+    }
+    if (integrationId === 'woocommerce') {
+      return [
+        { label: 'REST API Docs', url: 'https://woocommerce.com/document/woocommerce-rest-api/' },
+      ];
+    }
+    if (integrationId === 'shopify') {
+      return [
+        { label: 'Shopify Admin', url: 'https://admin.shopify.com/' },
+      ];
+    }
+    return [];
+  };
+
   const renderIntegrationSettings = (integration: Connection) => {
     const isConnected = integration.status === 'connected';
     const isConnecting = integration.status === 'connecting';
@@ -631,6 +670,23 @@ export function Integrations() {
                 <HelpCircle className="w-3 h-3 text-amber-600" />
                 {t('integrations.quickGuide')}
               </h5>
+
+              {getQuickGuideLinks(integration.id).length > 0 && (
+                <div className="mb-2 space-y-1.5">
+                  {getQuickGuideLinks(integration.id).map((link) => (
+                    <a
+                      key={link.url}
+                      href={link.url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="flex items-center justify-between gap-2 bg-white/80 border border-amber-200 rounded-md px-2 py-1 text-[10px] font-bold text-amber-800 hover:bg-white"
+                    >
+                      <span className="truncate">{link.label}</span>
+                      <ExternalLink className="w-3 h-3 shrink-0" />
+                    </a>
+                  ))}
+                </div>
+              )}
               
               <div className="text-[10px] text-amber-800/80 leading-tight">
                 {renderQuickGuideContent(integration.id)}
