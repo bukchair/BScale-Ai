@@ -1,27 +1,58 @@
 import React from 'react';
 import { motion } from 'motion/react';
-import { ArrowLeft, BrainCircuit, BarChart3, Globe, Target, Zap, Mail, Layers, LineChart, Sparkles, ArrowRight, BookOpen } from 'lucide-react';
+import { ArrowLeft, BrainCircuit, BarChart3, Globe, Target, Zap, Mail, Layers, LineChart, Sparkles, ArrowRight, BookOpen, ShieldCheck } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
 import { LanguageSwitcher } from '../components/LanguageSwitcher';
 import { ThemeSwitcher } from '../components/ThemeSwitcher';
-import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import {
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  LineChart as ReLineChart,
+  Line,
+  BarChart as ReBarChart,
+  Bar,
+  PieChart,
+  Pie,
+  Cell,
+} from 'recharts';
 
 interface LandingProps {
   onEnter: () => void;
+  onOpenPrivacy: () => void;
 }
 
-const mockChartData = [
-  { name: 'Jan', value: 4000 },
-  { name: 'Feb', value: 3000 },
-  { name: 'Mar', value: 5000 },
-  { name: 'Apr', value: 4500 },
-  { name: 'May', value: 6000 },
-  { name: 'Jun', value: 5500 },
-  { name: 'Jul', value: 7000 },
+const unifiedTrendData = [
+  { name: 'Mon', revenue: 12400, spend: 4300 },
+  { name: 'Tue', revenue: 13250, spend: 4600 },
+  { name: 'Wed', revenue: 14100, spend: 4700 },
+  { name: 'Thu', revenue: 15220, spend: 4900 },
+  { name: 'Fri', revenue: 16850, spend: 5200 },
+  { name: 'Sat', revenue: 17420, spend: 5400 },
+  { name: 'Sun', revenue: 18760, spend: 5650 },
 ];
 
-export function Landing({ onEnter }: LandingProps) {
+const platformPerformanceData = [
+  { platform: 'Google', revenue: 46200, spend: 15700 },
+  { platform: 'Meta', revenue: 33800, spend: 12300 },
+  { platform: 'TikTok', revenue: 19100, spend: 8800 },
+  { platform: 'Woo', revenue: 54200, spend: 0 },
+];
+
+const sourceMixData = [
+  { name: 'Paid', value: 46, color: '#6366F1' },
+  { name: 'Organic', value: 28, color: '#10B981' },
+  { name: 'Social', value: 17, color: '#F59E0B' },
+  { name: 'Direct', value: 9, color: '#EC4899' },
+];
+
+export function Landing({ onEnter, onOpenPrivacy }: LandingProps) {
   const { t, dir } = useLanguage();
+  const totalRevenue = unifiedTrendData.reduce((sum, row) => sum + row.revenue, 0);
+  const totalSpend = unifiedTrendData.reduce((sum, row) => sum + row.spend, 0);
+  const blendedRoas = totalSpend > 0 ? (totalRevenue / totalSpend).toFixed(2) : '0.00';
 
   const features = [
     { icon: Target, title: t('landing.f1_title'), desc: t('landing.f1_desc') },
@@ -60,6 +91,12 @@ export function Landing({ onEnter }: LandingProps) {
           <div className="flex items-center gap-4">
             <ThemeSwitcher />
             <LanguageSwitcher />
+            <button
+              onClick={onOpenPrivacy}
+              className="text-sm font-medium text-gray-600 hover:text-gray-900 dark:text-white/80 dark:hover:text-white transition-colors"
+            >
+              {t('landing.privacy')}
+            </button>
             <button
               onClick={onEnter}
               className="text-sm font-medium text-gray-600 hover:text-gray-900 dark:text-white/80 dark:hover:text-white transition-colors"
@@ -123,39 +160,85 @@ export function Landing({ onEnter }: LandingProps) {
                 <div className="w-3 h-3 rounded-full bg-red-400" />
                 <div className="w-3 h-3 rounded-full bg-amber-400" />
                 <div className="w-3 h-3 rounded-full bg-emerald-400" />
+                <p className="text-xs text-gray-500 dark:text-gray-400 ms-2">{t('landing.unifiedPanelTitle')}</p>
               </div>
-              <div className="p-6">
-                <div className="h-64 w-full">
+              <div className="p-6 space-y-5">
+                <div className="flex flex-wrap gap-2">
+                  {['Google Ads', 'Meta Ads', 'TikTok Ads', 'GA4', 'Search Console', 'WooCommerce'].map((platform) => (
+                    <span
+                      key={platform}
+                      className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-gray-100 dark:bg-white/5 text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-white/10"
+                    >
+                      {platform}
+                    </span>
+                  ))}
+                </div>
+
+                <div className="grid grid-cols-3 gap-3">
+                  <div className="rounded-xl bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-100 dark:border-emerald-500/20 p-3">
+                    <p className="text-[11px] text-emerald-700 dark:text-emerald-300">{t('landing.unifiedKpiRevenue')}</p>
+                    <p className="text-lg font-black text-emerald-700 dark:text-emerald-300">₪{totalRevenue.toLocaleString()}</p>
+                  </div>
+                  <div className="rounded-xl bg-red-50 dark:bg-red-500/10 border border-red-100 dark:border-red-500/20 p-3">
+                    <p className="text-[11px] text-red-700 dark:text-red-300">{t('landing.unifiedKpiSpend')}</p>
+                    <p className="text-lg font-black text-red-700 dark:text-red-300">₪{totalSpend.toLocaleString()}</p>
+                  </div>
+                  <div className="rounded-xl bg-indigo-50 dark:bg-indigo-500/10 border border-indigo-100 dark:border-indigo-500/20 p-3">
+                    <p className="text-[11px] text-indigo-700 dark:text-indigo-300">{t('landing.unifiedKpiRoas')}</p>
+                    <p className="text-lg font-black text-indigo-700 dark:text-indigo-300">{blendedRoas}x</p>
+                  </div>
+                </div>
+
+                <div className="h-44 w-full rounded-xl border border-gray-100 dark:border-white/10 bg-gray-50 dark:bg-black/20 p-2">
                   <ResponsiveContainer width="100%" height="100%" minWidth={0}>
-                    <AreaChart data={mockChartData}>
-                      <defs>
-                        <linearGradient id="colorValue" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#6366f1" stopOpacity={0.3}/>
-                          <stop offset="95%" stopColor="#6366f1" stopOpacity={0}/>
-                        </linearGradient>
-                      </defs>
+                    <ReLineChart data={unifiedTrendData}>
                       <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#374151" opacity={0.2} />
-                      <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#6b7280', fontSize: 12 }} />
-                      <YAxis axisLine={false} tickLine={false} tick={{ fill: '#6b7280', fontSize: 12 }} />
-                      <Tooltip 
+                      <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#6b7280', fontSize: 11 }} />
+                      <YAxis axisLine={false} tickLine={false} tick={{ fill: '#6b7280', fontSize: 11 }} />
+                      <Tooltip
                         contentStyle={{ backgroundColor: '#1f2937', border: 'none', borderRadius: '8px', color: '#fff' }}
                         itemStyle={{ color: '#fff' }}
                       />
-                      <Area type="monotone" dataKey="value" stroke="#6366f1" strokeWidth={3} fillOpacity={1} fill="url(#colorValue)" />
-                    </AreaChart>
+                      <Line type="monotone" dataKey="revenue" stroke="#10B981" strokeWidth={2.5} dot={false} />
+                      <Line type="monotone" dataKey="spend" stroke="#EF4444" strokeWidth={2.5} dot={false} />
+                    </ReLineChart>
                   </ResponsiveContainer>
                 </div>
-              </div>
-            </div>
-            
-            {/* Floating Elements */}
-            <div className="absolute -bottom-6 -start-6 bg-white dark:bg-[#1a1a1a] p-4 rounded-xl shadow-xl border border-gray-200 dark:border-white/10 flex items-center gap-4 animate-bounce" style={{ animationDuration: '3s' }}>
-              <div className="w-12 h-12 rounded-full bg-emerald-100 dark:bg-emerald-500/20 flex items-center justify-center">
-                <LineChart className="w-6 h-6 text-emerald-600 dark:text-emerald-400" />
-              </div>
-              <div>
-                <p className="text-sm text-gray-500 dark:text-gray-400 font-medium">{t('landing.revenueGrowth')}</p>
-                <p className="text-xl font-bold text-gray-900 dark:text-white">+124%</p>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="h-44 rounded-xl border border-gray-100 dark:border-white/10 bg-gray-50 dark:bg-black/20 p-2">
+                    <p className="text-[11px] font-bold text-gray-600 dark:text-gray-300 mb-1 px-2">{t('landing.performanceByPlatform')}</p>
+                    <ResponsiveContainer width="100%" height="100%" minWidth={0}>
+                      <ReBarChart data={platformPerformanceData}>
+                        <XAxis dataKey="platform" axisLine={false} tickLine={false} tick={{ fill: '#6b7280', fontSize: 10 }} />
+                        <YAxis hide />
+                        <Tooltip
+                          contentStyle={{ backgroundColor: '#1f2937', border: 'none', borderRadius: '8px', color: '#fff' }}
+                          itemStyle={{ color: '#fff' }}
+                        />
+                        <Bar dataKey="spend" fill="#EF4444" radius={[4, 4, 0, 0]} />
+                        <Bar dataKey="revenue" fill="#6366F1" radius={[4, 4, 0, 0]} />
+                      </ReBarChart>
+                    </ResponsiveContainer>
+                  </div>
+
+                  <div className="h-44 rounded-xl border border-gray-100 dark:border-white/10 bg-gray-50 dark:bg-black/20 p-2">
+                    <p className="text-[11px] font-bold text-gray-600 dark:text-gray-300 mb-1 px-2">{t('landing.sourceMix')}</p>
+                    <ResponsiveContainer width="100%" height="100%" minWidth={0}>
+                      <PieChart>
+                        <Pie data={sourceMixData} dataKey="value" innerRadius={28} outerRadius={44} paddingAngle={2}>
+                          {sourceMixData.map((entry) => (
+                            <Cell key={entry.name} fill={entry.color} />
+                          ))}
+                        </Pie>
+                        <Tooltip
+                          contentStyle={{ backgroundColor: '#1f2937', border: 'none', borderRadius: '8px', color: '#fff' }}
+                          itemStyle={{ color: '#fff' }}
+                        />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
               </div>
             </div>
           </motion.div>
@@ -183,12 +266,41 @@ export function Landing({ onEnter }: LandingProps) {
               </p>
             </div>
             <div className="mt-10">
-               <img 
-                 src="https://picsum.photos/seed/dashboard/1200/600" 
-                 alt="Dashboard Preview" 
-                 className="rounded-2xl shadow-2xl border border-gray-200 dark:border-white/10 w-full object-cover"
-                 referrerPolicy="no-referrer"
-               />
+              <div className="rounded-2xl border border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-black/20 p-6">
+                <p className="text-sm font-bold text-gray-700 dark:text-gray-300 mb-5">{t('landing.platformBridgeTitle')}</p>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-center">
+                  <div className="space-y-3">
+                    {['Google Ads', 'Meta Ads', 'TikTok Ads', 'GA4', 'Search Console', 'WooCommerce'].map((item) => (
+                      <div
+                        key={item}
+                        className="px-3 py-2 rounded-lg bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 text-sm font-bold text-gray-700 dark:text-gray-300"
+                      >
+                        {item}
+                      </div>
+                    ))}
+                  </div>
+                  <div className="rounded-xl bg-indigo-600 text-white p-6 text-center shadow-lg">
+                    <BrainCircuit className="w-8 h-8 mx-auto mb-2" />
+                    <p className="text-lg font-black">{t('app.name')}</p>
+                    <p className="text-xs text-indigo-100 mt-1">{t('landing.platformBridgeDesc')}</p>
+                  </div>
+                  <div className="space-y-3">
+                    {[
+                      t('landing.bridgeOut1'),
+                      t('landing.bridgeOut2'),
+                      t('landing.bridgeOut3'),
+                      t('landing.bridgeOut4'),
+                    ].map((item) => (
+                      <div
+                        key={item}
+                        className="px-3 py-2 rounded-lg bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 text-sm font-bold text-gray-700 dark:text-gray-300"
+                      >
+                        {item}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </section>
@@ -254,17 +366,26 @@ export function Landing({ onEnter }: LandingProps) {
         <section className="py-24 text-center">
           <div className="max-w-3xl mx-auto px-6">
             <h2 className="text-4xl font-bold mb-8 text-gray-900 dark:text-white">{t('landing.ready')}</h2>
-            <button
-              onClick={onEnter}
-              className="group relative inline-flex items-center justify-center px-8 py-4 text-lg font-bold text-white transition-all duration-200 bg-gradient-to-r from-indigo-600 to-purple-600 font-pj rounded-xl focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-600 hover:scale-105 shadow-[0_0_40px_rgba(79,70,229,0.3)] dark:shadow-[0_0_40px_rgba(79,70,229,0.4)]"
-            >
-              {t('landing.cta')}
-              {dir === 'rtl' ? (
-                <ArrowLeft className="w-5 h-5 ms-2 group-hover:-translate-x-1 transition-transform" />
-              ) : (
-                <ArrowRight className="w-5 h-5 ms-2 group-hover:translate-x-1 transition-transform" />
-              )}
-            </button>
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
+              <button
+                onClick={onEnter}
+                className="group relative inline-flex items-center justify-center px-8 py-4 text-lg font-bold text-white transition-all duration-200 bg-gradient-to-r from-indigo-600 to-purple-600 font-pj rounded-xl focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-600 hover:scale-105 shadow-[0_0_40px_rgba(79,70,229,0.3)] dark:shadow-[0_0_40px_rgba(79,70,229,0.4)]"
+              >
+                {t('landing.cta')}
+                {dir === 'rtl' ? (
+                  <ArrowLeft className="w-5 h-5 ms-2 group-hover:-translate-x-1 transition-transform" />
+                ) : (
+                  <ArrowRight className="w-5 h-5 ms-2 group-hover:translate-x-1 transition-transform" />
+                )}
+              </button>
+              <button
+                onClick={onOpenPrivacy}
+                className="inline-flex items-center justify-center px-8 py-4 text-lg font-bold text-gray-700 dark:text-gray-200 bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-xl hover:bg-gray-50 dark:hover:bg-white/10 transition-colors"
+              >
+                <ShieldCheck className="w-5 h-5 me-2" />
+                {t('landing.privacy')}
+              </button>
+            </div>
           </div>
         </section>
       </div>

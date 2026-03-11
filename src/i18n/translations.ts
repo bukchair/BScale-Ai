@@ -86,11 +86,18 @@ export const translations = {
     },
     landing: {
       login: "Login",
+      privacy: "Privacy Policy",
       heroTitle1: "Manage Your Advertising",
       heroTitle2: "With the Power of AI",
       heroSubtitle: "The intelligence behind your growth. One platform for campaigns, SEO, financial reports, and automation.",
       cta: "Enter System Now",
       readMore: "Read More About The System",
+      unifiedPanelTitle: "Unified Growth Cockpit",
+      unifiedKpiRevenue: "Unified Revenue",
+      unifiedKpiSpend: "Unified Ad Spend",
+      unifiedKpiRoas: "Blended ROAS",
+      performanceByPlatform: "Performance by Platform",
+      sourceMix: "Traffic Source Mix",
       featuresTitle: "Everything You Need",
       featuresSubtitle: "The complete toolkit for smart digital growth",
       howItWorks: "How It Works?",
@@ -126,7 +133,50 @@ export const translations = {
       articleL2: "Smart Insights: AI that analyzes data and provides actionable recommendations in real-time.",
       articleL3: "Automation: Save valuable time by automating routine processes.",
       articleL4: "Customization: A flexible interface that adapts to the specific needs of your business.",
-      articleP3: "With our system, you don't just track data - you understand it and act on it. Join thousands of businesses that have already improved their performance with our help."
+      articleP3: "With our system, you don't just track data - you understand it and act on it. Join thousands of businesses that have already improved their performance with our help.",
+      platformBridgeTitle: "From fragmented channels to one intuitive workspace",
+      platformBridgeDesc: "All data is normalized into one language for insights and action.",
+      bridgeOut1: "Unified dashboard",
+      bridgeOut2: "AI recommendations",
+      bridgeOut3: "Automations & alerts",
+      bridgeOut4: "ROI & profitability reports"
+    },
+    privacy: {
+      title: "Privacy Policy",
+      lastUpdated: "Last updated: March 11, 2026",
+      backToHome: "Back to homepage",
+      intro: "This policy explains what BScale AI does, what data is processed in the system, and how information is used. By using the platform, you agree to this policy.",
+      cards: {
+        secureUseTitle: "Secure service operation",
+        secureUseDesc: "We work to keep your account and connected services protected.",
+        dataMinimizationTitle: "Data minimization",
+        dataMinimizationDesc: "We collect and process only data needed for analytics, recommendations, and system operations.",
+        controlTitle: "Your control",
+        controlDesc: "You can disconnect integrations and request account/data changes."
+      },
+      whatWeDoTitle: "What the platform does",
+      whatWeDoDesc: "BScale AI unifies marketing and commerce data from connected platforms (such as Google, Meta, TikTok, WooCommerce, and analytics tools) into one interface for reporting, optimization recommendations, and automations.",
+      dataCollectedTitle: "What data may exist in the system",
+      dataCollectedItems: {
+        account: "Account details you provide, such as name, email, and profile data.",
+        integrations: "Integration settings and identifiers (for example account/property IDs), and connection tokens required to fetch data.",
+        metrics: "Performance metrics retrieved from connected services, such as spend, clicks, conversions, sessions, and traffic sources.",
+        content: "Content generated or edited in the product (for example ad copy drafts, optimization suggestions, and saved settings).",
+        logs: "Technical and activity logs used for troubleshooting, audit, and service reliability."
+      },
+      usageTitle: "How we use this information",
+      usageItems: {
+        dashboard: "To present dashboards, charts, and cross-platform summaries.",
+        recommendations: "To generate AI-powered recommendations and optimization insights.",
+        automations: "To execute user-approved automations and notify about key events.",
+        support: "To provide support, maintain platform health, and improve product quality."
+      },
+      sharingTitle: "Data sharing",
+      sharingDesc: "We do not sell personal data. Information may be shared only with infrastructure or service providers needed to operate the platform, with integrated APIs you explicitly connect, or when required by law.",
+      rightsTitle: "Retention and user rights",
+      rightsDesc: "You can request deletion of your account data, update profile information, and disconnect integrations at any time. Some records may be retained when required for legal, security, or operational reasons.",
+      contactTitle: "Contact",
+      contactDesc: "For privacy-related requests, contact support via the communication channel provided in your account settings."
     },
     auth: {
       welcome: "Welcome to BScale AI",
@@ -702,11 +752,18 @@ export const translations = {
     },
     landing: {
       login: "התחברות למערכת",
+      privacy: "מדיניות פרטיות",
       heroTitle1: "נהל את הפרסום שלך",
       heroTitle2: "עם כוח של AI",
       heroSubtitle: "הבינה שמאחורי הצמיחה שלך. פלטפורמה אחת לניהול קמפיינים, SEO, דוחות כספיים ואוטומציה. חבר את כל הערוצים שלך ותן לבינה המלאכותית לעשות את השאר.",
       cta: "הכנס למערכת עכשיו",
       readMore: "קרא עוד על המערכת",
+      unifiedPanelTitle: "לוח צמיחה מאוחד",
+      unifiedKpiRevenue: "הכנסה כוללת",
+      unifiedKpiSpend: "הוצאה פרסומית כוללת",
+      unifiedKpiRoas: "ROAS משוקלל",
+      performanceByPlatform: "ביצועים לפי פלטפורמה",
+      sourceMix: "תמהיל מקורות תנועה",
       featuresTitle: "כל מה שאתה צריך",
       featuresSubtitle: "ארגז הכלים המלא לצמיחה דיגיטלית חכמה",
       howItWorks: "איך זה עובד?",
@@ -742,7 +799,50 @@ export const translations = {
       articleL2: "תובנות חכמות: בינה מלאכותית שמנתחת את הנתונים ומספקת המלצות פעולה בזמן אמת.",
       articleL3: "אוטומציה: חיסכון בזמן יקר על ידי אוטומציה של תהליכים שגרתיים.",
       articleL4: "התאמה אישית: ממשק גמיש שמתאים את עצמו לצרכים הספציפיים של העסק שלכם.",
-      articleP3: "עם המערכת שלנו, אתם לא רק עוקבים אחרי הנתונים - אתם מבינים אותם ופועלים לפיהם. הצטרפו לאלפי עסקים שכבר שיפרו את הביצועים שלהם בעזרתנו."
+      articleP3: "עם המערכת שלנו, אתם לא רק עוקבים אחרי הנתונים - אתם מבינים אותם ופועלים לפיהם. הצטרפו לאלפי עסקים שכבר שיפרו את הביצועים שלהם בעזרתנו.",
+      platformBridgeTitle: "מערוצים מפוזרים לממשק אינטואיטיבי אחד",
+      platformBridgeDesc: "כל הנתונים מתורגמים לשפה עסקית אחידה לקבלת החלטות מהירה.",
+      bridgeOut1: "דשבורד מאוחד",
+      bridgeOut2: "המלצות AI",
+      bridgeOut3: "אוטומציות והתראות",
+      bridgeOut4: "דוחות ROI ורווחיות"
+    },
+    privacy: {
+      title: "מדיניות פרטיות",
+      lastUpdated: "עודכן לאחרונה: 11 במרץ 2026",
+      backToHome: "חזרה לדף הבית",
+      intro: "מדיניות זו מסבירה מה מערכת BScale AI עושה, אילו נתונים עשויים להיות מעובדים במערכת, וכיצד נעשה בהם שימוש. שימוש בפלטפורמה מהווה הסכמה למדיניות זו.",
+      cards: {
+        secureUseTitle: "שימוש מאובטח בשירות",
+        secureUseDesc: "אנחנו פועלים לשמור על אבטחת החשבון והחיבורים שלך.",
+        dataMinimizationTitle: "מינימום נתונים",
+        dataMinimizationDesc: "אנו אוספים ומעבדים רק נתונים הנדרשים לתפעול, ניתוח והמלצות.",
+        controlTitle: "שליטה בידיים שלך",
+        controlDesc: "ניתן לנתק אינטגרציות ולבקש עדכון או מחיקה של נתוני החשבון."
+      },
+      whatWeDoTitle: "מה המערכת עושה",
+      whatWeDoDesc: "BScale AI מאחדת נתוני שיווק ומסחר מפלטפורמות מחוברות (כגון Google, Meta, TikTok, WooCommerce וכלי אנליטיקה) לממשק אחד שמספק דוחות, המלצות אופטימיזציה ואוטומציות.",
+      dataCollectedTitle: "אילו פרטים עשויים להימצא במערכת",
+      dataCollectedItems: {
+        account: "פרטי חשבון שהמשתמש מספק, למשל שם, אימייל ונתוני פרופיל.",
+        integrations: "הגדרות חיבור ומזהים (כגון מזהי חשבון/נכס), וכן אסימוני גישה הנדרשים למשיכת נתונים.",
+        metrics: "מדדי ביצועים המתקבלים מהפלטפורמות המחוברות, כגון הוצאות, קליקים, המרות, סשנים ומקורות תנועה.",
+        content: "תוכן שנוצר או נערך במערכת (למשל טיוטות קופי, הצעות אופטימיזציה והגדרות שמורות).",
+        logs: "לוגים טכניים ולוגי פעילות לצורך ניטור, תמיכה, אמינות ובקרת מערכת."
+      },
+      usageTitle: "כיצד אנו משתמשים במידע",
+      usageItems: {
+        dashboard: "להצגת דשבורדים, גרפים וסיכומים חוצי-פלטפורמות.",
+        recommendations: "להפקת המלצות ותובנות אופטימיזציה מבוססות AI.",
+        automations: "לביצוע אוטומציות שאושרו על ידי המשתמש ולהתרעות על אירועים חשובים.",
+        support: "לתמיכה שוטפת, תחזוקת המערכת ושיפור איכות המוצר."
+      },
+      sharingTitle: "שיתוף מידע",
+      sharingDesc: "אנחנו לא מוכרים מידע אישי. מידע עשוי להיות משותף רק עם ספקי תשתית ושירות הנדרשים להפעלת המערכת, עם ממשקי API שחוברו ביוזמת המשתמש, או לפי דרישת חוק.",
+      rightsTitle: "שמירת מידע וזכויות משתמש",
+      rightsDesc: "באפשרותך לבקש מחיקה/עדכון של נתוני החשבון ולנתק אינטגרציות בכל עת. חלק מהמידע עשוי להישמר בהתאם לדרישות חוק, אבטחה או תפעול.",
+      contactTitle: "יצירת קשר",
+      contactDesc: "לבקשות בנושא פרטיות ניתן לפנות לתמיכה דרך ערוץ יצירת הקשר הזמין בהגדרות החשבון."
     },
     auth: {
       welcome: "ברוכים הבאים ל-BScale AI",

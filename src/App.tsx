@@ -21,6 +21,7 @@ import { Settings } from './pages/Settings';
 import { Landing } from './pages/Landing';
 import { Auth } from './pages/Auth';
 import { WooCommerce } from './pages/WooCommerce';
+import { PrivacyPolicy } from './pages/PrivacyPolicy';
 import { useLanguage } from './contexts/LanguageContext';
 import { auth, onAuthStateChanged, syncUserProfile } from './lib/firebase';
 import { AppNavigationProvider } from './contexts/AppNavigationContext';
@@ -45,7 +46,7 @@ const TAB_SET = new Set<string>(TAB_IDS);
 
 export default function App() {
   const { dir } = useLanguage();
-  const [view, setView] = useState<'landing' | 'auth' | 'app'>('landing');
+  const [view, setView] = useState<'landing' | 'auth' | 'privacy' | 'app'>('landing');
   const getTabFromUrl = () => {
     if (typeof window === 'undefined') return 'dashboard';
     const tabFromUrl = new URLSearchParams(window.location.search).get('tab');
@@ -111,7 +112,11 @@ export default function App() {
   }
 
   if (view === 'landing') {
-    return <Landing onEnter={() => setView('auth')} />;
+    return <Landing onEnter={() => setView('auth')} onOpenPrivacy={() => setView('privacy')} />;
+  }
+
+  if (view === 'privacy') {
+    return <PrivacyPolicy onBack={() => setView('landing')} />;
   }
 
   if (view === 'auth') {
