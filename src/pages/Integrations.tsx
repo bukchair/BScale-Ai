@@ -262,6 +262,146 @@ export function Integrations() {
     }
   };
 
+  const renderQuickGuideContent = (integrationId: string) => {
+    const linkClass = "text-amber-700 font-bold underline hover:text-amber-900";
+
+    if (integrationId === 'gemini') {
+      return (
+        <ul className="space-y-1.5 list-disc list-inside">
+          <li>
+            Open Google AI Studio API keys:{' '}
+            <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noreferrer" className={linkClass}>
+              aistudio.google.com/app/apikey
+            </a>
+          </li>
+          <li>Create a new API key and copy it.</li>
+          <li>Paste the key in API Key field and click Save & Connect.</li>
+        </ul>
+      );
+    }
+
+    if (integrationId === 'google') {
+      return (
+        <ul className="space-y-1.5 list-disc list-inside">
+          <li>
+            Connect Google in popup, then click <b>Scan Google resources</b> to auto-fill IDs.
+          </li>
+          <li>
+            Google Ads Customer ID (10 digits):{' '}
+            <a href="https://ads.google.com/aw/settings/account" target="_blank" rel="noreferrer" className={linkClass}>
+              ads.google.com/aw/settings/account
+            </a>
+          </li>
+          <li>
+            GA4 Property ID (Admin):{' '}
+            <a href="https://analytics.google.com/analytics/web/#/admin" target="_blank" rel="noreferrer" className={linkClass}>
+              analytics.google.com/#/admin
+            </a>
+          </li>
+          <li>
+            Search Console Site URL:{' '}
+            <a href="https://search.google.com/search-console" target="_blank" rel="noreferrer" className={linkClass}>
+              search.google.com/search-console
+            </a>
+          </li>
+        </ul>
+      );
+    }
+
+    if (integrationId === 'meta') {
+      return (
+        <ul className="space-y-1.5 list-disc list-inside">
+          <li>
+            Click Connect with Meta Ads and approve permissions.
+          </li>
+          <li>
+            Ads Account ID (act_...):{' '}
+            <a href="https://adsmanager.facebook.com/" target="_blank" rel="noreferrer" className={linkClass}>
+              adsmanager.facebook.com
+            </a>
+          </li>
+          <li>
+            Business settings & assets:{' '}
+            <a href="https://business.facebook.com/settings" target="_blank" rel="noreferrer" className={linkClass}>
+              business.facebook.com/settings
+            </a>
+          </li>
+          <li>
+            Pixel ID (Events Manager):{' '}
+            <a href="https://business.facebook.com/events_manager2/list/pixel" target="_blank" rel="noreferrer" className={linkClass}>
+              business.facebook.com/events_manager2/list/pixel
+            </a>
+          </li>
+        </ul>
+      );
+    }
+
+    if (integrationId === 'tiktok') {
+      return (
+        <ul className="space-y-1.5 list-disc list-inside">
+          <li>
+            Click Connect with TikTok Ads and complete OAuth approval.
+          </li>
+          <li>
+            Log in to TikTok Ads Manager:{' '}
+            <a href="https://ads.tiktok.com/" target="_blank" rel="noreferrer" className={linkClass}>
+              ads.tiktok.com
+            </a>
+          </li>
+          <li>
+            Copy your Advertiser ID from account settings and paste it here.
+          </li>
+          <li>
+            TikTok Marketing API docs:{' '}
+            <a href="https://ads.tiktok.com/marketing_api/docs" target="_blank" rel="noreferrer" className={linkClass}>
+              ads.tiktok.com/marketing_api/docs
+            </a>
+          </li>
+        </ul>
+      );
+    }
+
+    if (integrationId === 'woocommerce') {
+      return (
+        <ul className="space-y-1.5 list-disc list-inside">
+          <li>
+            In WordPress admin go to WooCommerce API keys page:{' '}
+            <a href="https://woocommerce.com/document/woocommerce-rest-api/" target="_blank" rel="noreferrer" className={linkClass}>
+              WooCommerce REST API guide
+            </a>
+          </li>
+          <li>Create a key with Read/Write permissions.</li>
+          <li>
+            Paste Store URL, Consumer Key and Consumer Secret, then test connection.
+          </li>
+          <li>
+            Direct path format: <code>/wp-admin/admin.php?page=wc-settings&tab=advanced&section=keys</code>
+          </li>
+        </ul>
+      );
+    }
+
+    if (integrationId === 'shopify') {
+      return (
+        <ul className="space-y-1.5 list-disc list-inside">
+          <li>
+            Open Shopify Admin settings:{' '}
+            <a href="https://admin.shopify.com/" target="_blank" rel="noreferrer" className={linkClass}>
+              admin.shopify.com
+            </a>
+          </li>
+          <li>
+            Go to Apps and sales channels {'>'} Develop apps {'>'} create/select app.
+          </li>
+          <li>Enable needed Admin API scopes and install the app.</li>
+          <li>Copy Admin API access token and paste it in this form.</li>
+        </ul>
+      );
+    }
+
+    return null;
+  };
+
   const renderIntegrationSettings = (integration: Connection) => {
     const isConnected = integration.status === 'connected';
     const isConnecting = integration.status === 'connecting';
@@ -501,48 +641,7 @@ export function Integrations() {
               </h5>
               
               <div className="text-[10px] text-amber-800/80 leading-tight">
-                {integration.id === 'gemini' && (
-                  <ul className="space-y-1.5 list-disc list-inside">
-                    <li>{t('integrations.gemini.step1')} <a href="https://aistudio.google.com/" target="_blank" rel="noreferrer" className="text-amber-700 font-bold underline">AI Studio</a></li>
-                    <li>{t('integrations.gemini.step2')}</li>
-                    <li>{t('integrations.gemini.step3')}</li>
-                  </ul>
-                )}
-                {integration.id === 'google' && (
-                  <ul className="space-y-1.5 list-disc list-inside">
-                    <li>{t('integrations.google.step1')}</li>
-                    <li>{t('integrations.google.step2')}</li>
-                    <li>{t('integrations.google.step3')}</li>
-                  </ul>
-                )}
-                {integration.id === 'meta' && (
-                  <ul className="space-y-1.5 list-disc list-inside">
-                    <li>{t('integrations.meta.step1')}</li>
-                    <li>{t('integrations.meta.step2')}</li>
-                    <li>{t('integrations.meta.step3')}</li>
-                  </ul>
-                )}
-                {integration.id === 'tiktok' && (
-                  <ul className="space-y-1.5 list-disc list-inside">
-                    <li>{t('integrations.tiktok.step1')}</li>
-                    <li>{t('integrations.tiktok.step2')}</li>
-                    <li>{t('integrations.tiktok.step3')}</li>
-                  </ul>
-                )}
-                {integration.id === 'woocommerce' && (
-                  <ul className="space-y-1.5 list-disc list-inside">
-                    <li>{t('integrations.woo.step1')}</li>
-                    <li>{t('integrations.woo.step2')}</li>
-                    <li>{t('integrations.woo.step3')}</li>
-                  </ul>
-                )}
-                {integration.id === 'shopify' && (
-                  <ul className="space-y-1.5 list-disc list-inside">
-                    <li>{t('integrations.shopify.step1')}</li>
-                    <li>{t('integrations.shopify.step2')}</li>
-                    <li>{t('integrations.shopify.step3')}</li>
-                  </ul>
-                )}
+                {renderQuickGuideContent(integration.id)}
               </div>
             </div>
           </div>
