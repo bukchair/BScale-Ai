@@ -395,24 +395,29 @@ export function SalesBot() {
   useEffect(() => {
     if (typeof document === 'undefined' || !isOpen) return;
 
-    const nodes = Array.from(document.querySelectorAll('h1, h2, h3, p, li'));
-    const snippets: SiteSnippet[] = [];
+    try {
+      const nodes = Array.from(document.querySelectorAll('h1, h2, h3, p, li'));
+      const snippets: SiteSnippet[] = [];
 
-    for (const node of nodes) {
-      if (node.closest('[data-sales-bot-root="true"]')) continue;
+      for (const node of nodes) {
+        if (node.closest('[data-sales-bot-root="true"]')) continue;
 
-      const rawText = node.textContent?.replace(/\s+/g, ' ').trim() || '';
-      if (rawText.length < 40) continue;
+        const rawText = node.textContent?.replace(/\s+/g, ' ').trim() || '';
+        if (rawText.length < 40) continue;
 
-      const title = node.tagName.toLowerCase().startsWith('h')
-        ? copy.websiteHeading
-        : copy.websiteContent;
+        const title = node.tagName.toLowerCase().startsWith('h')
+          ? copy.websiteHeading
+          : copy.websiteContent;
 
-      snippets.push({ title, content: rawText.slice(0, MAX_SNIPPET_LENGTH) });
-      if (snippets.length >= 24) break;
+        snippets.push({ title, content: rawText.slice(0, MAX_SNIPPET_LENGTH) });
+        if (snippets.length >= 24) break;
+      }
+
+      setDomKnowledge(snippets);
+    } catch (error) {
+      console.error('Failed to collect website snippets for SalesBot:', error);
+      setDomKnowledge([]);
     }
-
-    setDomKnowledge(snippets);
   }, [copy.websiteContent, copy.websiteHeading, isOpen, language]);
 
   const appendMessage = (message: ChatMessage) => {
@@ -422,7 +427,9 @@ export function SalesBot() {
   const normalize = (value: string) =>
     value
       .toLowerCase()
-      .replace(/[^\p{L}\p{N}\s]/gu, ' ')
+      .normalize('NFKD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-z0-9\u0400-\u04ff\u0590-\u05ff\s]/g, ' ')
       .replace(/\s+/g, ' ')
       .trim();
 
@@ -482,6 +489,15 @@ export function SalesBot() {
     return copy.noMatch;
   };
 
+  const getSafeAnswerFromWebsite = (question: string) => {
+    try {
+      return answerFromWebsite(question);
+    } catch (error) {
+      console.error('SalesBot failed to answer question:', error);
+      return copy.noMatch;
+    }
+  };
+
   const handleQuickIntent = (intent: QuickIntent, label: string) => {
     appendMessage({ id: `user-${intent}-${Date.now()}`, from: 'user', text: label });
     setSubmitError(null);
@@ -499,7 +515,7 @@ export function SalesBot() {
       roi: copy.syntheticRoi,
     };
 
-    pushBotReply(answerFromWebsite(syntheticQuestion[intent]));
+    pushBotReply(getSafeAnswerFromWebsite(syntheticQuestion[intent]));
   };
 
   const handleAskQuestion = () => {
@@ -509,7 +525,7 @@ export function SalesBot() {
     appendMessage({ id: `user-open-${Date.now()}`, from: 'user', text: question });
     setUserQuestion('');
     setSubmitError(null);
-    pushBotReply(answerFromWebsite(question));
+    pushBotReply(getSafeAnswerFromWebsite(question));
   };
 
   const handleLeadSubmit = async () => {
