@@ -24,6 +24,36 @@ const mockChartData = [
 
 export function Landing({ onEnter, scrollToPricing }: LandingProps) {
   const { t, dir, language } = useLanguage();
+  const guideLabel =
+    language === 'he'
+      ? 'מדריך הפעלה למערכת'
+      : language === 'ru'
+        ? 'Руководство по системе'
+        : language === 'pt'
+          ? 'Guia de uso do sistema'
+          : language === 'fr'
+            ? 'Guide du système'
+            : 'System guide';
+  const privacyLabel =
+    language === 'he'
+      ? 'מדיניות פרטיות'
+      : language === 'ru'
+        ? 'Политика конфиденциальности'
+        : language === 'pt'
+          ? 'Política de privacidade'
+          : language === 'fr'
+            ? 'Politique de confidentialité'
+            : 'Privacy policy';
+  const articlesLabel =
+    language === 'he'
+      ? 'מאמרים מקצועיים'
+      : language === 'ru'
+        ? 'Профессиональные статьи'
+        : language === 'pt'
+          ? 'Artigos profissionais'
+          : language === 'fr'
+            ? 'Articles professionnels'
+            : 'Professional articles';
   const paypalButtonText =
     language === 'he'
       ? 'תשלום ב‑PayPal'
@@ -445,11 +475,15 @@ export function Landing({ onEnter, scrollToPricing }: LandingProps) {
             </div>
             <div className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 flex flex-col sm:flex-row items-center justify-center gap-2 sm:gap-4">
               <a href="/guide" className="hover:text-indigo-600 dark:hover:text-indigo-400 font-medium">
-                מדריך הפעלה למערכת
+                {guideLabel}
+              </a>
+              <span className="hidden sm:inline">•</span>
+              <a href="/articles" className="hover:text-indigo-600 dark:hover:text-indigo-400 font-medium">
+                {articlesLabel}
               </a>
               <span className="hidden sm:inline">•</span>
               <a href="/privacy-policy" className="hover:text-indigo-600 dark:hover:text-indigo-400 font-medium">
-                מדיניות פרטיות
+                {privacyLabel}
               </a>
             </div>
           </div>

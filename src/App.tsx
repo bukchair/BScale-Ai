@@ -27,6 +27,7 @@ import { SubscriptionRequired } from './pages/SubscriptionRequired';
 import { WooCommerce } from './pages/WooCommerce';
 import { PrivacyPolicy } from './pages/PrivacyPolicy';
 import { Guide } from './pages/Guide';
+import { MarketingArticles } from './pages/MarketingArticles';
 import { SystemMail } from './pages/SystemMail';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { SalesBot } from './components/SalesBot';
@@ -104,7 +105,20 @@ export default function App() {
     );
   }
   if (path === '/guide') {
-    return <Guide />;
+    return (
+      <>
+        <Guide />
+        <SalesBot />
+      </>
+    );
+  }
+  if (path === '/articles') {
+    return (
+      <>
+        <MarketingArticles />
+        <SalesBot />
+      </>
+    );
   }
 
   useEffect(() => {
