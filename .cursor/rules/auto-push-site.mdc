@@ -1,0 +1,24 @@
+---
+description: Push changes to the site (GitHub/Vercel) after making code changes
+alwaysApply: true
+---
+
+# דחיפה אוטומטית לאתר
+
+אחרי כל שינוי בקוד בפרויקט (קבצים ב-repo), יש **לבצע דחיפה אוטומטית** ל-GitHub כדי שהאתר (Vercel) יתעדכן.
+
+## מה לעשות
+
+1. **לאחר שסיימת לערוך קבצים** – הרץ:
+   - `git add -A`
+   - `git commit -m "תיאור קצר בעברית או באנגלית"`
+   - `git push origin main`
+
+2. **פקודות ב-PowerShell** (Windows) – השתמש ב-`;` בין פקודות, לא `&&`:
+   ```powershell
+   Set-Location "c:\Users\User\Downloads\בי סקייל"; git add -A; git commit -m "Your message"; git push origin main
+   ```
+
+3. **הודעת קומיט** – תמציתית ומתארת את השינוי (למשל: "תיקון אימות Google", "הוספת מדריכים בחיבורים").
+
+אל תדלג על הדחיפה אלא אם המשתמש ביקש במפורש לא לדחוף.
