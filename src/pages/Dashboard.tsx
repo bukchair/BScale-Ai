@@ -228,7 +228,7 @@ export function Dashboard() {
     return () => {
       cancelled = true;
     };
-  }, [connectedPlatforms.length, connections, totalRevenue, totalSpend, chartData.length]);
+  }, [connections]);
 
   const quickActions = [
     { id: 'ai-recs', title: t('dashboard.viewAiRecs'), icon: Zap, color: 'bg-amber-100 dark:bg-amber-500/20 text-amber-600 dark:text-amber-400', desc: t('dashboard.viewAiRecsDesc') },
