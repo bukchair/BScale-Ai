@@ -17,7 +17,8 @@ import {
   BarChart3,
   ListTodo,
   User,
-  LogOut
+  LogOut,
+  Mail
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { useLanguage } from '../contexts/LanguageContext';
@@ -77,7 +78,10 @@ export function Sidebar({ activeTab, setActiveTab, isOpen, setIsOpen, userProfil
       items: [
         { id: 'approvals-automations', label: t('nav.approvalsAutomations'), icon: ShieldAlert },
         { id: 'connections', label: t('nav.connections'), icon: Plug },
-        ...(isAdmin ? [{ id: 'users', label: t('nav.users'), icon: Users }] : []),
+        ...(isAdmin ? [
+          { id: 'users', label: t('nav.users'), icon: Users },
+          { id: 'system-mail', label: 'דואר מערכת', icon: Mail },
+        ] : []),
         { id: 'settings', label: t('nav.settings'), icon: Settings },
       ]
     }

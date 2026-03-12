@@ -25,6 +25,7 @@ import { SubscriptionRequired } from './pages/SubscriptionRequired';
 import { WooCommerce } from './pages/WooCommerce';
 import { PrivacyPolicy } from './pages/PrivacyPolicy';
 import { Guide } from './pages/Guide';
+import { SystemMail } from './pages/SystemMail';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { useLanguage } from './contexts/LanguageContext';
 import { auth, onAuthStateChanged, syncUserProfile } from './lib/firebase';
@@ -247,6 +248,8 @@ export default function App() {
         return <Integrations userProfile={userProfile} />;
       case 'users':
         return userProfile?.role === 'admin' ? <Users /> : <Dashboard />;
+      case 'system-mail':
+        return userProfile?.role === 'admin' ? <SystemMail /> : <Dashboard />;
       case 'settings':
         return <Settings userProfile={userProfile} />;
       default:
