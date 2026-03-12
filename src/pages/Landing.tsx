@@ -346,21 +346,32 @@ export function Landing({ onEnter, scrollToPricing }: LandingProps) {
           </div>
         </section>
 
-        {/* Footer CTA */}
+        {/* Footer CTA + Links */}
         <section className="py-24 text-center">
-          <div className="max-w-3xl mx-auto px-6">
-            <h2 className="text-4xl font-bold mb-8 text-gray-900 dark:text-white">{t('landing.ready')}</h2>
-            <button
-              onClick={onEnter}
-              className="group relative inline-flex items-center justify-center px-8 py-4 text-lg font-bold text-white transition-all duration-200 bg-gradient-to-r from-indigo-600 to-purple-600 font-pj rounded-xl focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-600 hover:scale-105 shadow-[0_0_40px_rgba(79,70,229,0.3)] dark:shadow-[0_0_40px_rgba(79,70,229,0.4)]"
-            >
-              {t('landing.cta')}
-              {dir === 'rtl' ? (
-                <ArrowLeft className="w-5 h-5 ms-2 group-hover:-translate-x-1 transition-transform" />
-              ) : (
-                <ArrowRight className="w-5 h-5 ms-2 group-hover:translate-x-1 transition-transform" />
-              )}
-            </button>
+          <div className="max-w-3xl mx-auto px-6 space-y-6">
+            <div>
+              <h2 className="text-4xl font-bold mb-8 text-gray-900 dark:text-white">{t('landing.ready')}</h2>
+              <button
+                onClick={onEnter}
+                className="group relative inline-flex items-center justify-center px-8 py-4 text-lg font-bold text-white transition-all duration-200 bg-gradient-to-r from-indigo-600 to-purple-600 font-pj rounded-xl focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-600 hover:scale-105 shadow-[0_0_40px_rgba(79,70,229,0.3)] dark:shadow-[0_0_40px_rgba(79,70,229,0.4)]"
+              >
+                {t('landing.cta')}
+                {dir === 'rtl' ? (
+                  <ArrowLeft className="w-5 h-5 ms-2 group-hover:-translate-x-1 transition-transform" />
+                ) : (
+                  <ArrowRight className="w-5 h-5 ms-2 group-hover:translate-x-1 transition-transform" />
+                )}
+              </button>
+            </div>
+            <div className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 flex flex-col sm:flex-row items-center justify-center gap-2 sm:gap-4">
+              <a href="/guide" className="hover:text-indigo-600 dark:hover:text-indigo-400 font-medium">
+                מדריך הפעלה למערכת
+              </a>
+              <span className="hidden sm:inline">•</span>
+              <a href="/privacy-policy" className="hover:text-indigo-600 dark:hover:text-indigo-400 font-medium">
+                מדיניות פרטיות
+              </a>
+            </div>
           </div>
         </section>
       </div>
