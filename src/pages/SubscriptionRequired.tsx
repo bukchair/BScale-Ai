@@ -3,7 +3,8 @@ import { Lock, Mail, ArrowRight, LogOut } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
 import { ThemeSwitcher } from '../components/ThemeSwitcher';
 import { LanguageSwitcher } from '../components/LanguageSwitcher';
-import { auth, signOut } from '../lib/firebase';
+import { auth, signOut, db } from '../lib/firebase';
+import { doc, setDoc } from 'firebase/firestore';
 
 interface SubscriptionRequiredProps {
   onGoToPricing: () => void;
@@ -14,6 +15,26 @@ export function SubscriptionRequired({ onGoToPricing }: SubscriptionRequiredProp
 
   const handleLogout = async () => {
     await signOut(auth);
+  };
+
+  const handleEnterDemo = async () => {
+    const user = auth.currentUser;
+    if (!user) return;
+    try {
+      const userRef = doc(db, 'users', user.uid);
+      await setDoc(
+        userRef,
+        {
+          subscriptionStatus: 'demo',
+          plan: 'demo',
+        },
+        { merge: true }
+      );
+      window.location.reload();
+    } catch (err) {
+      console.error('Failed to activate demo mode:', err);
+      alert('הפעלת חשבון הדמו נכשלה. נסה שוב מאוחר יותר.');
+    }
   };
 
   return (
@@ -41,6 +62,12 @@ export function SubscriptionRequired({ onGoToPricing }: SubscriptionRequiredProp
           >
             {t('subscription.ctaPlans')}
             <ArrowRight className="w-5 h-5" />
+          </button>
+          <button
+            onClick={handleEnterDemo}
+            className="w-full flex items-center justify-center gap-2 py-3 px-6 rounded-xl font-bold border-2 border-dashed border-emerald-300 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 transition-colors text-sm"
+          >
+            {t('subscription.ctaDemo') || 'היכנס לחשבון דמו (ללא חיבור פלטפורמות)'}
           </button>
           <a
             href="mailto:contact@bscale.ai?subject=בקשת מנוי - BScale AI"

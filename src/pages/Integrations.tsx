@@ -27,8 +27,9 @@ const brandStyles: Record<string, { bg: string, text: string, border: string, li
   'shopify': { bg: 'bg-gradient-to-br from-emerald-500 to-green-600', text: 'text-white', border: 'border-emerald-200', lightBg: 'bg-emerald-50' },
 };
 
-export function Integrations({ userProfile }: { userProfile?: { role?: string } | null }) {
+export function Integrations({ userProfile }: { userProfile?: { role?: string; subscriptionStatus?: string } | null }) {
   const isAdmin = userProfile?.role === 'admin';
+  const isDemo = userProfile?.subscriptionStatus === 'demo';
   const { t, dir } = useLanguage();
   const { connections, toggleConnection, updateConnectionSettings, clearConnectionSettings, resetAllConnections, testConnection, migrateAiConnectionsFromUser } = useConnections();
   const [error, setError] = useState<{ id: string; message: string } | null>(null);
@@ -251,6 +252,21 @@ export function Integrations({ userProfile }: { userProfile?: { role?: string } 
   };
 
   const renderIntegrationSettings = (integration: Connection) => {
+    if (isDemo) {
+      return (
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="overflow-hidden">
+          <div className="mt-5 pt-5 border-t border-gray-100">
+            <div className="rounded-2xl bg-gray-50 border border-dashed border-gray-300 p-4 text-sm text-gray-700">
+              <p className="font-bold mb-1">מצב דמו פעיל</p>
+              <p className="text-xs text-gray-500">
+                בחשבון דמו לא ניתן לחבר פלטפורמות אמיתיות. כל הנתונים במסכים השונים מוצגים כנתוני דוגמה בלבד כדי שתוכל לראות
+                איך המערכת נראית. להצטרפות לחבילה פעילה וחיבור פלטפורמות — עבור למסך המנויים.
+              </p>
+            </div>
+          </div>
+        </motion.div>
+      );
+    }
     const isConnected = integration.status === 'connected';
     const isConnecting = integration.status === 'connecting';
     const isAiReadOnly = integration.category === 'AI Engine' && !isAdmin;

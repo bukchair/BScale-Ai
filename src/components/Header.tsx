@@ -9,15 +9,17 @@ import { cn } from '../lib/utils';
 
 interface HeaderProps {
   onMenuClick: () => void;
+  userProfile?: any;
 }
 
-export function Header({ onMenuClick }: HeaderProps) {
+export function Header({ onMenuClick, userProfile }: HeaderProps) {
   const { t, dir } = useLanguage();
   const { dateRange, setDateRange, customRange, setCustomRange } = useDateRange();
   const { connections, overallQualityScore, connectedCount, totalCount } = useConnections();
   const [isConnectionsOpen, setIsConnectionsOpen] = useState(false);
   const [isDatePickerOpen, setIsDatePickerOpen] = useState(false);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
+  const isDemo = userProfile?.subscriptionStatus === 'demo';
 
   const notifications = [
     { id: 1, type: 'ai', title: t('notifications.items.ai_ready'), desc: t('notifications.items.ai_ready_desc'), time: '2h ago', icon: CheckCircle, color: 'text-emerald-500' },
@@ -37,7 +39,7 @@ export function Header({ onMenuClick }: HeaderProps) {
 
   return (
     <header className="bg-white dark:bg-[#111] border-b border-gray-200 dark:border-white/10 h-16 flex items-center justify-between px-4 sm:px-6 lg:px-8 transition-colors duration-300">
-      <div className="flex items-center flex-1">
+      <div className="flex items-center flex-1 gap-3">
         <div className="flex items-center gap-2">
           <button
             onClick={onMenuClick}
@@ -56,7 +58,25 @@ export function Header({ onMenuClick }: HeaderProps) {
           </div>
         </div>
 
-        <div className="hidden sm:flex items-center gap-2 relative ms-4">
+        {isDemo && (
+          <button
+            type="button"
+            onClick={() => {
+              const el = document.getElementById('pricing');
+              if (el) {
+                el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+              } else {
+                window.location.href = '/#pricing';
+              }
+            }}
+            className="hidden sm:inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-xs font-bold max-w-xs"
+          >
+            <span className="w-2 h-2 rounded-full bg-amber-500" />
+            <span className="truncate">{t('subscription.demoBadge') || 'חשבון דמו — להצטרפות לשירות עבור למסך המנויים.'}</span>
+          </button>
+        )}
+
+        <div className="hidden sm:flex items-center gap-2 relative ms-2">
           <div className="flex items-center bg-gray-100 dark:bg-[#1a1a1a] rounded-lg p-1">
             <button 
               onClick={() => handleDateClick('today')}
