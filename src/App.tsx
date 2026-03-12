@@ -24,6 +24,7 @@ import { Auth } from './pages/Auth';
 import { SubscriptionRequired } from './pages/SubscriptionRequired';
 import { WooCommerce } from './pages/WooCommerce';
 import { PrivacyPolicy } from './pages/PrivacyPolicy';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { useLanguage } from './contexts/LanguageContext';
 import { auth, onAuthStateChanged, syncUserProfile } from './lib/firebase';
 import { runAutoAdsIfNeeded } from './lib/autoAdsRunner';
@@ -213,7 +214,11 @@ export default function App() {
   const renderContent = () => {
     switch (activeTab) {
       case 'dashboard':
-        return <Dashboard />;
+        return (
+          <ErrorBoundary>
+            <Dashboard />
+          </ErrorBoundary>
+        );
       case 'profitability':
         return <Profitability />;
       case 'budget':
