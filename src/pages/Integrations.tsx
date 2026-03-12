@@ -546,52 +546,106 @@ export function Integrations({ userProfile }: { userProfile?: { role?: string } 
                 {t('integrations.quickGuide')}
               </h5>
               
-              <div className="text-[10px] text-amber-800/80 leading-tight">
+              <div className="text-[10px] text-amber-800/80 leading-tight space-y-2">
                 {integration.id === 'gemini' && (
                   <ul className="space-y-1.5 list-disc list-inside">
-                    <li>{t('integrations.gemini.step1')} <a href="https://aistudio.google.com/" target="_blank" rel="noreferrer" className="text-amber-700 font-bold underline">AI Studio</a></li>
+                    <li>
+                      {t('integrations.gemini.step1')}{' '}
+                      <a href="https://aistudio.google.com/apikey" target="_blank" rel="noreferrer" className="text-amber-700 font-bold underline hover:text-amber-900">
+                        {t('integrations.guideLinks.openGemini')} →
+                      </a>
+                    </li>
                     <li>{t('integrations.gemini.step2')}</li>
                     <li>{t('integrations.gemini.step3')}</li>
                   </ul>
                 )}
-                {(integration.id === 'openai' || integration.id === 'claude') && (
+                {integration.id === 'openai' && (
                   <ul className="space-y-1.5 list-disc list-inside">
-                    <li>{integration.id === 'openai' ? 'OpenAI: platform.openai.com → API keys' : 'Anthropic: console.anthropic.com → API keys'}</li>
-                    <li>Create a key with appropriate usage</li>
-                    <li>Paste the key in the field on the left</li>
+                    <li>
+                      {t('integrations.gemini.step1')}{' '}
+                      <a href="https://platform.openai.com/api-keys" target="_blank" rel="noreferrer" className="text-amber-700 font-bold underline hover:text-amber-900">
+                        {t('integrations.guideLinks.openOpenAI')} →
+                      </a>
+                    </li>
+                    <li>{t('integrations.gemini.step2')}</li>
+                    <li>{t('integrations.gemini.step3')}</li>
+                  </ul>
+                )}
+                {integration.id === 'claude' && (
+                  <ul className="space-y-1.5 list-disc list-inside">
+                    <li>
+                      {t('integrations.gemini.step1')}{' '}
+                      <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noreferrer" className="text-amber-700 font-bold underline hover:text-amber-900">
+                        {t('integrations.guideLinks.openClaude')} →
+                      </a>
+                    </li>
+                    <li>{t('integrations.gemini.step2')}</li>
+                    <li>{t('integrations.gemini.step3')}</li>
                   </ul>
                 )}
                 {integration.id === 'google' && (
                   <ul className="space-y-1.5 list-disc list-inside">
-                    <li>{t('integrations.google.step1')}</li>
-                    <li>{t('integrations.google.step2')}</li>
+                    <li>
+                      <a href="https://ads.google.com" target="_blank" rel="noreferrer" className="text-amber-700 font-bold underline hover:text-amber-900">
+                        {t('integrations.guideLinks.openGoogleAds')} →
+                      </a>
+                      {' '}{t('integrations.google.step1')}
+                    </li>
+                    <li>
+                      <a href="https://analytics.google.com" target="_blank" rel="noreferrer" className="text-amber-700 font-bold underline hover:text-amber-900">
+                        {t('integrations.guideLinks.openGA4')} →
+                      </a>
+                      {' '}{t('integrations.google.step2')}
+                    </li>
                     <li>{t('integrations.google.step3')}</li>
                   </ul>
                 )}
                 {integration.id === 'meta' && (
                   <ul className="space-y-1.5 list-disc list-inside">
-                    <li>{t('integrations.meta.step1')}</li>
+                    <li>
+                      {t('integrations.meta.step1')}
+                    </li>
                     <li>{t('integrations.meta.step2')}</li>
-                    <li>{t('integrations.meta.step3')}</li>
+                    <li>
+                      {t('integrations.meta.step3')}{' '}
+                      <a href="https://business.facebook.com/settings/ad-accounts" target="_blank" rel="noreferrer" className="text-amber-700 font-bold underline hover:text-amber-900">
+                        {t('integrations.guideLinks.openMetaAdAccounts')} →
+                      </a>
+                    </li>
                   </ul>
                 )}
                 {integration.id === 'tiktok' && (
                   <ul className="space-y-1.5 list-disc list-inside">
                     <li>{t('integrations.tiktok.step1')}</li>
                     <li>{t('integrations.tiktok.step2')}</li>
-                    <li>{t('integrations.tiktok.step3')}</li>
+                    <li>
+                      {t('integrations.tiktok.step3')}{' '}
+                      <a href="https://ads.tiktok.com" target="_blank" rel="noreferrer" className="text-amber-700 font-bold underline hover:text-amber-900">
+                        {t('integrations.guideLinks.openTikTokAds')} →
+                      </a>
+                    </li>
                   </ul>
                 )}
                 {integration.id === 'woocommerce' && (
                   <ul className="space-y-1.5 list-disc list-inside">
-                    <li>{t('integrations.woo.step1')}</li>
+                    <li>
+                      {t('integrations.woo.step1')}{' '}
+                      <a href="https://woocommerce.com/document/woocommerce-rest-api/" target="_blank" rel="noreferrer" className="text-amber-700 font-bold underline hover:text-amber-900">
+                        {t('integrations.guideLinks.openWooREST')} →
+                      </a>
+                    </li>
                     <li>{t('integrations.woo.step2')}</li>
                     <li>{t('integrations.woo.step3')}</li>
                   </ul>
                 )}
                 {integration.id === 'shopify' && (
                   <ul className="space-y-1.5 list-disc list-inside">
-                    <li>{t('integrations.shopify.step1')}</li>
+                    <li>
+                      <a href="https://help.shopify.com/en/manual/apps/app-types/custom-apps" target="_blank" rel="noreferrer" className="text-amber-700 font-bold underline hover:text-amber-900">
+                        {t('integrations.guideLinks.openShopifyApps')} →
+                      </a>
+                      {' '}{t('integrations.shopify.step1')}
+                    </li>
                     <li>{t('integrations.shopify.step2')}</li>
                     <li>{t('integrations.shopify.step3')}</li>
                   </ul>
@@ -786,6 +840,9 @@ export function Integrations({ userProfile }: { userProfile?: { role?: string } 
             <div>
               <h3 className="text-sm font-bold text-red-800">{t('integrations.error', { name: connections.find(i => i.id === error.id)?.name || '' })}</h3>
               <p className="text-sm text-red-700 mt-1">{error.message}</p>
+              {error.id === 'google' && (
+                <p className="text-sm text-amber-700 mt-2 font-medium">{t('integrations.googleReconnectHint')}</p>
+              )}
             </div>
           </div>
           <button onClick={() => setError(null)} className="text-red-500 hover:text-red-700 p-1 hover:bg-red-100 rounded-lg transition-colors">
@@ -800,6 +857,7 @@ export function Integrations({ userProfile }: { userProfile?: { role?: string } 
             <div className="flex items-center gap-2 mb-3">
               <div className="w-1 h-4 bg-indigo-600 rounded-full" />
               <h2 className="text-sm font-black text-gray-900 uppercase tracking-wider">{t('integrations.aiEngine')}</h2>
+              <span className="text-xs text-gray-500 font-medium">({t('integrations.sharedForAllUsers')})</span>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-3">
               {aiConnections.map(renderConnectionCard)}

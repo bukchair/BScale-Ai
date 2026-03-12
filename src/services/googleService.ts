@@ -1,18 +1,18 @@
 export async function fetchGoogleAdAccounts(accessToken: string) {
-  const response = await fetch(`https://googleads.googleapis.com/v17/customers:listAccessibleCustomers`, {
+  const response = await fetch('/api/google/ads/accounts', {
     headers: {
       'Authorization': `Bearer ${accessToken}`,
-      'developer-token': process.env.GOOGLE_ADS_DEVELOPER_TOKEN as string
-    }
+    },
   });
-  
+
   if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.message || 'Failed to fetch Google ad accounts');
+    const body = await response.json().catch(() => ({}));
+    const msg = body.message || body.error?.message || 'Failed to fetch Google ad accounts';
+    throw new Error(msg);
   }
-  
+
   const data = await response.json();
-  return data.resourceNames;
+  return data.resourceNames || [];
 }
 
 export async function fetchGoogleCampaigns(accessToken: string, customerId: string, loginCustomerId?: string) {

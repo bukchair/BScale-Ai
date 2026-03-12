@@ -219,9 +219,11 @@ export const translations = {
       wooResetConfirm: "Delete WooCommerce connection and enter new credentials?",
       wooResetDone: "Connection cleared. Enter new details above.",
       aiAdminOnly: "Only admins can edit AI provider settings. You can see connection status only.",
+      sharedForAllUsers: "Shared for all users (configured by admin).",
       resetAll: "Reset all connections",
       resetAllConfirm: "Reset all connections to default? All saved credentials will be cleared.",
       resetAllDone: "All connections have been reset. You can configure them again.",
+      googleReconnectHint: "If the token expired or was revoked, click \"Reconnect Google Workspace\" to sign in again.",
       platforms: {
         gemini: {
           name: "Google Gemini AI",
@@ -285,6 +287,21 @@ export const translations = {
         step1: "Settings > Develop apps",
         step2: "Create and install app",
         step3: "Copy Admin Token"
+      },
+      guideLinks: {
+        getApiKey: "Get API key",
+        openGemini: "Google AI Studio",
+        openOpenAI: "OpenAI API keys",
+        openClaude: "Anthropic API keys",
+        openGoogleAds: "Google Ads",
+        openGA4: "GA4 Admin",
+        openMetaBusiness: "Meta Business Manager",
+        openMetaAdAccounts: "Ad accounts",
+        openTikTokAds: "TikTok Ads Manager",
+        openWooREST: "REST API in WooCommerce",
+        openShopifyApps: "Develop apps in Shopify",
+        stepPasteLeft: "Paste in the field on the left",
+        stepConnectBelow: "Click the connect button below"
       }
     },
     campaigns: {
@@ -313,6 +330,7 @@ export const translations = {
       ascending: "Ascending",
       descending: "Descending",
       noCampaigns: "No campaigns found matching your criteria.",
+      connectPlatforms: "Connect Google, Meta or TikTok in Connections to see live campaigns.",
     },
     ai: {
       subtitle: "Cross-platform analysis and AI-driven optimization suggestions.",
@@ -774,9 +792,11 @@ export const translations = {
       wooResetConfirm: "למחוק את החיבור ל-WooCommerce ולהזין פרטים חדשים?",
       wooResetDone: "החיבור נוקה. הזן פרטים חדשים למעלה.",
       aiAdminOnly: "רק מנהלים יכולים לערוך הגדרות ספקי AI. כאן מוצג רק סטטוס החיבור.",
+      sharedForAllUsers: "משותף לכלל המשתמשים (מוגדר על ידי מנהל).",
       resetAll: "איפוס כל החיבורים",
       resetAllConfirm: "לאפס את כל החיבורים לברירת מחדל? כל ההגדרות השמורות יימחקו.",
       resetAllDone: "כל החיבורים אופסו. אפשר להגדיר אותם מחדש.",
+      googleReconnectHint: "אם הטוקן פג תוקף או בוטל, לחץ על \"התחבר מחדש עם Google\" כדי להיכנס שוב.",
       platforms: {
         gemini: {
           name: "Google Gemini AI",
@@ -840,10 +860,23 @@ export const translations = {
         step1: "Settings > Develop apps",
         step2: "צור אפליקציה והתקן",
         step3: "העתק Admin Token"
+      },
+      guideLinks: {
+        getApiKey: "קבלת מפתח API",
+        openGemini: "Google AI Studio",
+        openOpenAI: "מפתחות OpenAI",
+        openClaude: "מפתחות Anthropic",
+        openGoogleAds: "Google Ads",
+        openGA4: "ניהול GA4",
+        openMetaBusiness: "Meta Business Manager",
+        openMetaAdAccounts: "חשבונות מודעות",
+        openTikTokAds: "TikTok Ads Manager",
+        openWooREST: "REST API ב-WooCommerce",
+        openShopifyApps: "פיתוח אפליקציות ב-Shopify",
+        stepPasteLeft: "הדבק בשדה משמאל",
+        stepConnectBelow: "לחץ על כפתור החיבור למטה"
       }
     },
-    campaigns: {
-      title: "ניהול קמפיינים ואופטימיזציה",
       refreshAi: "רענן המלצות AI",
       activeCampaigns: "קמפיינים פעילים",
       campaignName: "שם קמפיין",
@@ -868,6 +901,7 @@ export const translations = {
       ascending: "עולה",
       descending: "יורד",
       noCampaigns: "לא נמצאו קמפיינים התואמים את הקריטריונים שלך.",
+      connectPlatforms: "חבר Google, Meta או TikTok בחיבורים כדי לראות קמפיינים חיים.",
     },
     ai: {
       subtitle: "ניתוח חוצה פלטפורמות והצעות אופטימיזציה מבוססות בינה מלאכותית.",
@@ -1194,6 +1228,7 @@ export const translations = {
       ascending: "По возрастанию",
       descending: "По убыванию",
       noCampaigns: "Кампании, соответствующие вашим критериям, не найдены.",
+      connectPlatforms: "Подключите Google, Meta или TikTok в разделе «Подключения», чтобы видеть кампании в реальном времени.",
     },
     profitability: {
       title: "Прибыльность / Финансовые отчеты",
@@ -1639,6 +1674,7 @@ export const translations = {
       ascending: "Croissant",
       descending: "Décroissant",
       noCampaigns: "Aucune campagne trouvée correspondant à vos critères.",
+      connectPlatforms: "Connectez Google, Meta ou TikTok dans Connexions pour voir les campagnes en direct.",
     },
     profitability: {
       title: "Rentabilité / Rapports Financiers",

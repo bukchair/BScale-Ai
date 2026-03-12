@@ -180,9 +180,9 @@ export function Campaigns() {
     }
   };
 
-  const allCampaigns = realCampaigns.length > 0 
-    ? [...realCampaigns, ...mockCampaignData.filter(mc => !realCampaigns.some(rc => rc.platform === mc.platform))]
-    : mockCampaignData;
+  const allCampaigns = realCampaigns.length > 0
+    ? realCampaigns
+    : [];
 
   const filteredAndSortedCampaigns = allCampaigns
     .filter(campaign => {
@@ -343,7 +343,7 @@ export function Campaigns() {
                 ) : (
                   <tr>
                     <td colSpan={6} className="px-6 py-10 text-center text-sm text-gray-500">
-                      {t('campaigns.noCampaigns')}
+                      {realCampaigns.length === 0 ? t('campaigns.connectPlatforms') : t('campaigns.noCampaigns')}
                     </td>
                   </tr>
                 )}

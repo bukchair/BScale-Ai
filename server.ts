@@ -401,6 +401,30 @@ async function startServer() {
     }
   });
 
+  app.get("/api/google/ads/accounts", async (req, res) => {
+    const accessToken = req.headers.authorization?.split(" ")[1];
+    if (!accessToken) {
+      return res.status(400).json({ message: "Missing access token" });
+    }
+    const developerToken = process.env.GOOGLE_ADS_DEVELOPER_TOKEN;
+    if (!developerToken) {
+      return res.status(500).json({ message: "Google Ads developer token not configured" });
+    }
+    try {
+      const response = await axios.get("https://googleads.googleapis.com/v17/customers:listAccessibleCustomers", {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          "developer-token": developerToken,
+        },
+      });
+      res.json(response.data);
+    } catch (error: any) {
+      const data = error.response?.data;
+      const msg = data?.error?.message || data?.message || error.message;
+      res.status(error.response?.status || 500).json({ message: msg });
+    }
+  });
+
   app.get("/api/google/ads/campaigns", async (req, res) => {
     const accessToken = req.headers.authorization?.split(" ")[1];
     const customerId = req.query.customer_id;

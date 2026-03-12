@@ -68,7 +68,12 @@ service cloud.firestore {
         allow read, write: if isOwner(userId) || isAdmin();
       }
     }
-    
+
+    match /appSettings/{docId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+
     match /stores/{storeId} {
       allow read: if hasStoreAccess(storeId);
       allow create: if isAuthenticated() && (isAdmin() || isAgency() || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'owner');

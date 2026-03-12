@@ -36,10 +36,14 @@ export function WooCommerce() {
   const { storeUrl, wooKey, wooSecret } = wooConnection?.settings || {};
 
   const fetchProducts = async () => {
+    if (!isConnected || !storeUrl || !wooKey || !wooSecret) {
+      setProducts([]);
+      return;
+    }
     setIsLoading(true);
     setError(null);
     try {
-      const data = await fetchWooCommerceProducts(storeUrl || '', wooKey || 'mock', wooSecret || 'mock');
+      const data = await fetchWooCommerceProducts(storeUrl, wooKey, wooSecret);
       setProducts(data);
     } catch (err) {
       setError(t('woocommerce.errorLoading'));
@@ -73,11 +77,14 @@ export function WooCommerce() {
 
   const handleApprove = async () => {
     if (!selectedProduct || !optimizationResult) return;
-    
+    if (!isConnected || !storeUrl || !wooKey || !wooSecret) {
+      setError(t('woocommerce.errorLoading'));
+      return;
+    }
     setIsUpdating(true);
     setError(null);
     try {
-      await updateWooCommerceProduct(storeUrl || '', wooKey || 'mock', wooSecret || 'mock', selectedProduct.id, {
+      await updateWooCommerceProduct(storeUrl, wooKey, wooSecret, selectedProduct.id, {
         name: optimizationResult.seo_title,
         short_description: optimizationResult.short_description,
         description: optimizationResult.description

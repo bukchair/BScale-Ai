@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { doc, onSnapshot, setDoc, updateDoc } from 'firebase/firestore';
+import { doc, onSnapshot, setDoc } from 'firebase/firestore';
 import { auth, db } from '../lib/firebase';
 import { verifyWooCommerceConnection } from '../services/woocommerceService';
 import { fetchMetaAdAccounts } from '../services/metaService';
@@ -40,6 +40,9 @@ interface ConnectionsContextType {
   connectedCount: number;
   totalCount: number;
 }
+
+const AI_CONNECTION_IDS = ['gemini', 'openai', 'claude'] as const;
+const PLATFORM_CONNECTION_IDS = ['google', 'meta', 'tiktok', 'woocommerce', 'shopify'] as const;
 
 const initialConnections: Connection[] = [
   { 
@@ -114,46 +117,84 @@ export function ConnectionsProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const unsubscribeAuth = auth.onAuthStateChanged((user) => {
-      if (user) {
-        const connectionsRef = doc(db, 'users', user.uid, 'settings', 'connections');
-        const unsubscribeSnapshot = onSnapshot(connectionsRef, (docSnap) => {
-          if (docSnap.exists()) {
-            const saved = docSnap.data().items || [];
-            const savedIds = new Set((saved as Connection[]).map((c: Connection) => c.id));
-            const merged = [...(saved as Connection[])];
-            initialConnections.forEach((c) => {
-              if (!savedIds.has(c.id)) {
-                merged.push(c);
-                savedIds.add(c.id);
-              }
-            });
-            setConnections(merged);
-          } else {
-            // Initialize with clean state if not exists
-            setDoc(connectionsRef, { items: initialConnections });
-            setConnections(initialConnections);
-          }
-          setIsLoading(false);
-        });
-        return () => unsubscribeSnapshot();
-      } else {
+      if (!user) {
         setConnections(initialConnections);
         setIsLoading(false);
+        return;
       }
+
+      const userConnectionsRef = doc(db, 'users', user.uid, 'settings', 'connections');
+      const globalAiRef = doc(db, 'appSettings', 'connections');
+
+      let globalItems: Connection[] = [];
+      let userItems: Connection[] = [];
+
+      const mergeAndSet = () => {
+        const byId = new Map<string, Connection>(initialConnections.map((c) => [c.id, { ...c }]));
+        globalItems.forEach((c) => byId.set(c.id, c));
+        userItems.forEach((c) => byId.set(c.id, c));
+        setConnections(Array.from(byId.values()));
+      };
+
+      const unsubGlobal = onSnapshot(globalAiRef, (snap) => {
+        if (snap.exists()) {
+          const items = (snap.data().items || []) as Connection[];
+          globalItems = items.filter((c) => AI_CONNECTION_IDS.includes(c.id as any));
+        } else {
+          globalItems = [];
+        }
+        mergeAndSet();
+        setIsLoading(false);
+      });
+
+      const unsubUser = onSnapshot(userConnectionsRef, (snap) => {
+        if (snap.exists()) {
+          const items = (snap.data().items || []) as Connection[];
+          userItems = items.filter((c) => PLATFORM_CONNECTION_IDS.includes(c.id as any));
+        } else {
+          userItems = [];
+          setDoc(userConnectionsRef, { items: initialConnections.filter((c) => PLATFORM_CONNECTION_IDS.includes(c.id as any)) });
+        }
+        mergeAndSet();
+        setIsLoading(false);
+      });
+
+      return () => {
+        unsubGlobal();
+        unsubUser();
+      };
     });
 
     return () => unsubscribeAuth();
   }, []);
 
-  const persistConnections = async (newConnections: Connection[]) => {
+  const persistUserConnections = async (items: Connection[]) => {
     const user = auth.currentUser;
     if (!user) return;
-
-    const connectionsRef = doc(db, 'users', user.uid, 'settings', 'connections');
+    const ref = doc(db, 'users', user.uid, 'settings', 'connections');
+    const platformOnly = items.filter((c) => PLATFORM_CONNECTION_IDS.includes(c.id as any));
     try {
-      await setDoc(connectionsRef, { items: newConnections }, { merge: true });
+      await setDoc(ref, { items: platformOnly }, { merge: true });
     } catch (err) {
-      console.error('Error persisting connections:', err);
+      console.error('Error persisting user connections:', err);
+    }
+  };
+
+  const persistGlobalAiConnections = async (items: Connection[]) => {
+    const ref = doc(db, 'appSettings', 'connections');
+    const aiOnly = items.filter((c) => AI_CONNECTION_IDS.includes(c.id as any));
+    try {
+      await setDoc(ref, { items: aiOnly }, { merge: true });
+    } catch (err) {
+      console.error('Error persisting global AI connections:', err);
+    }
+  };
+
+  const persistConnections = async (newConnections: Connection[], updatedId?: string) => {
+    if (updatedId && AI_CONNECTION_IDS.includes(updatedId as any)) {
+      await persistGlobalAiConnections(newConnections);
+    } else {
+      await persistUserConnections(newConnections);
     }
   };
 
@@ -219,7 +260,7 @@ export function ConnectionsProvider({ children }: { children: ReactNode }) {
     });
 
     setConnections(finalConnections);
-    await persistConnections(finalConnections);
+    await persistUserConnections(finalConnections);
   };
 
   const updateConnectionSettings = async (id: string, settings: ConnectionSettings) => {
@@ -248,7 +289,7 @@ export function ConnectionsProvider({ children }: { children: ReactNode }) {
     });
 
     setConnections(finalConnections);
-    await persistConnections(finalConnections);
+    await persistConnections(finalConnections, id);
   };
 
   const clearConnectionSettings = async (id: string) => {
@@ -256,13 +297,15 @@ export function ConnectionsProvider({ children }: { children: ReactNode }) {
       c.id === id ? { ...c, status: 'disconnected' as ConnectionStatus, score: undefined, settings: {} } : c
     );
     setConnections(next);
-    await persistConnections(next);
+    await persistConnections(next, id);
   };
 
   const resetAllConnections = async () => {
-    const fresh = JSON.parse(JSON.stringify(initialConnections)) as Connection[];
+    const aiPart = connections.filter((c) => AI_CONNECTION_IDS.includes(c.id as any));
+    const platformPart = initialConnections.filter((c) => PLATFORM_CONNECTION_IDS.includes(c.id as any));
+    const fresh = [...aiPart, ...platformPart];
     setConnections(fresh);
-    await persistConnections(fresh);
+    await persistUserConnections(platformPart);
   };
 
   const testConnection = async (id: string): Promise<{ success: boolean; message: string }> => {
@@ -278,7 +321,7 @@ export function ConnectionsProvider({ children }: { children: ReactNode }) {
           c.id === id ? { ...c, status: 'connected' as ConnectionStatus, score: 100 } : c
         );
         setConnections(updatedConnections);
-        await persistConnections(updatedConnections);
+        await persistUserConnections(updatedConnections);
         return { 
           success: true, 
           message: `החיבור ל-WooCommerce אומת בהצלחה! הנתונים מסונכרנים.` 
@@ -308,7 +351,8 @@ export function ConnectionsProvider({ children }: { children: ReactNode }) {
         await fetchGoogleAdAccounts(connection.settings.googleAccessToken);
         return { success: true, message: 'החיבור ל-Google אומת בהצלחה.' };
       } catch (err) {
-        return { success: false, message: 'נכשל אימות החיבור ל-Google.' };
+        const msg = err instanceof Error ? err.message : 'שגיאה לא ידועה';
+        return { success: false, message: `נכשל אימות החיבור ל-Google. ${msg}` };
       }
     }
 
@@ -321,7 +365,7 @@ export function ConnectionsProvider({ children }: { children: ReactNode }) {
         c.id === id ? { ...c, status: 'connected' as ConnectionStatus, score: Math.floor(Math.random() * 5) + 95 } : c
       );
       setConnections(updatedConnections);
-      await persistConnections(updatedConnections);
+      await persistUserConnections(updatedConnections);
       return { 
         success: true, 
         message: `החיבור ל-${connection.name} אומת בהצלחה. נתוני API זמינים.` 
