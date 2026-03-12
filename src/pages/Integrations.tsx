@@ -239,27 +239,27 @@ export function Integrations({ userProfile }: { userProfile?: { role?: string } 
     if (isAiReadOnly) {
       return (
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="overflow-hidden">
-          <div className="mt-4 pt-4 border-t border-gray-100">
+          <div className="mt-5 pt-5 border-t border-gray-100">
             <div className="flex items-center justify-between mb-2">
-              <h4 className="text-base font-bold text-gray-900 flex items-center gap-2">
-                <Settings2 className="w-4 h-4 text-gray-400" />
-                {t('integrations.connectionSettings')} - {t(integration.name)}
+              <h4 className="text-sm font-bold text-gray-900 flex items-center gap-2">
+                <Settings2 className="w-4 h-4 text-indigo-500" />
+                {t('integrations.connectionSettings')} — {t(integration.name)}
               </h4>
-              <button onClick={() => setExpandedId(null)} className="text-gray-400 hover:text-gray-600 transition-colors bg-gray-50 hover:bg-gray-100 p-2 rounded-full">
-                <X className="w-4 h-4" />
+              <button onClick={() => setExpandedId(null)} className="p-2 rounded-xl text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors">
+                <X className="w-5 h-5" />
               </button>
             </div>
-            <div className="rounded-lg bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-white/10 p-4">
-              <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            <div className="rounded-2xl bg-gray-50 border-2 border-gray-100 p-5">
+              <p className="text-sm font-medium text-gray-700 mb-2">
                 {isConnected ? (
-                  <span className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400">
+                  <span className="flex items-center gap-2 text-emerald-600">
                     <CheckCircle2 className="w-4 h-4" /> {t('integrations.connected')}
                   </span>
                 ) : (
                   <span className="flex items-center gap-2 text-gray-500">{t('integrations.disconnected')}</span>
                 )}
               </p>
-              <p className="text-xs text-gray-500 dark:text-gray-400">{t('integrations.aiAdminOnly')}</p>
+              <p className="text-xs text-gray-500">{t('integrations.aiAdminOnly')}</p>
             </div>
           </div>
         </motion.div>
@@ -273,24 +273,23 @@ export function Integrations({ userProfile }: { userProfile?: { role?: string } 
         exit={{ opacity: 0, height: 0 }}
         className="overflow-hidden"
       >
-        <div className="mt-4 pt-4 border-t border-gray-100">
+        <div className="mt-5 pt-5 border-t border-gray-100">
           <div className="flex items-center justify-between mb-4">
-            <h4 className="text-base font-bold text-gray-900 flex items-center gap-2">
-              <Settings2 className="w-4 h-4 text-gray-400" />
-              {t('integrations.connectionSettings')} - {t(integration.name)}
+            <h4 className="text-sm font-bold text-gray-900 flex items-center gap-2">
+              <Settings2 className="w-4 h-4 text-indigo-500" />
+              {t('integrations.connectionSettings')} — {t(integration.name)}
             </h4>
             <button 
               onClick={() => setExpandedId(null)}
-              className="text-gray-400 hover:text-gray-600 transition-colors bg-gray-50 hover:bg-gray-100 p-2 rounded-full"
+              className="p-2 rounded-xl text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
             >
-              <X className="w-4 h-4" />
+              <X className="w-5 h-5" />
             </button>
           </div>
 
-        <div className="flex flex-col lg:flex-row gap-4">
-          <div className="flex-1 space-y-3">
-            {/* Dynamic Form Fields based on Integration ID */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-3">
+        <div className="flex flex-col lg:flex-row gap-6">
+          <div className="flex-1 space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {integration.id === 'gemini' && (
                 <>
                   <div className="sm:col-span-2">
@@ -495,14 +494,14 @@ export function Integrations({ userProfile }: { userProfile?: { role?: string } 
               )}
             </div>
 
-            <div className="flex items-center gap-2 pt-3 border-t border-gray-100">
+            <div className="flex flex-wrap items-center gap-3 pt-4 border-t border-gray-100">
               {!isConnected ? (
                 <button
                   onClick={() => handleSave(integration.id)}
                   disabled={isConnecting}
-                  className="flex-1 bg-indigo-600 text-white px-3 py-2 rounded-lg text-xs font-bold hover:bg-indigo-700 transition-all shadow-sm hover:shadow flex items-center justify-center gap-2 disabled:opacity-50"
+                  className="flex-1 min-w-[140px] bg-indigo-600 text-white px-4 py-3 rounded-xl text-sm font-bold hover:bg-indigo-700 transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-2 disabled:opacity-50"
                 >
-                  {isConnecting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Plug className="w-3.5 h-3.5" />}
+                  {isConnecting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plug className="w-4 h-4" />}
                   {t('integrations.saveAndConnect')}
                 </button>
               ) : (
@@ -510,17 +509,17 @@ export function Integrations({ userProfile }: { userProfile?: { role?: string } 
                   <button
                     onClick={() => handleSave(integration.id)}
                     disabled={isConnecting}
-                    className="flex-1 bg-white border border-gray-200 text-gray-700 px-3 py-2 rounded-lg text-xs font-bold hover:bg-gray-50 transition-all shadow-sm flex items-center justify-center gap-2 disabled:opacity-50"
+                    className="flex-1 min-w-[120px] bg-white border-2 border-gray-200 text-gray-700 px-4 py-3 rounded-xl text-sm font-bold hover:bg-gray-50 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
                   >
-                    {isConnecting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />}
+                    {isConnecting ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4 text-emerald-500" />}
                     {t('integrations.updateSettings')}
                   </button>
                   <button
                     onClick={() => handleTest(integration.id)}
                     disabled={testingId === integration.id}
-                    className="flex-1 bg-indigo-50 text-indigo-600 px-3 py-2 rounded-lg text-xs font-bold hover:bg-indigo-100 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                    className="flex-1 min-w-[120px] bg-indigo-50 text-indigo-600 px-4 py-3 rounded-xl text-sm font-bold hover:bg-indigo-100 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
                   >
-                    {testingId === integration.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
+                    {testingId === integration.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
                     {t('integrations.testConnection')}
                   </button>
                   <button
@@ -529,9 +528,9 @@ export function Integrations({ userProfile }: { userProfile?: { role?: string } 
                       setExpandedId(null);
                     }}
                     disabled={isConnecting}
-                    className="px-3 py-2 bg-red-50 text-red-600 hover:bg-red-100 rounded-lg text-xs font-bold transition-colors flex items-center justify-center gap-2"
+                    className="px-4 py-3 bg-red-50 text-red-600 hover:bg-red-100 rounded-xl text-sm font-bold transition-colors flex items-center justify-center gap-2 border-2 border-red-100"
                   >
-                    <Trash2 className="w-3.5 h-3.5" />
+                    <Trash2 className="w-4 h-4" />
                     {t('integrations.disconnect')}
                   </button>
                 </>
@@ -539,14 +538,14 @@ export function Integrations({ userProfile }: { userProfile?: { role?: string } 
             </div>
           </div>
 
-          <div className="w-full lg:w-48 shrink-0">
-            <div className="bg-amber-50 rounded-lg p-3 border border-amber-100 h-full">
-              <h5 className="font-bold text-amber-900 mb-2 text-[10px] flex items-center gap-1.5 uppercase tracking-tight">
-                <HelpCircle className="w-3 h-3 text-amber-600" />
+          <div className="w-full lg:w-56 shrink-0">
+            <div className="rounded-2xl p-4 h-full bg-gradient-to-br from-amber-50 to-orange-50 border-2 border-amber-100 shadow-inner">
+              <h5 className="font-bold text-amber-900 mb-3 text-xs flex items-center gap-2 uppercase tracking-wider">
+                <HelpCircle className="w-4 h-4 text-amber-600" />
                 {t('integrations.quickGuide')}
               </h5>
               
-              <div className="text-[10px] text-amber-800/80 leading-tight space-y-2">
+              <div className="text-xs text-amber-900/90 leading-relaxed space-y-2">
                 {integration.id === 'gemini' && (
                   <ul className="space-y-1.5 list-disc list-inside">
                     <li>
@@ -672,38 +671,39 @@ export function Integrations({ userProfile }: { userProfile?: { role?: string } 
         layout
         key={integration.id} 
         className={cn(
-          "bg-white rounded-lg border transition-all duration-300 flex flex-col overflow-hidden group relative",
-          isConnected ? "border-emerald-200 shadow-sm" : 
-          hasError ? "border-red-300 shadow-sm" : "border-gray-200 hover:border-indigo-300 hover:shadow-md",
-          isExpanded ? "md:col-span-2 lg:col-span-3 ring-2 ring-indigo-500/20 border-indigo-300 shadow-lg" : ""
+          "bg-white rounded-2xl border-2 transition-all duration-300 flex flex-col overflow-hidden group relative shadow-sm hover:shadow-xl",
+          isConnected ? "border-emerald-200 shadow-emerald-100/50" : 
+          hasError ? "border-red-200 shadow-red-100/50" : "border-gray-200/80 hover:border-indigo-200",
+          isExpanded && "ring-2 ring-indigo-400 ring-offset-2 border-indigo-300 shadow-xl md:col-span-2"
         )}
       >
-        <div className="p-2.5">
-          <div className="flex items-center justify-between gap-2">
-            <div className="flex items-center gap-2.5 flex-1 min-w-0">
+        <div className="p-5">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-4 flex-1 min-w-0">
               <div className={cn(
-                "flex items-center justify-center w-8 h-8 rounded-lg shrink-0 shadow-sm transition-transform group-hover:scale-110",
+                "flex items-center justify-center w-12 h-12 rounded-xl shrink-0 shadow-md transition-transform duration-300 group-hover:scale-105",
                 brand.bg, brand.text
               )}>
-                <Icon className="w-4 h-4" />
+                <Icon className="w-6 h-6" />
               </div>
               <div className="min-w-0">
-                <h3 className="text-[13px] font-bold text-gray-900 truncate tracking-tight">{t(integration.name)}</h3>
-                <div className="flex items-center gap-1.5">
+                <h3 className="text-base font-bold text-gray-900 truncate">{t(integration.name)}</h3>
+                <p className="text-xs text-gray-500 mt-0.5 line-clamp-1">{t(integration.description)}</p>
+                <div className="flex items-center gap-1.5 mt-2">
                   {isConnected ? (
-                    <span className="flex items-center text-[9px] font-bold text-emerald-600 uppercase tracking-tighter">
-                      <CheckCircle2 className={cn("w-2.5 h-2.5", dir === 'rtl' ? "ml-0.5" : "mr-0.5")} /> {t('integrations.connected')}
+                    <span className="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-lg">
+                      <CheckCircle2 className="w-3.5 h-3.5" /> {t('integrations.connected')}
                     </span>
                   ) : isConnecting ? (
-                    <span className="flex items-center text-[9px] font-bold text-blue-600 uppercase tracking-tighter">
-                      <Loader2 className={cn("w-2.5 h-2.5 animate-spin", dir === 'rtl' ? "ml-0.5" : "mr-0.5")} /> {t('integrations.connecting')}
+                    <span className="inline-flex items-center gap-1.5 text-xs font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-lg">
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" /> {t('integrations.connecting')}
                     </span>
                   ) : hasError ? (
-                    <span className="flex items-center text-[9px] font-bold text-red-600 uppercase tracking-tighter">
-                      <AlertCircle className={cn("w-2.5 h-2.5", dir === 'rtl' ? "ml-0.5" : "mr-0.5")} /> {t('integrations.errorStatus')}
+                    <span className="inline-flex items-center gap-1.5 text-xs font-bold text-red-600 bg-red-50 px-2 py-0.5 rounded-lg">
+                      <AlertCircle className="w-3.5 h-3.5" /> {t('integrations.errorStatus')}
                     </span>
                   ) : (
-                    <span className="text-[9px] font-bold text-gray-400 uppercase tracking-tighter">{t('integrations.disconnected')}</span>
+                    <span className="inline-flex items-center text-xs font-medium text-gray-400 bg-gray-50 px-2 py-0.5 rounded-lg">{t('integrations.disconnected')}</span>
                   )}
                 </div>
               </div>
@@ -714,45 +714,55 @@ export function Integrations({ userProfile }: { userProfile?: { role?: string } 
                 onClick={() => handleExpand(integration)}
                 disabled={isConnecting}
                 className={cn(
-                  "shrink-0 w-7 h-7 flex items-center justify-center rounded-md transition-all duration-200 disabled:opacity-50",
+                  "shrink-0 w-10 h-10 flex items-center justify-center rounded-xl transition-all duration-200 disabled:opacity-50 font-bold text-sm",
                   isConnected
-                    ? "text-gray-400 hover:text-indigo-600 hover:bg-indigo-50"
+                    ? "text-indigo-600 bg-indigo-50 hover:bg-indigo-100"
                     : hasError
                     ? "text-red-600 bg-red-50 hover:bg-red-100"
                     : "text-indigo-600 bg-indigo-50 hover:bg-indigo-100"
                 )}
               >
                 {isConnecting ? (
-                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  <Loader2 className="w-5 h-5 animate-spin" />
                 ) : isConnected ? (
-                  <Settings2 className="w-3.5 h-3.5" />
+                  <Settings2 className="w-5 h-5" />
                 ) : (
-                  <Plus className="w-3.5 h-3.5" />
+                  <Plus className="w-5 h-5" />
                 )}
               </button>
             )}
           </div>
 
-          {isConnected && integration.score && !isExpanded && (
-            <div className="mt-2 h-0.5 w-full bg-gray-100 rounded-full overflow-hidden">
-              <div 
+          {isConnected && integration.score != null && !isExpanded && (
+            <div className="mt-4 h-1.5 w-full bg-gray-100 rounded-full overflow-hidden">
+              <motion.div 
+                initial={{ width: 0 }}
+                animate={{ width: `${integration.score}%` }}
+                transition={{ duration: 0.8, ease: 'easeOut' }}
                 className={cn(
-                  "h-full rounded-full transition-all duration-1000",
+                  "h-full rounded-full",
                   integration.score >= 90 ? "bg-emerald-500" :
                   integration.score >= 70 ? "bg-amber-500" :
                   "bg-red-500"
                 )}
-                style={{ width: `${integration.score}%` }}
               />
             </div>
           )}
 
           <AnimatePresence>
             {isExpanded && (
-              <div className="mt-2.5 pt-2.5 border-t border-gray-100">
-                <p className="text-[10px] text-gray-500 mb-2.5 leading-tight italic">{t(integration.description)}</p>
-                {renderIntegrationSettings(integration)}
-              </div>
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                exit={{ opacity: 0, height: 0 }}
+                transition={{ duration: 0.25 }}
+                className="overflow-hidden"
+              >
+                <div className="mt-6 pt-6 border-t border-gray-100">
+                  <p className="text-sm text-gray-500 mb-4 leading-relaxed">{t(integration.description)}</p>
+                  {renderIntegrationSettings(integration)}
+                </div>
+              </motion.div>
             )}
           </AnimatePresence>
         </div>
@@ -764,102 +774,125 @@ export function Integrations({ userProfile }: { userProfile?: { role?: string } 
   const googleConnections = connections.filter(c => c.category === 'Google');
   const socialConnections = connections.filter(c => c.category === 'Social');
   const ecommerceConnections = connections.filter(c => c.category === 'E-commerce');
+  const connectedCount = connections.filter(c => c.status === 'connected').length;
 
   return (
-    <div className="space-y-5 max-w-7xl mx-auto pb-8">
-      <div className="flex items-center justify-between bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-indigo-50 rounded-lg flex items-center justify-center text-indigo-600 shrink-0">
-            <Plug className="w-5 h-5" />
-          </div>
-          <div>
-            <h1 className="text-lg font-black text-gray-900 leading-tight">{t('integrations.title')}</h1>
-            <p className="text-[11px] text-gray-500 font-medium">{t('integrations.subtitle')}</p>
+    <div className="min-h-screen bg-gradient-to-b from-slate-50 via-white to-slate-50">
+      {/* Hero Header */}
+      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-indigo-600 via-purple-600 to-indigo-800 text-white shadow-xl mx-auto max-w-7xl mb-8">
+        <div className="absolute inset-0 bg-[url('data:image/svg+xml,%3Csvg width=\'60\' height=\'60\' viewBox=\'0 0 60 60\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cg fill=\'none\' fill-rule=\'evenodd\'%3E%3Cg fill=\'%23ffffff\' fill-opacity=\'0.05\'%3E%3Cpath d=\'M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z\'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E')] opacity-80" />
+        <div className="relative px-6 py-8 sm:px-8 sm:py-10">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-6">
+            <div className="flex items-center gap-4">
+              <div className="w-14 h-14 rounded-2xl bg-white/20 backdrop-blur flex items-center justify-center shadow-lg">
+                <Plug className="w-7 h-7" />
+              </div>
+              <div>
+                <h1 className="text-2xl sm:text-3xl font-black tracking-tight">{t('integrations.title')}</h1>
+                <p className="text-indigo-100 text-sm sm:text-base mt-1 font-medium max-w-xl">{t('integrations.subtitle')}</p>
+              </div>
+            </div>
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white/15 backdrop-blur border border-white/20">
+                <span className="text-2xl font-black">{connectedCount}</span>
+                <span className="text-indigo-100 text-sm font-medium">/ {connections.length} מחוברים</span>
+              </div>
+              <button
+                onClick={() => {
+                  const connected = connections.filter(c => c.status === 'connected');
+                  connected.forEach(c => handleTest(c.id));
+                }}
+                className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-white text-indigo-700 font-bold text-sm hover:bg-indigo-50 transition-all shadow-lg hover:shadow-xl"
+              >
+                <CheckCircle2 className="w-4 h-4" />
+                {t('integrations.testAll')}
+              </button>
+              <button
+                onClick={async () => {
+                  if (window.confirm(t('integrations.resetAllConfirm'))) {
+                    await resetAllConnections();
+                    setExpandedId(null);
+                    setFormValues({});
+                    setToast({ message: t('integrations.resetAllDone'), type: 'success' });
+                  }
+                }}
+                className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-white/20 border border-white/30 text-white font-bold text-sm hover:bg-white/30 transition-all"
+              >
+                <RotateCcw className="w-4 h-4" />
+                {t('integrations.resetAll')}
+              </button>
+            </div>
           </div>
         </div>
-        <button 
-          onClick={() => {
-            const connected = connections.filter(c => c.status === 'connected');
-            connected.forEach(c => handleTest(c.id));
-          }}
-          className="bg-indigo-600 text-white px-4 py-2 rounded-xl text-xs font-bold hover:bg-indigo-700 transition-all shadow-sm flex items-center gap-2"
-        >
-          <CheckCircle2 className="w-4 h-4" />
-          {t('integrations.testAll')}
-        </button>
-        <button
-          onClick={async () => {
-            if (window.confirm(t('integrations.resetAllConfirm'))) {
-              await resetAllConnections();
-              setExpandedId(null);
-              setFormValues({});
-              setToast({ message: t('integrations.resetAllDone'), type: 'success' });
-            }
-          }}
-          className="bg-amber-500 text-white px-4 py-2 rounded-xl text-xs font-bold hover:bg-amber-600 transition-all shadow-sm flex items-center gap-2"
-        >
-          <RotateCcw className="w-4 h-4" />
-          {t('integrations.resetAll')}
-        </button>
       </div>
-      
-      {/* Toast Notification */}
+
+      {/* Toast */}
       <AnimatePresence>
         {toast && (
           <motion.div
-            initial={{ opacity: 0, y: 50, x: '-50%' }}
-            animate={{ opacity: 1, y: 0, x: '-50%' }}
-            exit={{ opacity: 0, y: 20, x: '-50%' }}
+            initial={{ opacity: 0, y: 24 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 12 }}
             className={cn(
-              "fixed bottom-8 left-1/2 z-[100] px-6 py-3 rounded-2xl shadow-2xl flex items-center gap-3 min-w-[300px] border",
-              toast.type === 'success' ? "bg-emerald-600 border-emerald-500 text-white" : "bg-red-600 border-red-500 text-white"
+              "fixed bottom-8 left-1/2 -translate-x-1/2 z-[100] px-6 py-4 rounded-2xl shadow-2xl flex items-center gap-3 min-w-[320px] border-2",
+              toast.type === 'success' ? "bg-emerald-600 border-emerald-400 text-white" : "bg-red-600 border-red-400 text-white"
             )}
           >
-            {toast.type === 'success' ? <CheckCircle2 className="w-5 h-5" /> : <AlertCircle className="w-5 h-5" />}
+            {toast.type === 'success' ? <CheckCircle2 className="w-5 h-5 shrink-0" /> : <AlertCircle className="w-5 h-5 shrink-0" />}
             <p className="text-sm font-bold">{toast.message}</p>
           </motion.div>
         )}
       </AnimatePresence>
 
+      {/* Success / Error inline */}
       {success && (
-        <div className="bg-emerald-50 border border-emerald-200 p-4 rounded-xl flex items-start justify-between shadow-sm animate-in fade-in slide-in-from-top-2">
-          <div className="flex items-center">
-            <CheckCircle2 className={cn("h-5 w-5 text-emerald-500", dir === 'rtl' ? "ml-3" : "mr-3")} />
-            <p className="text-sm font-bold text-emerald-800">{success}</p>
+        <div className="max-w-7xl mx-auto mb-6">
+          <div className="bg-emerald-50 border-2 border-emerald-200 p-4 rounded-2xl flex items-center justify-between shadow-sm">
+            <div className="flex items-center gap-3">
+              <CheckCircle2 className="h-6 w-6 text-emerald-600 shrink-0" />
+              <p className="text-sm font-bold text-emerald-800">{success}</p>
+            </div>
+            <button onClick={() => setSuccess(null)} className="text-emerald-600 hover:text-emerald-800 p-2 hover:bg-emerald-100 rounded-xl transition-colors">
+              <X className="h-5 w-5" />
+            </button>
           </div>
-          <button onClick={() => setSuccess(null)} className="text-emerald-500 hover:text-emerald-700 p-1 hover:bg-emerald-100 rounded-lg transition-colors">
-            <X className="h-5 w-5" />
-          </button>
         </div>
       )}
 
       {error && (
-        <div className="bg-red-50 border border-red-200 p-4 rounded-xl flex items-start justify-between shadow-sm animate-in fade-in">
-          <div className="flex items-center">
-            <AlertCircle className={cn("h-5 w-5 text-red-500", dir === 'rtl' ? "ml-3" : "mr-3")} />
-            <div>
-              <h3 className="text-sm font-bold text-red-800">{t('integrations.error', { name: connections.find(i => i.id === error.id)?.name || '' })}</h3>
-              <p className="text-sm text-red-700 mt-1">{error.message}</p>
-              {error.id === 'google' && (
-                <p className="text-sm text-amber-700 mt-2 font-medium">{t('integrations.googleReconnectHint')}</p>
-              )}
+        <div className="max-w-7xl mx-auto mb-6">
+          <div className="bg-red-50 border-2 border-red-200 p-4 rounded-2xl flex items-start justify-between shadow-sm">
+            <div className="flex items-start gap-3">
+              <AlertCircle className="h-6 w-6 text-red-500 shrink-0 mt-0.5" />
+              <div>
+                <h3 className="text-sm font-bold text-red-800">{t('integrations.error', { name: connections.find(i => i.id === error.id)?.name || '' })}</h3>
+                <p className="text-sm text-red-700 mt-1">{error.message}</p>
+                {error.id === 'google' && (
+                  <p className="text-sm text-amber-700 mt-2 font-medium">{t('integrations.googleReconnectHint')}</p>
+                )}
+              </div>
             </div>
+            <button onClick={() => setError(null)} className="text-red-500 hover:text-red-700 p-2 hover:bg-red-100 rounded-xl transition-colors shrink-0">
+              <X className="h-5 w-5" />
+            </button>
           </div>
-          <button onClick={() => setError(null)} className="text-red-500 hover:text-red-700 p-1 hover:bg-red-100 rounded-lg transition-colors">
-            <X className="h-5 w-5" />
-          </button>
         </div>
       )}
 
-      <div className="space-y-6">
+      {/* Sections */}
+      <div className="max-w-7xl mx-auto space-y-10 pb-12">
         {aiConnections.length > 0 && (
           <section>
-            <div className="flex items-center gap-2 mb-3">
-              <div className="w-1 h-4 bg-indigo-600 rounded-full" />
-              <h2 className="text-sm font-black text-gray-900 uppercase tracking-wider">{t('integrations.aiEngine')}</h2>
-              <span className="text-xs text-gray-500 font-medium">({t('integrations.sharedForAllUsers')})</span>
+            <div className="flex items-center gap-3 mb-5">
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center text-white shadow-lg">
+                <Sparkles className="w-5 h-5" />
+              </div>
+              <div>
+                <h2 className="text-lg font-black text-gray-900">{t('integrations.aiEngine')}</h2>
+                <p className="text-xs text-gray-500 font-medium">{t('integrations.sharedForAllUsers')}</p>
+              </div>
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {aiConnections.map(renderConnectionCard)}
             </div>
           </section>
@@ -867,11 +900,13 @@ export function Integrations({ userProfile }: { userProfile?: { role?: string } 
 
         {googleConnections.length > 0 && (
           <section>
-            <div className="flex items-center gap-2 mb-3">
-              <div className="w-1 h-4 bg-indigo-600 rounded-full" />
-              <h2 className="text-sm font-black text-gray-900 uppercase tracking-wider">{t('integrations.googleWorkspace')}</h2>
+            <div className="flex items-center gap-3 mb-5">
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-red-500 flex items-center justify-center text-white shadow-lg">
+                <Megaphone className="w-5 h-5" />
+              </div>
+              <h2 className="text-lg font-black text-gray-900">{t('integrations.googleWorkspace')}</h2>
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {googleConnections.map(renderConnectionCard)}
             </div>
           </section>
@@ -879,11 +914,13 @@ export function Integrations({ userProfile }: { userProfile?: { role?: string } 
 
         {socialConnections.length > 0 && (
           <section>
-            <div className="flex items-center gap-2 mb-3">
-              <div className="w-1 h-4 bg-indigo-600 rounded-full" />
-              <h2 className="text-sm font-black text-gray-900 uppercase tracking-wider">{t('integrations.socialMedia')}</h2>
+            <div className="flex items-center gap-3 mb-5">
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-600 to-indigo-700 flex items-center justify-center text-white shadow-lg">
+                <Video className="w-5 h-5" />
+              </div>
+              <h2 className="text-lg font-black text-gray-900">{t('integrations.socialMedia')}</h2>
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {socialConnections.map(renderConnectionCard)}
             </div>
           </section>
@@ -891,11 +928,13 @@ export function Integrations({ userProfile }: { userProfile?: { role?: string } 
 
         {ecommerceConnections.length > 0 && (
           <section>
-            <div className="flex items-center gap-2 mb-3">
-              <div className="w-1 h-4 bg-indigo-600 rounded-full" />
-              <h2 className="text-sm font-black text-gray-900 uppercase tracking-wider">{t('integrations.ecommerce')}</h2>
+            <div className="flex items-center gap-3 mb-5">
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center text-white shadow-lg">
+                <ShoppingCart className="w-5 h-5" />
+              </div>
+              <h2 className="text-lg font-black text-gray-900">{t('integrations.ecommerce')}</h2>
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {ecommerceConnections.map(renderConnectionCard)}
             </div>
           </section>
