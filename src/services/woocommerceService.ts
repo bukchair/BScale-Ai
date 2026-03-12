@@ -26,7 +26,7 @@ export async function verifyWooCommerceConnection(url: string, key: string, secr
     if (!response.ok) {
       throw new Error(data.message || `WooCommerce API Error: ${response.statusText}`);
     }
-    
+
     return true;
   } catch (error) {
     console.error("WooCommerce Verification Error:", error);
