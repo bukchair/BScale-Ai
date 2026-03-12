@@ -5,6 +5,9 @@
 
 :root {
   font-family: 'Inter', 'Noto Sans Hebrew', 'Noto Sans', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 body,
@@ -13,4 +16,43 @@ input,
 textarea,
 select {
   font-family: inherit;
+}
+
+body {
+  font-weight: 400;
+  line-height: 1.6;
+}
+
+h1,
+h2 {
+  font-weight: 800;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+}
+
+h3,
+h4,
+h5,
+h6 {
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: -0.012em;
+}
+
+p,
+li {
+  line-height: 1.7;
+}
+
+button {
+  font-weight: 600;
+}
+
+:lang(he) h1,
+:lang(he) h2,
+:lang(he) h3,
+:lang(he) h4,
+:lang(he) h5,
+:lang(he) h6 {
+  letter-spacing: 0;
 }
