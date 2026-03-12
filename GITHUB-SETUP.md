@@ -22,13 +22,13 @@
 ```powershell
 cd "c:\Users\User\Downloads\בי סקייל"
 git remote add origin https://YOUR_TOKEN@github.com/YOUR_USERNAME/YOUR_REPO.git
-git push -u origin master
+git push -u origin main
 ```
 
 **דוגמה:** משתמש `david`, ריפו `bscale-ai`, Token `ghp_xxxx...`
 ```powershell
 git remote add origin https://ghp_xxxx@github.com/david/bscale-ai.git
-git push -u origin master
+git push -u origin main
 ```
 
 אחרי הדחיפה הראשונה אפשר להסיר את ה-Token מה-URL (למען האבטחה) ולהשתמש ב-Credential Manager:
@@ -51,7 +51,7 @@ gh auth login
 ```powershell
 cd "c:\Users\User\Downloads\בי סקייל"
 git remote add origin https://github.com/YOUR_USERNAME/YOUR_REPO.git
-git push -u origin master
+git push -u origin main
 ```
 
 ---
@@ -71,7 +71,7 @@ Get-Content "$env:USERPROFILE\.ssh\id_ed25519.pub"
 ```powershell
 cd "c:\Users\User\Downloads\בי סקייל"
 git remote add origin git@github.com:YOUR_USERNAME/YOUR_REPO.git
-git push -u origin master
+git push -u origin main
 ```
 
 ---
