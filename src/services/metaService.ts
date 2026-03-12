@@ -1,3 +1,9 @@
+const API_BASE =
+  (typeof import.meta !== 'undefined' &&
+    typeof import.meta.env.VITE_APP_URL === 'string' &&
+    import.meta.env.VITE_APP_URL) ||
+  '';
+
 export async function fetchMetaAdAccounts(accessToken: string) {
   const response = await fetch(`https://graph.facebook.com/v19.0/me/adaccounts?access_token=${accessToken}`);
   
@@ -11,7 +17,7 @@ export async function fetchMetaAdAccounts(accessToken: string) {
 }
 
 export async function fetchMetaCampaigns(accessToken: string, adAccountId: string) {
-  const response = await fetch(`/api/meta/campaigns?ad_account_id=${adAccountId}`, {
+  const response = await fetch(`${API_BASE}/api/meta/campaigns?ad_account_id=${adAccountId}`, {
     headers: {
       'Authorization': `Bearer ${accessToken}`
     }

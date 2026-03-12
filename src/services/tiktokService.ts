@@ -1,5 +1,11 @@
+const API_BASE =
+  (typeof import.meta !== 'undefined' &&
+    typeof import.meta.env.VITE_APP_URL === 'string' &&
+    import.meta.env.VITE_APP_URL) ||
+  '';
+
 export async function fetchTikTokCampaigns(accessToken: string, advertiserId: string) {
-  const response = await fetch(`/api/tiktok/campaigns?advertiser_id=${advertiserId}`, {
+  const response = await fetch(`${API_BASE}/api/tiktok/campaigns?advertiser_id=${advertiserId}`, {
     headers: {
       'Authorization': `Bearer ${accessToken}`
     }

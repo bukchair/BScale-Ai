@@ -1,5 +1,11 @@
+const API_BASE =
+  (typeof import.meta !== 'undefined' &&
+    typeof import.meta.env.VITE_APP_URL === 'string' &&
+    import.meta.env.VITE_APP_URL) ||
+  '';
+
 export async function fetchGoogleAdAccounts(accessToken: string) {
-  const response = await fetch('/api/google/ads/accounts', {
+  const response = await fetch(`${API_BASE}/api/google/ads/accounts`, {
     headers: {
       'Authorization': `Bearer ${accessToken}`,
     },
@@ -16,7 +22,7 @@ export async function fetchGoogleAdAccounts(accessToken: string) {
 }
 
 export async function fetchGoogleCampaigns(accessToken: string, customerId: string, loginCustomerId?: string) {
-  const response = await fetch(`/api/google/ads/campaigns?customer_id=${customerId}${loginCustomerId ? `&login_customer_id=${loginCustomerId}` : ''}`, {
+  const response = await fetch(`${API_BASE}/api/google/ads/campaigns?customer_id=${customerId}${loginCustomerId ? `&login_customer_id=${loginCustomerId}` : ''}`, {
     headers: {
       'Authorization': `Bearer ${accessToken}`
     }
@@ -46,7 +52,7 @@ export async function fetchGoogleCampaigns(accessToken: string, customerId: stri
 }
 
 export async function sendGmailNotification(accessToken: string, to: string, subject: string, body: string) {
-  const response = await fetch('/api/google/gmail/send', {
+  const response = await fetch(`${API_BASE}/api/google/gmail/send`, {
     method: 'POST',
     headers: {
       'Authorization': `Bearer ${accessToken}`,
@@ -64,7 +70,7 @@ export async function sendGmailNotification(accessToken: string, to: string, sub
 }
 
 export async function fetchGA4Report(accessToken: string, propertyId: string) {
-  const response = await fetch(`/api/google/analytics/report?property_id=${propertyId}`, {
+  const response = await fetch(`${API_BASE}/api/google/analytics/report?property_id=${propertyId}`, {
     headers: {
       'Authorization': `Bearer ${accessToken}`
     }
@@ -79,7 +85,7 @@ export async function fetchGA4Report(accessToken: string, propertyId: string) {
 }
 
 export async function fetchGSCData(accessToken: string, siteUrl: string) {
-  const response = await fetch(`/api/google/search-console/query?site_url=${encodeURIComponent(siteUrl)}`, {
+  const response = await fetch(`${API_BASE}/api/google/search-console/query?site_url=${encodeURIComponent(siteUrl)}`, {
     headers: {
       'Authorization': `Bearer ${accessToken}`
     }

@@ -1,10 +1,16 @@
+const API_BASE =
+  (typeof import.meta !== 'undefined' &&
+    typeof import.meta.env.VITE_APP_URL === 'string' &&
+    import.meta.env.VITE_APP_URL) ||
+  '';
+
 export async function verifyWooCommerceConnection(url: string, key: string, secret: string) {
   if (!url || !key || !secret || key === 'mock' || secret === 'mock') {
     throw new Error('Missing or invalid credentials');
   }
 
   try {
-    const response = await fetch('/api/proxy/woocommerce', {
+    const response = await fetch(`${API_BASE}/api/proxy/woocommerce`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ url, key, secret, endpoint: 'system_status' })
@@ -85,7 +91,7 @@ export async function fetchWooCommerceProducts(url: string, key: string, secret:
   }
   
   try {
-    const response = await fetch('/api/proxy/woocommerce', {
+    const response = await fetch(`${API_BASE}/api/proxy/woocommerce`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ url, key, secret, endpoint: 'products' })
@@ -120,7 +126,7 @@ export async function fetchWooCommerceProducts(url: string, key: string, secret:
 
 export async function updateWooCommerceProduct(url: string, key: string, secret: string, productId: number, data: any) {
   try {
-    const response = await fetch('/api/proxy/woocommerce', {
+    const response = await fetch(`${API_BASE}/api/proxy/woocommerce`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ url, key, secret, endpoint: `products/${productId}`, method: 'PUT', data })
@@ -143,7 +149,7 @@ export async function fetchWooCommerceRevenue(url: string, key: string, secret: 
   }
 
   try {
-    const response = await fetch('/api/proxy/woocommerce', {
+    const response = await fetch(`${API_BASE}/api/proxy/woocommerce`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({

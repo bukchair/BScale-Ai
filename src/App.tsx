@@ -30,14 +30,59 @@ import { runAutoAdsIfNeeded } from './lib/autoAdsRunner';
 
 export default function App() {
   const { dir } = useLanguage();
-  const [view, setView] = useState<'landing' | 'auth' | 'app'>('landing');
-  const [activeTab, setActiveTab] = useState('dashboard');
+  
+  const path = typeof window !== 'undefined' ? window.location.pathname : '/';
+
+  const tabFromPath = (pathname: string): string => {
+    const clean = pathname.replace(/\/+$/, '');
+    if (clean === '/' || clean === '') return 'landing';
+    const segment = clean.split('/')[1] || '';
+    switch (segment) {
+      case 'app':
+      case 'dashboard':
+        return 'dashboard';
+      case 'profitability':
+        return 'profitability';
+      case 'budget':
+        return 'budget';
+      case 'campaigns':
+        return 'campaigns';
+      case 'ai-recommendations':
+        return 'ai-recommendations';
+      case 'search-analysis':
+        return 'search-analysis';
+      case 'seo':
+        return 'seo';
+      case 'products':
+        return 'products';
+      case 'audiences':
+        return 'audiences';
+      case 'creative-lab':
+        return 'creative-lab';
+      case 'automations':
+      case 'approvals-automations':
+        return 'approvals-automations';
+      case 'connections':
+        return 'connections';
+      case 'users':
+        return 'users';
+      case 'settings':
+        return 'settings';
+      default:
+        return 'dashboard';
+    }
+  };
+
+  const initialTab = tabFromPath(path);
+
+  const [view, setView] = useState<'landing' | 'auth' | 'app'>(
+    initialTab === 'landing' ? 'landing' : 'app'
+  );
+  const [activeTab, setActiveTab] = useState(initialTab === 'landing' ? 'dashboard' : initialTab);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [userProfile, setUserProfile] = useState<any>(null);
   const [scrollToPricing, setScrollToPricing] = useState(false);
-
-  const path = typeof window !== 'undefined' ? window.location.pathname : '/';
 
   // Public privacy policy page – זמין בלי התחברות
   if (path === '/privacy-policy') {
@@ -60,6 +105,78 @@ export default function App() {
     });
 
     return () => unsubscribe();
+  }, []);
+
+  // סנכרון URL עם הטאב הפעיל (SPA עם pushState)
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (view !== 'app') return;
+
+    const currentPath = window.location.pathname.replace(/\/+$/, '');
+    let desiredPath = '/app';
+
+    switch (activeTab) {
+      case 'dashboard':
+        desiredPath = '/app';
+        break;
+      case 'profitability':
+        desiredPath = '/profitability';
+        break;
+      case 'budget':
+        desiredPath = '/budget';
+        break;
+      case 'campaigns':
+        desiredPath = '/campaigns';
+        break;
+      case 'ai-recommendations':
+        desiredPath = '/ai-recommendations';
+        break;
+      case 'search-analysis':
+        desiredPath = '/search-analysis';
+        break;
+      case 'seo':
+        desiredPath = '/seo';
+        break;
+      case 'products':
+        desiredPath = '/products';
+        break;
+      case 'audiences':
+        desiredPath = '/audiences';
+        break;
+      case 'creative-lab':
+        desiredPath = '/creative-lab';
+        break;
+      case 'approvals-automations':
+        desiredPath = '/automations';
+        break;
+      case 'connections':
+        desiredPath = '/connections';
+        break;
+      case 'users':
+        desiredPath = '/users';
+        break;
+      case 'settings':
+        desiredPath = '/settings';
+        break;
+      default:
+        desiredPath = '/app';
+    }
+
+    if (currentPath !== desiredPath) {
+      window.history.pushState({}, '', desiredPath);
+    }
+  }, [activeTab, view]);
+
+  // תמיכה בכפתורי Back/Forward – מעדכן את הטאב לפי ה־URL
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const onPopState = () => {
+      const pathname = window.location.pathname;
+      const nextTab = tabFromPath(pathname);
+      setActiveTab(nextTab === 'landing' ? 'dashboard' : nextTab);
+    };
+    window.addEventListener('popstate', onPopState);
+    return () => window.removeEventListener('popstate', onPopState);
   }, []);
 
   if (isLoading) {
