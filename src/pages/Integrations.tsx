@@ -915,14 +915,25 @@ export function Integrations({ userProfile }: { userProfile?: { role?: string } 
       <div className="max-w-7xl mx-auto space-y-10 pb-12">
         {aiConnections.length > 0 && (
           <section>
-            <div className="flex items-center gap-3 mb-5">
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center text-white shadow-lg">
-                <Sparkles className="w-5 h-5" />
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-5">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center text-white shadow-lg">
+                  <Sparkles className="w-5 h-5" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-black text-gray-900">{t('integrations.aiEngine')}</h2>
+                  <p className="text-xs text-gray-500 font-medium">{t('integrations.sharedForAllUsers')}</p>
+                </div>
               </div>
-              <div>
-                <h2 className="text-lg font-black text-gray-900">{t('integrations.aiEngine')}</h2>
-                <p className="text-xs text-gray-500 font-medium">{t('integrations.sharedForAllUsers')}</p>
-              </div>
+              {isAdmin && (
+                <button
+                  onClick={handleMigrateAi}
+                  className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-indigo-600 text-white text-xs sm:text-sm font-bold hover:bg-indigo-700 transition-colors shadow-sm"
+                >
+                  <Sparkles className="w-4 h-4" />
+                  סנכרן חיבורי AI מהמשתמש שלי לכל המשתמשים
+                </button>
+              )}
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {aiConnections.map(renderConnectionCard)}
