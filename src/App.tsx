@@ -20,6 +20,7 @@ import { Orders } from './pages/Orders';
 import { Integrations } from './pages/Integrations';
 import { Users } from './pages/Users';
 import { Settings } from './pages/Settings';
+import { Leads } from './pages/Leads';
 import { Landing } from './pages/Landing';
 import { Auth } from './pages/Auth';
 import { SubscriptionRequired } from './pages/SubscriptionRequired';
@@ -71,6 +72,8 @@ export default function App() {
         return 'approvals-automations';
       case 'connections':
         return 'connections';
+      case 'leads':
+        return 'leads';
       case 'users':
         return 'users';
       case 'settings':
@@ -169,6 +172,9 @@ export default function App() {
         break;
       case 'connections':
         desiredPath = '/connections';
+        break;
+      case 'leads':
+        desiredPath = '/leads';
         break;
       case 'users':
         desiredPath = '/users';
@@ -271,6 +277,8 @@ export default function App() {
         return <Automations />;
       case 'connections':
         return <Integrations userProfile={userProfile} />;
+      case 'leads':
+        return userProfile && ['admin', 'agency', 'owner'].includes(userProfile.role) ? <Leads /> : <Dashboard />;
       case 'users':
         return userProfile?.role === 'admin' ? <Users /> : <Dashboard />;
       case 'system-mail':

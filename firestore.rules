@@ -91,5 +91,21 @@ service cloud.firestore {
         allow update, delete: if false; // Logs are immutable
       }
     }
+
+    match /salesLeads/{leadId} {
+      // Public lead submission from website bot.
+      allow create: if request.resource.data.keys().hasAll(['name', 'createdAt', 'status']) &&
+                    request.resource.data.name is string &&
+                    request.resource.data.name.size() > 0 &&
+                    request.resource.data.name.size() < 120 &&
+                    request.resource.data.createdAt is string &&
+                    request.resource.data.status in ['new', 'contacted', 'closed'];
+
+      // Internal app visibility and management.
+      allow read, update: if isAuthenticated() &&
+                          (isAdmin() || isAgency() || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['owner', 'editor']);
+
+      allow delete: if isAdmin();
+    }
   }
 }

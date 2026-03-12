@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Bot, MessageCircle, Send, Sparkles, X } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
 import { cn } from '../lib/utils';
+import { createPublicSalesLead } from '../lib/firebase';
 
 type ChatMessage = {
   id: string;
@@ -18,8 +19,6 @@ interface LeadFormState {
   website: string;
 }
 
-const SALES_EMAIL = 'sales@bscale.co.il';
-
 export function SalesBot() {
   const { language, dir } = useLanguage();
   const isHebrew = language === 'he';
@@ -28,6 +27,7 @@ export function SalesBot() {
   const [collectingLead, setCollectingLead] = useState(false);
   const [lead, setLead] = useState<LeadFormState>({ name: '', email: '', phone: '', website: '' });
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [isSubmittingLead, setIsSubmittingLead] = useState(false);
   const [hasPrompted, setHasPrompted] = useState(false);
 
   const botGreeting = isHebrew
@@ -101,7 +101,7 @@ export function SalesBot() {
     });
   };
 
-  const handleLeadSubmit = () => {
+  const handleLeadSubmit = async () => {
     const hasContact = lead.email.trim() || lead.phone.trim();
     if (!lead.name.trim() || !hasContact) {
       setSubmitError(
@@ -112,30 +112,38 @@ export function SalesBot() {
       return;
     }
 
-    const summary = [
-      `Name: ${lead.name}`,
-      `Email: ${lead.email || '-'}`,
-      `Phone: ${lead.phone || '-'}`,
-      `Website: ${lead.website || '-'}`,
-      `Source: Sales bot (${window.location.pathname})`,
-      `Time: ${new Date().toISOString()}`,
-    ].join('\n');
-
-    const subject = encodeURIComponent(`New sales lead - ${lead.name}`);
-    const body = encodeURIComponent(summary);
-    window.open(`mailto:${SALES_EMAIL}?subject=${subject}&body=${body}`, '_blank');
-
-    appendMessage({
-      id: `bot-lead-success-${Date.now()}`,
-      from: 'bot',
-      text: isHebrew
-        ? 'קיבלתי 🙌 פתחתי עבורך מייל עם הפרטים לשליחה מהירה לצוות המכירות.'
-        : 'Got it 🙌 I opened an email draft with your details for quick handoff to sales.',
-    });
-
-    setLead({ name: '', email: '', phone: '', website: '' });
-    setCollectingLead(false);
+    setIsSubmittingLead(true);
     setSubmitError(null);
+    try {
+      await createPublicSalesLead({
+        name: lead.name,
+        email: lead.email,
+        phone: lead.phone,
+        website: lead.website,
+        sourcePath: window.location.pathname,
+        message: isHebrew ? 'ליד מהבוט באתר' : 'Lead from on-site sales bot',
+      });
+
+      appendMessage({
+        id: `bot-lead-success-${Date.now()}`,
+        from: 'bot',
+        text: isHebrew
+          ? 'מעולה! הפרטים נשמרו במערכת והצוות קיבל התראה בתוך האפליקציה.'
+          : 'Great! Your details were saved in the system and the team got an in-app alert.',
+      });
+
+      setLead({ name: '', email: '', phone: '', website: '' });
+      setCollectingLead(false);
+    } catch (error) {
+      console.error('Failed to save lead:', error);
+      setSubmitError(
+        isHebrew
+          ? 'לא הצלחנו לשמור את הפרטים כרגע. נסה שוב בעוד רגע.'
+          : 'Could not save your details right now. Please try again in a moment.'
+      );
+    } finally {
+      setIsSubmittingLead(false);
+    }
   };
 
   return (
@@ -215,10 +223,13 @@ export function SalesBot() {
                 {submitError && <p className="text-xs text-red-600">{submitError}</p>}
                 <button
                   onClick={handleLeadSubmit}
+                  disabled={isSubmittingLead}
                   className="w-full bg-indigo-600 text-white py-2 rounded-lg text-sm font-bold hover:bg-indigo-700 transition-colors flex items-center justify-center gap-2"
                 >
                   <Send className="w-4 h-4" />
-                  {isHebrew ? 'שליחת פרטים' : 'Send details'}
+                  {isSubmittingLead
+                    ? (isHebrew ? 'שומר פרטים...' : 'Saving...')
+                    : (isHebrew ? 'שליחת פרטים' : 'Send details')}
                 </button>
               </div>
             )}

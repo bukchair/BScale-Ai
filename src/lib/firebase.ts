@@ -1,6 +1,6 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect, onAuthStateChanged, signOut } from 'firebase/auth';
-import { getFirestore, doc, getDoc, setDoc, collection, getDocs, updateDoc, deleteDoc } from 'firebase/firestore';
+import { getFirestore, doc, getDoc, setDoc, collection, getDocs, updateDoc, deleteDoc, addDoc } from 'firebase/firestore';
 import firebaseConfig from '../../firebase-applet-config.json';
 
 const app = initializeApp(firebaseConfig);
@@ -134,4 +134,37 @@ export async function updateAudience(uid: string, id: string, data: Partial<Omit
 export async function deleteAudience(uid: string, id: string): Promise<void> {
   const ref = doc(db, 'users', uid, 'audiences', id);
   await deleteDoc(ref);
+}
+
+export interface SalesLeadInput {
+  name: string;
+  email?: string;
+  phone?: string;
+  website?: string;
+  sourcePath?: string;
+  message?: string;
+}
+
+export interface SalesLead extends SalesLeadInput {
+  id: string;
+  createdAt: string;
+  status: 'new' | 'contacted' | 'closed';
+  readBy?: Record<string, string>;
+}
+
+export async function createPublicSalesLead(input: SalesLeadInput): Promise<string> {
+  const payload: Omit<SalesLead, 'id'> = {
+    name: input.name.trim(),
+    email: input.email?.trim() || '',
+    phone: input.phone?.trim() || '',
+    website: input.website?.trim() || '',
+    sourcePath: input.sourcePath?.trim() || '/',
+    message: input.message?.trim() || '',
+    createdAt: new Date().toISOString(),
+    status: 'new',
+    readBy: {},
+  };
+
+  const ref = await addDoc(collection(db, 'salesLeads'), payload);
+  return ref.id;
 }

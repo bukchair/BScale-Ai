@@ -37,6 +37,7 @@ export function Sidebar({ activeTab, setActiveTab, isOpen, setIsOpen, userProfil
   const { t } = useLanguage();
   const currentUser = auth.currentUser;
   const isAdmin = userProfile?.role === 'admin';
+  const canViewLeads = ['admin', 'agency', 'owner'].includes(userProfile?.role || '');
 
   const handleLogout = async (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -79,6 +80,9 @@ export function Sidebar({ activeTab, setActiveTab, isOpen, setIsOpen, userProfil
       items: [
         { id: 'approvals-automations', label: t('nav.approvalsAutomations'), icon: ShieldAlert },
         { id: 'connections', label: t('nav.connections'), icon: Plug },
+        ...(canViewLeads ? [
+          { id: 'leads', label: 'לידים', icon: Mail },
+        ] : []),
         ...(isAdmin ? [
           { id: 'users', label: t('nav.users'), icon: Users },
           { id: 'system-mail', label: 'דואר מערכת', icon: Mail },

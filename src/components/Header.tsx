@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Menu, Bell, Search, User, ChevronDown, CheckCircle, AlertTriangle, Calendar, BrainCircuit } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useDateRange, DateRangeType } from '../contexts/DateRangeContext';
@@ -6,6 +6,8 @@ import { useConnections } from '../contexts/ConnectionsContext';
 import { LanguageSwitcher } from './LanguageSwitcher';
 import { ThemeSwitcher } from './ThemeSwitcher';
 import { cn } from '../lib/utils';
+import { collection, doc, limit, onSnapshot, orderBy, query, updateDoc } from 'firebase/firestore';
+import { auth, db } from '../lib/firebase';
 
 interface HeaderProps {
   onMenuClick: () => void;
@@ -19,14 +21,94 @@ export function Header({ onMenuClick, userProfile }: HeaderProps) {
   const [isConnectionsOpen, setIsConnectionsOpen] = useState(false);
   const [isDatePickerOpen, setIsDatePickerOpen] = useState(false);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
+  const [leadNotifications, setLeadNotifications] = useState<Array<{
+    id: string;
+    name: string;
+    email?: string;
+    phone?: string;
+    createdAt: string;
+    sourcePath?: string;
+    readBy?: Record<string, string>;
+  }>>([]);
   const isDemo = userProfile?.subscriptionStatus === 'demo';
+  const canViewLeads = ['admin', 'agency', 'owner'].includes(userProfile?.role || '');
+  const currentUid = auth.currentUser?.uid;
 
-  const notifications = [
+  const tr = (key: string, fallback: string) => {
+    const translated = t(key);
+    return translated === key ? fallback : translated;
+  };
+
+  const fallbackNotifications = [
     { id: 1, type: 'ai', title: t('notifications.items.ai_ready'), desc: t('notifications.items.ai_ready_desc'), time: '2h ago', icon: CheckCircle, color: 'text-emerald-500' },
     { id: 2, type: 'budget', title: t('notifications.items.budget_alert'), desc: t('notifications.items.budget_alert_desc'), time: '5h ago', icon: AlertTriangle, color: 'text-amber-500' },
     { id: 3, type: 'feature', title: t('notifications.items.new_feature'), desc: t('notifications.items.new_feature_desc'), time: '1d ago', icon: Search, color: 'text-indigo-500' },
     { id: 4, type: 'error', title: t('notifications.items.connection_error'), desc: t('notifications.items.connection_error_desc'), time: '2d ago', icon: AlertTriangle, color: 'text-red-500' },
   ];
+
+  useEffect(() => {
+    if (!canViewLeads) {
+      setLeadNotifications([]);
+      return;
+    }
+
+    const leadsQuery = query(collection(db, 'salesLeads'), orderBy('createdAt', 'desc'), limit(25));
+    const unsubscribe = onSnapshot(
+      leadsQuery,
+      (snapshot) => {
+        const leads = snapshot.docs.map((leadDoc) => ({ id: leadDoc.id, ...(leadDoc.data() as any) }));
+        setLeadNotifications(leads);
+      },
+      (error) => {
+        console.error('Failed to subscribe to sales lead notifications:', error);
+      }
+    );
+
+    return () => unsubscribe();
+  }, [canViewLeads]);
+
+  const unreadLeadCount = useMemo(() => {
+    if (!currentUid) return 0;
+    return leadNotifications.filter((lead) => !lead.readBy?.[currentUid]).length;
+  }, [currentUid, leadNotifications]);
+
+  const leadNotificationItems = useMemo(
+    () =>
+      leadNotifications.map((lead) => ({
+        id: `lead-${lead.id}`,
+        type: 'lead',
+        title: tr('notifications.newLeadTitle', 'ליד חדש מהאתר'),
+        desc: `${lead.name} • ${lead.email || lead.phone || tr('notifications.noContact', 'ללא פרטי קשר')}`,
+        time: lead.createdAt ? new Date(lead.createdAt).toLocaleString(dir === 'rtl' ? 'he-IL' : 'en-US') : '--',
+        icon: User,
+        color: 'text-indigo-500',
+        unread: currentUid ? !lead.readBy?.[currentUid] : false,
+      })),
+    [currentUid, dir, leadNotifications]
+  );
+
+  const notifications = canViewLeads
+    ? leadNotificationItems
+    : fallbackNotifications.map((item) => ({ ...item, unread: false }));
+
+  const handleToggleNotifications = async () => {
+    const nextState = !isNotificationsOpen;
+    setIsNotificationsOpen(nextState);
+    if (!nextState || !currentUid || !canViewLeads) return;
+
+    const unreadLeads = leadNotifications.filter((lead) => !lead.readBy?.[currentUid]);
+    if (unreadLeads.length === 0) return;
+
+    await Promise.all(
+      unreadLeads.map((lead) =>
+        updateDoc(doc(db, 'salesLeads', lead.id), {
+          [`readBy.${currentUid}`]: new Date().toISOString(),
+        }).catch((error) => {
+          console.warn('Failed to mark lead notification as read:', error);
+        })
+      )
+    );
+  };
 
   const handleDateClick = (range: DateRangeType) => {
     setDateRange(range);
@@ -195,14 +277,16 @@ export function Header({ onMenuClick, userProfile }: HeaderProps) {
         
         <div className="relative">
           <button 
-            onClick={() => setIsNotificationsOpen(!isNotificationsOpen)}
+            onClick={handleToggleNotifications}
             className={cn(
               "p-2 rounded-lg transition-colors relative",
               isNotificationsOpen ? "bg-gray-100 dark:bg-white/10 text-gray-900 dark:text-white" : "text-gray-400 hover:text-gray-500 dark:hover:text-gray-300"
             )}
           >
             <Bell className="w-6 h-6" />
-            <span className="absolute top-1.5 end-1.5 block w-2.5 h-2.5 bg-red-500 rounded-full ring-2 ring-white dark:ring-[#111]" />
+            {unreadLeadCount > 0 && (
+              <span className="absolute top-1.5 end-1.5 block w-2.5 h-2.5 bg-red-500 rounded-full ring-2 ring-white dark:ring-[#111]" />
+            )}
           </button>
 
           {isNotificationsOpen && (
@@ -213,11 +297,28 @@ export function Header({ onMenuClick, userProfile }: HeaderProps) {
               <div className="p-4 border-b border-gray-200 dark:border-white/10 flex items-center justify-between bg-gray-50/50 dark:bg-white/5">
                 <div>
                   <h4 className="text-sm font-bold text-gray-900 dark:text-white">{t('notifications.title')}</h4>
-                  <p className="text-[10px] text-gray-500 dark:text-gray-400 mt-0.5">{t('notifications.subtitle')}</p>
+                  <p className="text-[10px] text-gray-500 dark:text-gray-400 mt-0.5">
+                    {canViewLeads
+                      ? tr('notifications.leadSubtitle', 'כל ליד חדש יופיע כאן בזמן אמת.')
+                      : t('notifications.subtitle')}
+                  </p>
                 </div>
-                <button className="text-[10px] font-bold text-indigo-600 dark:text-indigo-400 hover:underline">
-                  {t('notifications.clearAll')}
-                </button>
+                {canViewLeads ? (
+                  <button
+                    className="text-[10px] font-bold text-indigo-600 dark:text-indigo-400 hover:underline"
+                    onClick={() => {
+                      window.history.pushState({}, '', '/leads');
+                      window.dispatchEvent(new PopStateEvent('popstate'));
+                      setIsNotificationsOpen(false);
+                    }}
+                  >
+                    {tr('notifications.viewLeads', 'ניהול לידים')}
+                  </button>
+                ) : (
+                  <button className="text-[10px] font-bold text-indigo-600 dark:text-indigo-400 hover:underline">
+                    {t('notifications.clearAll')}
+                  </button>
+                )}
               </div>
 
               <div className="max-h-[400px] overflow-y-auto">
@@ -234,7 +335,10 @@ export function Header({ onMenuClick, userProfile }: HeaderProps) {
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center justify-between gap-2">
                             <p className="text-xs font-bold text-gray-900 dark:text-white truncate">{notif.title}</p>
-                            <span className="text-[10px] text-gray-400 dark:text-gray-500 shrink-0">{notif.time}</span>
+                            <div className="flex items-center gap-2">
+                              {(notif as any).unread && <span className="w-1.5 h-1.5 rounded-full bg-red-500" />}
+                              <span className="text-[10px] text-gray-400 dark:text-gray-500 shrink-0">{notif.time}</span>
+                            </div>
                           </div>
                           <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-1 leading-relaxed line-clamp-2">
                             {notif.desc}
