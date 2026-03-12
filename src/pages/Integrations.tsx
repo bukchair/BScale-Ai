@@ -59,6 +59,7 @@ export function Integrations({ userProfile }: { userProfile?: { role?: string } 
     } catch (err) {
       console.error("Failed to get TikTok auth URL:", err);
       setToast({ message: "Failed to start TikTok authentication", type: 'error' });
+      setTimeout(() => setToast(null), 3000);
     }
   };
 
@@ -81,6 +82,7 @@ export function Integrations({ userProfile }: { userProfile?: { role?: string } 
     } catch (err) {
       console.error("Failed to get Meta auth URL:", err);
       setToast({ message: "Failed to start Meta authentication", type: 'error' });
+      setTimeout(() => setToast(null), 3000);
     }
   };
 
@@ -115,6 +117,7 @@ export function Integrations({ userProfile }: { userProfile?: { role?: string } 
     } catch (err) {
       console.error("Failed to get Google auth URL:", err);
       setToast({ message: `Failed to start Google authentication: ${err instanceof Error ? err.message : 'Unknown error'}`, type: 'error' });
+      setTimeout(() => setToast(null), 3000);
     }
   };
 
@@ -135,6 +138,7 @@ export function Integrations({ userProfile }: { userProfile?: { role?: string } 
           tiktokToken: data.access_token,
         });
         setToast({ message: "Successfully connected to TikTok Ads!", type: 'success' });
+        setTimeout(() => setToast(null), 3000);
       }
 
       if (event.data?.type === 'OAUTH_AUTH_SUCCESS' && event.data?.platform === 'meta') {
@@ -144,6 +148,7 @@ export function Integrations({ userProfile }: { userProfile?: { role?: string } 
           metaToken: data.access_token,
         });
         setToast({ message: "Successfully connected to Meta Ads!", type: 'success' });
+        setTimeout(() => setToast(null), 3000);
       }
 
       if (event.data?.type === 'OAUTH_AUTH_SUCCESS' && event.data?.platform === 'google') {
@@ -155,10 +160,12 @@ export function Integrations({ userProfile }: { userProfile?: { role?: string } 
           googleExpiry: (Date.now() + tokens.expires_in * 1000).toString(),
         });
         setToast({ message: "Successfully connected to Google Workspace!", type: 'success' });
+        setTimeout(() => setToast(null), 3000);
       }
 
       if (event.data?.type === 'OAUTH_AUTH_ERROR') {
         setToast({ message: event.data.error || "TikTok authentication failed", type: 'error' });
+        setTimeout(() => setToast(null), 3000);
       }
     };
 
@@ -189,7 +196,7 @@ export function Integrations({ userProfile }: { userProfile?: { role?: string } 
       await updateConnectionSettings(id, settingsToSave);
       setExpandedId(null);
       setSuccess(t('integrations.success', { name: connections.find(c => c.id === id)?.name || '' }));
-      setTimeout(() => setSuccess(null), 5000);
+      setTimeout(() => setSuccess(null), 3000);
     } catch (err) {
       setError({ id, message: t('integrations.error', { name: connections.find(c => c.id === id)?.name || '' }) });
     }
@@ -207,16 +214,16 @@ export function Integrations({ userProfile }: { userProfile?: { role?: string } 
         setTimeout(() => {
           setSuccess(null);
           setToast(null);
-        }, 5000);
+        }, 3000);
       } else {
         setError({ id, message: result.message });
         setToast({ message: result.message, type: 'error' });
-        setTimeout(() => setToast(null), 5000);
+        setTimeout(() => setToast(null), 3000);
       }
     } catch (err) {
       setError({ id, message: t('common.error') });
       setToast({ message: t('common.error'), type: 'error' });
-      setTimeout(() => setToast(null), 5000);
+      setTimeout(() => setToast(null), 3000);
     } finally {
       setTestingId(null);
     }
@@ -472,6 +479,7 @@ export function Integrations({ userProfile }: { userProfile?: { role?: string } 
                                 await clearConnectionSettings('woocommerce');
                                 setFormValues((prev) => ({ ...prev, storeUrl: '', wooKey: '', wooSecret: '' }));
                                 setToast({ message: t('integrations.wooResetDone') || 'החיבור נוקה. הזן פרטים חדשים למעלה.', type: 'success' });
+                                setTimeout(() => setToast(null), 3000);
                               }
                             }}
                             className="w-full py-2 rounded-lg text-xs font-bold border border-amber-300 text-amber-700 bg-amber-50 hover:bg-amber-100 transition-colors flex items-center justify-center gap-2"
@@ -814,6 +822,7 @@ export function Integrations({ userProfile }: { userProfile?: { role?: string } 
                     setExpandedId(null);
                     setFormValues({});
                     setToast({ message: t('integrations.resetAllDone'), type: 'success' });
+                    setTimeout(() => setToast(null), 3000);
                   }
                 }}
                 className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-white/20 border border-white/30 text-white font-bold text-sm hover:bg-white/30 transition-all"

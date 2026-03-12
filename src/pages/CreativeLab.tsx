@@ -71,7 +71,7 @@ export function CreativeLab() {
 
   const showToast = (message: string) => {
     setToast(message);
-    window.setTimeout(() => setToast(null), 2500);
+    window.setTimeout(() => setToast(null), 3000);
   };
 
   const handleCopyText = async (text: string) => {

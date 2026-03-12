@@ -78,7 +78,7 @@ export function Audiences() {
 
   const showToast = (msg: string) => {
     setToast(msg);
-    window.setTimeout(() => setToast(null), 2500);
+    window.setTimeout(() => setToast(null), 3000);
   };
 
   const fetchPlatformData = async (): Promise<string> => {
