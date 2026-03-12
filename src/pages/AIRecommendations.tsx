@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useConnections } from '../contexts/ConnectionsContext';
 import { generateAIRecommendations } from '../services/geminiService';
+import { getAIKeysFromConnections, hasAnyAIKey } from '../lib/multiAI';
 import { Lightbulb, TrendingUp, AlertTriangle, ArrowRight, ArrowLeft, CheckCircle2, BarChart2, Facebook, Video, Megaphone, Zap, Loader2, RefreshCw } from 'lucide-react';
 import { cn } from '../lib/utils';
 
@@ -80,12 +81,12 @@ export function AIRecommendations() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const geminiConnection = connections.find(c => c.id === 'gemini');
-  const geminiApiKey = geminiConnection?.settings?.apiKey || (typeof process !== 'undefined' ? process.env?.GEMINI_API_KEY : undefined);
+  const aiKeys = getAIKeysFromConnections(connections);
+  const hasAI = hasAnyAIKey(aiKeys);
 
   const fetchRealRecommendations = async () => {
-    if (!geminiApiKey?.trim()) {
-      setError(t('ai.errorLoading') || 'נכשלה טעינת המלצות AI. חבר את Gemini בהתחברויות והזן API Key, או הגדר GEMINI_API_KEY ב-.env');
+    if (!hasAI) {
+      setError(t('ai.errorLoading') || 'נכשלה טעינת המלצות AI. חבר את Gemini, OpenAI או Claude בהתחברויות.');
       return;
     }
     
@@ -97,7 +98,7 @@ export function AIRecommendations() {
         Overall quality score: ${connections.length ? (connections.reduce((acc, c) => acc + (c.score || 0), 0) / connections.length) : 0}.
         The user is looking for ways to optimize their marketing spend and increase ROAS.
       `;
-      const newRecs = await generateAIRecommendations(geminiApiKey.trim(), context);
+      const newRecs = await generateAIRecommendations(aiKeys, context);
       setRecs(Array.isArray(newRecs) ? newRecs.map((r: any) => ({ ...r, status: 'pending' })) : mockRecommendations);
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
@@ -109,10 +110,10 @@ export function AIRecommendations() {
   };
 
   useEffect(() => {
-    if (geminiApiKey?.trim()) {
+    if (hasAI) {
       fetchRealRecommendations();
     }
-  }, [geminiApiKey]);
+  }, [hasAI]);
 
   const handleApply = (id: string) => {
     setRecs(recs.map(r => r.id === id ? { ...r, status: 'applied' } : r));
@@ -129,7 +130,7 @@ export function AIRecommendations() {
           <p className="text-sm text-gray-500 mt-1">{t('ai.subtitle')}</p>
         </div>
         <div className="flex items-center gap-2">
-          {geminiApiKey?.trim() ? (
+          {hasAI ? (
             <button 
               onClick={fetchRealRecommendations}
               disabled={isLoading}
@@ -157,12 +158,12 @@ export function AIRecommendations() {
         </div>
       )}
 
-      {!geminiApiKey?.trim() && !error && (
+      {!hasAI && !error && (
         <div className="bg-amber-50 border border-amber-200 p-4 rounded-xl flex items-start gap-3 text-amber-800 text-sm">
           <AlertTriangle className="w-5 h-5 shrink-0 mt-0.5" />
           <div>
             <p className="font-bold mb-1">מנוע ה-AI (Gemini) לא מחובר</p>
-            <p>עבור להתחברויות, בחר Gemini והזן API Key מ-Google AI Studio. אפשר גם להגדיר GEMINI_API_KEY בקובץ .env. לאחר החיבור ייטענו כאן המלצות אוטומטית.</p>
+            <p>עבור להתחברויות, בחר Gemini, OpenAI או Claude והזן API Key. לאחר החיבור ייטענו כאן המלצות אוטומטית.</p>
           </div>
         </div>
       )}

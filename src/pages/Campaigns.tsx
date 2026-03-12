@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { getOptimizationRecommendations } from '../lib/gemini';
+import { getOptimizationRecommendations, getAIKeysFromConnections } from '../lib/gemini';
 import { CheckCircle2, AlertCircle, Loader2, Zap, Video, Mail } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { useLanguage } from '../contexts/LanguageContext';
@@ -39,10 +39,10 @@ export function Campaigns() {
   const fetchRecommendations = async () => {
     setLoading(true);
     try {
-      const geminiApiKey = connections.find((c) => c.id === 'gemini')?.settings?.apiKey || (typeof process !== 'undefined' ? process.env?.GEMINI_API_KEY : undefined);
+      const aiKeys = getAIKeysFromConnections(connections);
       const dataToAnalyze = realCampaigns.length > 0 ? realCampaigns : mockCampaignData;
       const dataStr = JSON.stringify(dataToAnalyze);
-      const res = await getOptimizationRecommendations(dataStr, geminiApiKey);
+      const res = await getOptimizationRecommendations(dataStr, aiKeys);
       if (res?.recommendations) {
         setRecommendations(res.recommendations);
       }

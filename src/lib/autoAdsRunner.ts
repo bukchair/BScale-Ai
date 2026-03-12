@@ -2,6 +2,7 @@ import { getDoc, doc } from 'firebase/firestore';
 import { db } from './firebase';
 import { getAutoAdsSchedule, setAutoAdsSchedule, saveAdToFirestore, type AutoAdsSchedule } from './firebase';
 import { fetchWooCommerceProducts } from '../services/woocommerceService';
+import { getAIKeysFromConnections } from './multiAI';
 import { generateCreativeCopy } from './gemini';
 
 function nextRunAt(schedule: AutoAdsSchedule): string {
@@ -23,7 +24,7 @@ export async function runAutoAdsIfNeeded(uid: string, runNow = false): Promise<{
   const settingsSnap = await getDoc(settingsRef);
   const items = settingsSnap.data()?.items as Array<{ id: string; settings?: Record<string, string> }> | undefined;
   const woo = items?.find((c) => c.id === 'woocommerce');
-  const geminiApiKey = items?.find((c) => c.id === 'gemini')?.settings?.apiKey;
+  const aiKeys = items ? getAIKeysFromConnections(items) : {};
   if (!woo?.settings?.storeUrl || !woo?.settings?.wooKey || !woo?.settings?.wooSecret) {
     if (schedule?.enabled) await setAutoAdsSchedule(uid, { lastRunAt: now, nextRunAt: nextRunAt(schedule!) });
     return { ran: false };
@@ -45,7 +46,7 @@ export async function runAutoAdsIfNeeded(uid: string, runNow = false): Promise<{
     const name = p.name || 'מוצר';
     const desc = (p.description || p.short_description || '').slice(0, 500);
     try {
-      const res = await generateCreativeCopy(name, desc, 'צור קופירייטינג למודעות רשתות חברתיות.', geminiApiKey);
+      const res = await generateCreativeCopy(name, desc, 'צור קופירייטינג למודעות רשתות חברתיות.', aiKeys);
       const options = res?.options || [];
       const first = options[0];
       if (first) {

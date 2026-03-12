@@ -12,7 +12,7 @@ import {
   type AudiencePlatform,
   type AudienceRule,
 } from '../lib/firebase';
-import { getAudienceRecommendations, type AudienceRecommendation } from '../lib/gemini';
+import { getAudienceRecommendations, getAIKeysFromConnections, type AudienceRecommendation } from '../lib/gemini';
 import { useConnections } from '../contexts/ConnectionsContext';
 import { fetchMetaCampaigns } from '../services/metaService';
 import { fetchGoogleCampaigns } from '../services/googleService';
@@ -67,7 +67,7 @@ export function Audiences() {
   const [syncingId, setSyncingId] = useState<string | null>(null);
 
   const uid = auth.currentUser?.uid;
-  const geminiApiKey = connections.find((c) => c.id === 'gemini')?.settings?.apiKey || (typeof process !== 'undefined' ? process.env?.GEMINI_API_KEY : undefined);
+  const aiKeys = getAIKeysFromConnections(connections);
 
   useEffect(() => {
     if (!uid) return;
@@ -119,7 +119,7 @@ export function Audiences() {
     try {
       const summary = await fetchPlatformData();
       setPlatformDataCache(summary);
-      const { recommendations: recs } = await getAudienceRecommendations(summary, geminiApiKey);
+      const { recommendations: recs } = await getAudienceRecommendations(summary, aiKeys);
       setRecommendations(recs || []);
     } catch (e) {
       console.warn(e);

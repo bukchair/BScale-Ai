@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useLanguage } from '../contexts/LanguageContext';
 import { Sparkles, Image as ImageIcon, Type, Send, Wand2, Layout, Loader2, Download, ShoppingCart, ChevronDown, Save, Edit3 } from 'lucide-react';
 import { cn } from '../lib/utils';
-import { generateCreativeCopy } from '../lib/gemini';
+import { generateCreativeCopy, getAIKeysFromConnections } from '../lib/gemini';
 import { useConnections } from '../contexts/ConnectionsContext';
 import { auth } from '../lib/firebase';
 import { saveAdToFirestore, getSavedAds, type SavedAd } from '../lib/firebase';
@@ -37,7 +37,7 @@ export function CreativeLab() {
 
   const wooConnection = connections.find((c) => c.id === 'woocommerce');
   const isWooConnected = wooConnection?.status === 'connected';
-  const geminiApiKey = connections.find((c) => c.id === 'gemini')?.settings?.apiKey || (typeof process !== 'undefined' ? process.env?.GEMINI_API_KEY : undefined);
+  const aiKeys = getAIKeysFromConnections(connections);
 
   useEffect(() => {
     if (!isWooConnected) {
@@ -204,7 +204,7 @@ export function CreativeLab() {
     
     if (activeTab === 'copy' && selectedProduct) {
       try {
-        const res = await generateCreativeCopy(selectedProduct.name, selectedProduct.longDesc, prompt, geminiApiKey);
+        const res = await generateCreativeCopy(selectedProduct.name, selectedProduct.longDesc, prompt, aiKeys);
         setGeneratedContent({
           type: 'copy',
           options: res.options || []

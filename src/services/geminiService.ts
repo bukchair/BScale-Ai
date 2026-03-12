@@ -1,4 +1,5 @@
 import { GoogleGenAI } from "@google/genai";
+import { requestJSON, hasAnyAIKey, type AIKeys } from "../lib/multiAI";
 
 const DEFAULT_MODEL = "gemini-2.0-flash";
 
@@ -12,10 +13,7 @@ function parseJsonSafe<T>(text: string, fallback: T): T {
   }
 }
 
-export async function generateAIRecommendations(apiKey: string, context: string) {
-  if (!apiKey?.trim()) throw new Error("Gemini API key is missing. Add it in Integrations (Gemini) or set GEMINI_API_KEY in .env.");
-  const ai = new GoogleGenAI({ apiKey: apiKey.trim() });
-
+export async function generateAIRecommendations(apiKeyOrKeys: string | AIKeys, context: string) {
   const prompt = `
     You are an expert digital marketing AI assistant. 
     Analyze the following marketing context and provide 3-4 specific, actionable recommendations for Google Ads, Meta Ads, TikTok Ads, or cross-platform optimization.
@@ -37,6 +35,24 @@ export async function generateAIRecommendations(apiKey: string, context: string)
     All recommendations in Hebrew. Platform must be one of: google, meta, tiktok, cross. Type: budget, creative, targeting, bid. Difficulty: easy, medium, hard.
   `;
 
+  if (typeof apiKeyOrKeys === "object" && hasAnyAIKey(apiKeyOrKeys)) {
+    const { data } = await requestJSON<unknown>(prompt, apiKeyOrKeys);
+    const arr = Array.isArray(data) ? data : [];
+    return arr.map((r: any, i: number) => ({
+      id: String(r?.id ?? i + 1),
+      platform: r?.platform ?? "cross",
+      type: r?.type ?? "targeting",
+      title: r?.title ?? "המלצה",
+      description: r?.description ?? "",
+      impact: r?.impact ?? "",
+      difficulty: r?.difficulty ?? "medium",
+      status: "pending",
+    }));
+  }
+
+  const apiKey = typeof apiKeyOrKeys === "string" ? apiKeyOrKeys.trim() : "";
+  if (!apiKey) throw new Error("Gemini API key is missing. Add it in Integrations (Gemini) or set GEMINI_API_KEY in .env.");
+  const ai = new GoogleGenAI({ apiKey });
   try {
     const response = await ai.models.generateContent({
       model: DEFAULT_MODEL,

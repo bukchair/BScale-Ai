@@ -4,7 +4,7 @@ import { useConnections } from '../contexts/ConnectionsContext';
 import { Search, TrendingUp, TrendingDown, AlertTriangle, CheckCircle2, Globe, Zap, ArrowUpRight, BarChart2, FileText, Loader2, Check } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, Legend } from 'recharts';
 import { cn } from '../lib/utils';
-import { optimizeProductSEO } from '../lib/gemini';
+import { optimizeProductSEO, getAIKeysFromConnections } from '../lib/gemini';
 
 const seoTrafficData = [
   { date: '01/03', clicks: 120, impressions: 4500, position: 12.4 },
@@ -27,7 +27,7 @@ const topKeywords = [
 export function SEOReports() {
   const { t, dir } = useLanguage();
   const { connections } = useConnections();
-  const geminiApiKey = connections.find((c) => c.id === 'gemini')?.settings?.apiKey || (typeof process !== 'undefined' ? process.env?.GEMINI_API_KEY : undefined);
+  const aiKeys = getAIKeysFromConnections(connections);
   const [activeTab, setActiveTab] = useState<'overview' | 'keywords' | 'pages' | 'products'>('overview');
   const [optimizingId, setOptimizingId] = useState<number | null>(null);
   const [optimizedProducts, setOptimizedProducts] = useState<Record<number, any>>({});
@@ -41,7 +41,7 @@ export function SEOReports() {
   const handleOptimizeProduct = async (product: any) => {
     setOptimizingId(product.id);
     try {
-      const res = await optimizeProductSEO(product.name, product.longDesc, geminiApiKey);
+      const res = await optimizeProductSEO(product.name, product.longDesc, aiKeys);
       setOptimizedProducts(prev => ({ ...prev, [product.id]: res }));
     } catch (error) {
       console.error("Failed to optimize", error);
