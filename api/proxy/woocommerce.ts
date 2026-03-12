@@ -52,7 +52,8 @@ async function tryFetch(
 
 export default async function handler(
   req: { method?: string; on?: (e: string, c: (chunk: Buffer) => void) => void; [key: string]: unknown },
-  res: { status: (n: number) => { json: (o: object) => void }; setHeader: (k: string, v: string) => void; json: (o: object) => void }
+  // Allow any JSON-serializable value (object, array, etc.)
+  res: { status: (n: number) => { json: (o: any) => void }; setHeader: (k: string, v: string) => void; json: (o: any) => void }
 ) {
   res.setHeader('Content-Type', 'application/json');
 
