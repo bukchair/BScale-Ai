@@ -138,28 +138,53 @@ export function ConnectionsProvider({ children }: { children: ReactNode }) {
         setConnections(Array.from(byId.values()));
       };
 
-      const unsubGlobal = onSnapshot(globalAiRef, (snap) => {
-        if (snap.exists()) {
-          const items = (snap.data().items || []) as Connection[];
-          globalItems = items.filter((c) => AI_CONNECTION_IDS.includes(c.id as any));
-        } else {
-          globalItems = [];
-        }
-        mergeAndSet();
-        setIsLoading(false);
-      });
-
-      const unsubUser = onSnapshot(userConnectionsRef, (snap) => {
-        if (snap.exists()) {
-          const items = (snap.data().items || []) as Connection[];
-          userItems = items.filter((c) => PLATFORM_CONNECTION_IDS.includes(c.id as any));
-        } else {
+      const handleSnapshotError = (source: 'global' | 'user') => (err: any) => {
+        console.error(`Error in ${source} connections snapshot:`, err);
+        // אם אין הרשאות לקרוא את המסמכים – נישאר על נתוני דמו ולא נפיל את האפליקציה
+        globalItems = [];
+        if (source === 'user') {
           userItems = [];
-          setDoc(userConnectionsRef, { items: initialConnections.filter((c) => PLATFORM_CONNECTION_IDS.includes(c.id as any)) });
         }
         mergeAndSet();
         setIsLoading(false);
-      });
+      };
+
+      const unsubGlobal = onSnapshot(
+        globalAiRef,
+        (snap) => {
+          if (snap.exists()) {
+            const items = (snap.data().items || []) as Connection[];
+            globalItems = items.filter((c) => AI_CONNECTION_IDS.includes(c.id as any));
+          } else {
+            globalItems = [];
+          }
+          mergeAndSet();
+          setIsLoading(false);
+        },
+        handleSnapshotError('global')
+      );
+
+      const unsubUser = onSnapshot(
+        userConnectionsRef,
+        (snap) => {
+          if (snap.exists()) {
+            const items = (snap.data().items || []) as Connection[];
+            userItems = items.filter((c) => PLATFORM_CONNECTION_IDS.includes(c.id as any));
+          } else {
+            userItems = [];
+            // אל תנסה ליצור מסמך אם אין הרשאות – זה ייכשל ברמת השרת
+            setDoc(
+              userConnectionsRef,
+              { items: initialConnections.filter((c) => PLATFORM_CONNECTION_IDS.includes(c.id as any)) }
+            ).catch((err) => {
+              console.error('Error seeding user connections document:', err);
+            });
+          }
+          mergeAndSet();
+          setIsLoading(false);
+        },
+        handleSnapshotError('user')
+      );
 
       return () => {
         unsubGlobal();
