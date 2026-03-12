@@ -335,21 +335,22 @@ export function CreativeLab() {
                       </div>
                     ) : (
                       products.map((product) => (
-                      <button
-                        key={product.id}
-                        className="w-full text-start px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 border-t border-gray-100"
-                        onClick={() => {
-                          setSelectedProduct(product);
-                          setIsProductDropdownOpen(false);
-                          if (!prompt) {
-                            setPrompt(`צור קריאייטיב עבור ${product.name}. תיאור: ${product.shortDesc}`);
-                          }
-                        }}
-                      >
-                        <div className="font-medium">{product.name}</div>
-                        <div className="text-xs text-gray-500 truncate">{product.shortDesc}</div>
-                      </button>
-                    ))}
+                        <button
+                          key={product.id}
+                          className="w-full text-start px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 border-t border-gray-100"
+                          onClick={() => {
+                            setSelectedProduct(product);
+                            setIsProductDropdownOpen(false);
+                            if (!prompt) {
+                              setPrompt(`צור קריאייטיב עבור ${product.name}. תיאור: ${product.shortDesc}`);
+                            }
+                          }}
+                        >
+                          <div className="font-medium">{product.name}</div>
+                          <div className="text-xs text-gray-500 truncate">{product.shortDesc}</div>
+                        </button>
+                      ))
+                    )}
                   </div>
                 )}
               </div>
