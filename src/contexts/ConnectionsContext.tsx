@@ -133,8 +133,10 @@ export function ConnectionsProvider({ children }: { children: ReactNode }) {
 
       const mergeAndSet = () => {
         const byId = new Map<string, Connection>(initialConnections.map((c) => [c.id, { ...c }]));
-        globalItems.forEach((c) => byId.set(c.id, c));
+        // קודם כל נתוני המשתמש (כולל AI אם קיימים)
         userItems.forEach((c) => byId.set(c.id, c));
+        // ואז נתוני ה-AI הגלובליים גוברים על נתוני המשתמש לאותם מזהים
+        globalItems.forEach((c) => byId.set(c.id, c));
         setConnections(Array.from(byId.values()));
       };
 
@@ -169,7 +171,8 @@ export function ConnectionsProvider({ children }: { children: ReactNode }) {
         (snap) => {
           if (snap.exists()) {
             const items = (snap.data().items || []) as Connection[];
-            userItems = items.filter((c) => PLATFORM_CONNECTION_IDS.includes(c.id as any));
+            // שומרים גם AI וגם פלטפורמות במסמך המשתמש – AI ישמש כגיבוי אם אין גישה למסמך הגלובלי
+            userItems = items;
           } else {
             userItems = [];
             // אל תנסה ליצור מסמך אם אין הרשאות – זה ייכשל ברמת השרת
@@ -199,9 +202,8 @@ export function ConnectionsProvider({ children }: { children: ReactNode }) {
     const user = auth.currentUser;
     if (!user) return;
     const ref = doc(db, 'users', user.uid, 'settings', 'connections');
-    const platformOnly = items.filter((c) => PLATFORM_CONNECTION_IDS.includes(c.id as any));
     try {
-      await setDoc(ref, { items: platformOnly }, { merge: true });
+      await setDoc(ref, { items }, { merge: true });
     } catch (err) {
       console.error('Error persisting user connections:', err);
     }
@@ -218,10 +220,11 @@ export function ConnectionsProvider({ children }: { children: ReactNode }) {
   };
 
   const persistConnections = async (newConnections: Connection[], updatedId?: string) => {
+    // תמיד שומרים במסמך המשתמש (כולל AI) כדי שהאדמין יראה את ההגדרות מיד
+    await persistUserConnections(newConnections);
+    // ואם מדובר בחיבור AI – גם במסמך הגלובלי המשותף
     if (updatedId && AI_CONNECTION_IDS.includes(updatedId as any)) {
       await persistGlobalAiConnections(newConnections);
-    } else {
-      await persistUserConnections(newConnections);
     }
   };
 
@@ -332,7 +335,7 @@ export function ConnectionsProvider({ children }: { children: ReactNode }) {
     const platformPart = initialConnections.filter((c) => PLATFORM_CONNECTION_IDS.includes(c.id as any));
     const fresh = [...aiPart, ...platformPart];
     setConnections(fresh);
-    await persistUserConnections(platformPart);
+    await persistUserConnections(fresh);
   };
 
   const migrateAiConnectionsFromUser = async (): Promise<{ success: boolean; message: string }> => {
