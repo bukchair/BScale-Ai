@@ -27,18 +27,23 @@ async function tryFetch(
   key: string,
   secret: string,
   method: string,
-  bodyData?: unknown
+  bodyData?: unknown,
+  authMode: 'query' | 'header' | 'both' = 'query'
 ): Promise<Response> {
   const urlObj = new URL(targetUrl);
-  urlObj.searchParams.append('consumer_key', key);
-  urlObj.searchParams.append('consumer_secret', secret);
+  if (authMode === 'query' || authMode === 'both') {
+    urlObj.searchParams.append('consumer_key', key);
+    urlObj.searchParams.append('consumer_secret', secret);
+  }
 
   const auth = Buffer.from(`${key}:${secret}`).toString('base64');
   const headers: Record<string, string> = {
-    Authorization: `Basic ${auth}`,
     'User-Agent': 'Mozilla/5.0 (compatible; BScale/1.0)',
     Accept: 'application/json',
   };
+  if (authMode === 'header' || authMode === 'both') {
+    headers.Authorization = `Basic ${auth}`;
+  }
   if (method === 'PUT' || method === 'POST') {
     headers['Content-Type'] = 'application/json';
   }
@@ -81,48 +86,65 @@ export default async function handler(
     const baseUrl = formattedUrl.endsWith('/') ? formattedUrl.slice(0, -1) : formattedUrl;
     const endpointPath = endpoint || 'system_status';
 
-    let apiUrl = `${baseUrl}/wp-json/wc/v3/${endpointPath}`;
-    let response = await tryFetch(apiUrl, key, secret, method, data);
+    const routeCandidates = [
+      `${baseUrl}/wp-json/wc/v3/${endpointPath}`,
+      `${baseUrl}/index.php/wp-json/wc/v3/${endpointPath}`,
+      `${baseUrl}/wc-api/v3/${endpointPath}`,
+    ];
+    const authModes: Array<'query' | 'header' | 'both'> = ['query', 'header', 'both'];
 
-    if (response.status === 405 || response.status === 404) {
-      apiUrl = `${baseUrl}/index.php/wp-json/wc/v3/${endpointPath}`;
-      response = await tryFetch(apiUrl, key, secret, method, data);
-    }
-    if (response.status === 405 || response.status === 404) {
-      apiUrl = `${baseUrl}/wc-api/v3/${endpointPath}`;
-      response = await tryFetch(apiUrl, key, secret, method, data);
-    }
+    let lastStatus = 500;
+    let lastPayload: unknown = null;
+    const tried = new Set<string>();
 
-    const text = await response.text();
-    let dataOut: unknown;
-    if (text) {
-      try {
-        dataOut = JSON.parse(text);
-      } catch {
-        return res.status(response.status || 500).json({
-          message: `The store returned a non-JSON response (${response.status}).`,
-          code: 'invalid_response',
-        });
+    for (const route of routeCandidates) {
+      for (const authMode of authModes) {
+        const keyForDedup = `${route}::${authMode}`;
+        if (tried.has(keyForDedup)) continue;
+        tried.add(keyForDedup);
+
+        const response = await tryFetch(route, key, secret, method, data, authMode);
+        const text = await response.text();
+        lastStatus = response.status || 500;
+
+        if (!text) {
+          lastPayload = {
+            message:
+              response.status === 409
+                ? 'החנות החזירה Conflict (409). ייתכן שיש חסימה או מפתח REST לא תקף.'
+                : `החנות החזירה תשובה ריקה (סטטוס ${response.status}).`,
+            code: 'empty_response',
+          };
+          continue;
+        }
+
+        let parsed: unknown;
+        try {
+          parsed = JSON.parse(text);
+        } catch {
+          lastPayload = {
+            message: `The store returned a non-JSON response (${response.status}).`,
+            code: 'invalid_response',
+          };
+          continue;
+        }
+
+        if (response.ok) {
+          return res.status(200).json(parsed);
+        }
+
+        lastPayload = parsed;
       }
-    } else {
-      const msg =
-        response.status === 409
-          ? 'החנות החזירה Conflict (409). ייתכן שיש חסימה, גרסת API לא תואמת, או שיש לנסות מפתח REST אחר.'
-          : `החנות החזירה תשובה ריקה (סטטוס ${response.status}).`;
-      return res.status(response.status || 500).json({
-        message: msg,
-        code: 'empty_response',
-      });
     }
 
-    if (!response.ok) {
-      return res.status(response.status).json(
-        typeof dataOut === 'object' && dataOut !== null && 'message' in dataOut
-          ? (dataOut as { message: string })
-          : { message: `WooCommerce API Error: ${response.status}` }
-      );
+    if (lastPayload && typeof lastPayload === 'object') {
+      return res.status(lastStatus).json(lastPayload);
     }
-    return res.status(200).json(dataOut);
+
+    return res.status(lastStatus).json({
+      message: `WooCommerce API Error: ${lastStatus}`,
+      code: 'woocommerce_error',
+    });
   } catch (e: unknown) {
     const err = e instanceof Error ? e.message : 'Unknown error';
     return res.status(500).json({

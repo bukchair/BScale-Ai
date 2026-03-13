@@ -39,6 +39,11 @@ export function Orders() {
 
   const isoMin = useMemo(() => startDate.toISOString(), [startDate]);
   const isoMax = useMemo(() => endDate.toISOString(), [endDate]);
+  const cleanError = (value: string) =>
+    value
+      .replace(/<[^>]*>/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
 
   useEffect(() => {
     const timer = window.setInterval(() => {
@@ -78,7 +83,7 @@ export function Orders() {
     } catch (e) {
       console.error(e);
       const message = e instanceof Error ? e.message : 'שגיאה לא ידועה';
-      setError(`שגיאה בטעינת הזמנות מ‑WooCommerce: ${message}`);
+      setError(`שגיאה בטעינת הזמנות מ‑WooCommerce: ${cleanError(message)}`);
     } finally {
       setIsLoading(false);
     }

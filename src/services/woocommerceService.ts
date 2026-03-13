@@ -377,6 +377,12 @@ export async function fetchWooCommerceOrdersByRange(
     ];
   }
 
+  const sanitizeErrorText = (value: string): string =>
+    value
+      .replace(/<[^>]*>/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+
   const toNumber = (value: unknown): number => {
     if (typeof value === 'number') return Number.isFinite(value) ? value : 0;
     if (typeof value === 'string') {
@@ -428,10 +434,10 @@ export async function fetchWooCommerceOrdersByRange(
     }
 
     if (!response.ok) {
-      const message =
+      const rawMessage =
         (parsed && typeof parsed.message === 'string' && parsed.message) ||
         `WooCommerce API error (${response.status})`;
-      throw new Error(message);
+      throw new Error(sanitizeErrorText(rawMessage));
     }
 
     return parseRows(parsed);
