@@ -5,6 +5,7 @@ import { cn } from '../lib/utils';
 import { auth } from '../lib/firebase';
 import { getAutoAdsSchedule, setAutoAdsSchedule, type AutoAdsSchedule } from '../lib/firebase';
 import { runAutoAdsIfNeeded } from '../lib/autoAdsRunner';
+import { useConnections } from '../contexts/ConnectionsContext';
 
 const pendingApprovals = [
   { id: 1, type: 'הקצאת תקציב מחדש', description: 'העבר ₪500 מ-"חיפוש מותג" ל-"Performance Max" עקב ROAS גבוה יותר.', platform: 'Google Ads', impact: 'גבוה', time: 'לפני שעתיים' },
@@ -29,6 +30,7 @@ const activities = [
 
 export function Automations() {
   const { t, dir } = useLanguage();
+  const { dataOwnerUid } = useConnections();
   const [activeTab, setActiveTab] = useState<'approvals' | 'rules' | 'log' | 'auto-ads'>('approvals');
   const [searchTerm, setSearchTerm] = useState('');
   const [autoSchedule, setAutoSchedule] = useState<AutoAdsSchedule | null>(null);
@@ -41,7 +43,7 @@ export function Automations() {
   const [autoScheduleSaving, setAutoScheduleSaving] = useState(false);
   const [lastRunResult, setLastRunResult] = useState<{ ran: boolean; created?: number } | null>(null);
 
-  const uid = auth.currentUser?.uid;
+  const uid = dataOwnerUid || auth.currentUser?.uid;
 
   useEffect(() => {
     if (!uid) return;

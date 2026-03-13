@@ -1,15 +1,31 @@
 import React, { useState, useEffect } from 'react';
 import { useLanguage } from '../contexts/LanguageContext';
-import { Save, Bell, Lock, Globe, User, Building, CreditCard, Shield, Mail } from 'lucide-react';
+import { Save, Bell, Lock, Globe, User, Building, CreditCard, Shield, Mail, Share2, UserPlus, Trash2 } from 'lucide-react';
 import { cn } from '../lib/utils';
-import { db } from '../lib/firebase';
+import {
+  auth,
+  db,
+  getUserSharedAccess,
+  removeUserSharedAccess,
+  upsertUserSharedAccess,
+  type SharedAccessEntry,
+  type SharedAccessRole,
+} from '../lib/firebase';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { createPayPalCheckoutUrl, PAYPAL_BUSINESS_EMAIL } from '../lib/paypal';
+import { useConnections } from '../contexts/ConnectionsContext';
 
 export function Settings({ userProfile }: { userProfile?: { role?: string } | null }) {
   const { t, dir } = useLanguage();
-  const [activeTab, setActiveTab] = useState<'profile' | 'agency' | 'billing' | 'notifications' | 'security'>('profile');
+  const {
+    dataAccessMode,
+    workspaceOwnerName,
+    workspaceOwnerEmail,
+  } = useConnections();
+  const [activeTab, setActiveTab] = useState<'profile' | 'agency' | 'billing' | 'notifications' | 'security' | 'sharing'>('profile');
   const isAdmin = userProfile?.role === 'admin';
+  const currentUser = auth.currentUser;
+  const uid = currentUser?.uid;
   const [paymentToken, setPaymentToken] = useState('');
   const [isLoadingPayment, setIsLoadingPayment] = useState(false);
   const [isSavingPayment, setIsSavingPayment] = useState(false);
@@ -21,6 +37,12 @@ export function Settings({ userProfile }: { userProfile?: { role?: string } | nu
   const [imapUser, setImapUser] = useState('');
   const [imapHost, setImapHost] = useState('imap.gmail.com');
   const [imapPort, setImapPort] = useState('993');
+  const [sharedAccessList, setSharedAccessList] = useState<SharedAccessEntry[]>([]);
+  const [shareEmail, setShareEmail] = useState('');
+  const [shareRole, setShareRole] = useState<SharedAccessRole>('manager');
+  const [isLoadingSharing, setIsLoadingSharing] = useState(false);
+  const [isSavingSharing, setIsSavingSharing] = useState(false);
+  const [sharingMessage, setSharingMessage] = useState<string | null>(null);
   const starterPayPalUrl = createPayPalCheckoutUrl({
     itemName: 'BScale AI - Starter Plan (Monthly)',
     amount: 79,
@@ -53,6 +75,17 @@ export function Settings({ userProfile }: { userProfile?: { role?: string } | nu
       })
       .finally(() => setIsLoadingPayment(false));
   }, [isAdmin]);
+
+  useEffect(() => {
+    if (!uid) return;
+    setIsLoadingSharing(true);
+    getUserSharedAccess(uid)
+      .then((entries) => setSharedAccessList(entries))
+      .catch((err) => {
+        console.error('Failed to load shared access list:', err);
+      })
+      .finally(() => setIsLoadingSharing(false));
+  }, [uid]);
 
   useEffect(() => {
     if (!isAdmin) return;
@@ -116,6 +149,45 @@ export function Settings({ userProfile }: { userProfile?: { role?: string } | nu
     }
   };
 
+  const showSharingMessage = (message: string) => {
+    setSharingMessage(message);
+    setTimeout(() => setSharingMessage(null), 4000);
+  };
+
+  const handleAddSharedAccess = async () => {
+    if (!uid) return;
+    setIsSavingSharing(true);
+    try {
+      const next = await upsertUserSharedAccess(uid, shareEmail, shareRole, {
+        uid,
+        email: currentUser?.email,
+      });
+      setSharedAccessList(next);
+      setShareEmail('');
+      showSharingMessage('הרשאת השיתוף נשמרה בהצלחה.');
+    } catch (err) {
+      console.error('Failed to add shared access:', err);
+      showSharingMessage('לא הצלחנו לשמור הרשאת שיתוף. בדוק את האימייל ונסה שוב.');
+    } finally {
+      setIsSavingSharing(false);
+    }
+  };
+
+  const handleRemoveSharedAccess = async (email: string) => {
+    if (!uid) return;
+    setIsSavingSharing(true);
+    try {
+      const next = await removeUserSharedAccess(uid, email);
+      setSharedAccessList(next);
+      showSharingMessage('הרשאת השיתוף הוסרה.');
+    } catch (err) {
+      console.error('Failed to remove shared access:', err);
+      showSharingMessage('מחיקת הרשאת השיתוף נכשלה. נסה שוב.');
+    } finally {
+      setIsSavingSharing(false);
+    }
+  };
+
   return (
     <div className="space-y-6 max-w-5xl mx-auto">
       <div>
@@ -176,10 +248,28 @@ export function Settings({ userProfile }: { userProfile?: { role?: string } | nu
             <Shield className={cn("w-5 h-5", activeTab === 'security' ? "text-indigo-600" : "text-gray-400")} />
             אבטחה ופרטיות
           </button>
+          <button
+            onClick={() => setActiveTab('sharing')}
+            className={cn(
+              "w-full flex items-center gap-3 px-4 py-3 text-sm font-medium rounded-xl transition-colors text-start",
+              activeTab === 'sharing' ? "bg-indigo-50 text-indigo-700" : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
+            )}
+          >
+            <Share2 className={cn("w-5 h-5", activeTab === 'sharing' ? "text-indigo-600" : "text-gray-400")} />
+            שיתוף גישה
+          </button>
         </div>
 
         {/* Settings Content */}
         <div className="flex-1">
+          {dataAccessMode === 'shared' && (
+            <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
+              <p className="text-xs font-bold text-amber-800">אתה עובד כרגע על סביבת נתונים משותפת.</p>
+              <p className="text-xs text-amber-700 mt-1">
+                בעל החשבון: {workspaceOwnerName || '—'} {workspaceOwnerEmail ? `(${workspaceOwnerEmail})` : ''}
+              </p>
+            </div>
+          )}
           {activeTab === 'profile' && (
             <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
               <div className="p-6 border-b border-gray-200">
@@ -650,6 +740,102 @@ export function Settings({ userProfile }: { userProfile?: { role?: string } | nu
                   <Save className="w-4 h-4" />
                   שמור שינויים
                 </button>
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'sharing' && (
+            <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+              <div className="p-6 border-b border-gray-200">
+                <h2 className="text-lg font-bold text-gray-900">שיתוף מידע עם משתמשים נוספים</h2>
+                <p className="text-sm text-gray-500 mt-1">
+                  בעל החנות יכול לשתף את נתוני המערכת עם מנהל חנות או עובד נוסף לפי אימייל.
+                </p>
+              </div>
+              <div className="p-6 space-y-5">
+                <div className="rounded-xl border border-indigo-100 bg-indigo-50/50 p-4">
+                  <p className="text-xs font-bold text-indigo-900">איך זה עובד</p>
+                  <p className="text-xs text-indigo-800 mt-1 leading-relaxed">
+                    הזן אימייל של המשתמש שצריך גישה. ברגע שהוא יתחבר עם אותו אימייל, הוא יעבוד על נתוני החנות שלך.
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3 items-end">
+                  <div className="md:col-span-2 space-y-1">
+                    <label className="text-xs font-medium text-gray-700">אימייל משתמש לשיתוף</label>
+                    <input
+                      type="email"
+                      dir="ltr"
+                      value={shareEmail}
+                      onChange={(e) => setShareEmail(e.target.value)}
+                      placeholder="manager@store.com"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs font-medium text-gray-700">הרשאה</label>
+                    <select
+                      value={shareRole}
+                      onChange={(e) => setShareRole(e.target.value as SharedAccessRole)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white"
+                    >
+                      <option value="manager">Manager - ניהול מלא</option>
+                      <option value="viewer">Viewer - צפיה</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="flex justify-end">
+                  <button
+                    type="button"
+                    onClick={handleAddSharedAccess}
+                    disabled={isSavingSharing || !shareEmail.trim()}
+                    className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-600 text-white text-sm font-bold hover:bg-indigo-700 disabled:opacity-60"
+                  >
+                    <UserPlus className="w-4 h-4" />
+                    {isSavingSharing ? 'שומר...' : 'הוסף משתמש לשיתוף'}
+                  </button>
+                </div>
+
+                {sharingMessage && (
+                  <div className="text-xs font-medium text-indigo-700 bg-indigo-50 border border-indigo-100 rounded-lg px-3 py-2">
+                    {sharingMessage}
+                  </div>
+                )}
+
+                <div className="border-t border-gray-100 pt-4">
+                  <h3 className="text-sm font-bold text-gray-900 mb-3">משתמשים עם גישה</h3>
+                  {isLoadingSharing ? (
+                    <p className="text-sm text-gray-500">טוען הרשאות שיתוף...</p>
+                  ) : !sharedAccessList.length ? (
+                    <p className="text-sm text-gray-500">עדיין לא הוגדרו משתמשים לשיתוף.</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {sharedAccessList.map((entry) => (
+                        <div
+                          key={entry.email}
+                          className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-3 py-2 rounded-lg border border-gray-200"
+                        >
+                          <div>
+                            <p className="text-sm font-medium text-gray-900" dir="ltr">{entry.email}</p>
+                            <p className="text-xs text-gray-500">
+                              Role: {entry.role === 'manager' ? 'Manager' : 'Viewer'}
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveSharedAccess(entry.email)}
+                            disabled={isSavingSharing}
+                            className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-red-200 text-red-600 text-xs font-bold hover:bg-red-50 disabled:opacity-60"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                            הסר
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           )}

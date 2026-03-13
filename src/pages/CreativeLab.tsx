@@ -37,7 +37,7 @@ function stripHtmlToText(html: string | undefined | null): string {
 
 export function CreativeLab() {
   const { t, dir } = useLanguage();
-  const { connections } = useConnections();
+  const { connections, dataOwnerUid } = useConnections();
   const [prompt, setPrompt] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [generationStartedAt, setGenerationStartedAt] = useState<number | null>(null);
@@ -61,6 +61,7 @@ export function CreativeLab() {
   const wooConnection = connections.find((c) => c.id === 'woocommerce');
   const isWooConnected = wooConnection?.status === 'connected';
   const aiKeys = getAIKeysFromConnections(connections);
+  const scopedUid = dataOwnerUid || auth.currentUser?.uid;
 
   // טיימר זמן ריצה לתהליכי AI (תמונות / טקסט / וידאו)
   useEffect(() => {
@@ -103,10 +104,9 @@ export function CreativeLab() {
   }, [isWooConnected, wooConnection?.settings?.storeUrl]);
 
   useEffect(() => {
-    const uid = auth.currentUser?.uid;
-    if (!uid) return;
-    getSavedAds(uid).then(setSavedAds);
-  }, []);
+    if (!scopedUid) return;
+    getSavedAds(scopedUid).then(setSavedAds);
+  }, [scopedUid]);
 
   const showToast = (message: string) => {
     setToast(message);
@@ -128,13 +128,12 @@ export function CreativeLab() {
   };
 
   const handleSaveAdCopy = async (option: { headline: string; primaryText: string; description: string }) => {
-    const uid = auth.currentUser?.uid;
-    if (!uid) {
+    if (!scopedUid) {
       showToast('יש להתחבר כדי לשמור מודעה.');
       return;
     }
     try {
-      const id = await saveAdToFirestore(uid, {
+      const id = await saveAdToFirestore(scopedUid, {
         type: 'copy',
         createdAt: new Date().toISOString(),
         productName: selectedProduct?.name,
@@ -148,13 +147,12 @@ export function CreativeLab() {
   };
 
   const handleSaveAdImage = async (imageDataUrl: string) => {
-    const uid = auth.currentUser?.uid;
-    if (!uid) {
+    if (!scopedUid) {
       showToast('יש להתחבר כדי לשמור מודעה.');
       return;
     }
     try {
-      await saveAdToFirestore(uid, {
+      await saveAdToFirestore(scopedUid, {
         type: 'image',
         createdAt: new Date().toISOString(),
         productName: selectedProduct?.name,

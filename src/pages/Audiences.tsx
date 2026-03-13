@@ -47,7 +47,7 @@ function buildPlatformDataSummary(connections: { id: string; status: string; set
 
 export function Audiences() {
   const { t, dir } = useLanguage();
-  const { connections } = useConnections();
+  const { connections, dataOwnerUid } = useConnections();
   const [audiences, setAudiences] = useState<Audience[]>([]);
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState<string | null>(null);
@@ -66,7 +66,7 @@ export function Audiences() {
   const [platformDataCache, setPlatformDataCache] = useState<string>('');
   const [syncingId, setSyncingId] = useState<string | null>(null);
 
-  const uid = auth.currentUser?.uid;
+  const uid = dataOwnerUid || auth.currentUser?.uid;
   const aiKeys = getAIKeysFromConnections(connections);
 
   useEffect(() => {

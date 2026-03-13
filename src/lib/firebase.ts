@@ -1,6 +1,6 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect, onAuthStateChanged, signOut } from 'firebase/auth';
-import { getFirestore, doc, getDoc, setDoc, collection, getDocs, updateDoc, deleteDoc, addDoc } from 'firebase/firestore';
+import { getFirestore, doc, getDoc, setDoc, collection, getDocs, updateDoc, deleteDoc, addDoc, query, where, limit } from 'firebase/firestore';
 import firebaseConfig from '../../firebase-applet-config.json';
 
 const app = initializeApp(firebaseConfig);
@@ -8,6 +8,7 @@ export const auth = getAuth(app);
 export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
 export const googleProvider = new GoogleAuthProvider();
 export const ADMIN_SALES_EMAIL = 'asher205@gmail.com';
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export { signInWithPopup, signInWithRedirect, onAuthStateChanged, signOut };
 
@@ -31,7 +32,10 @@ export async function syncUserProfile(user: any) {
       subscriptionStatus: 'demo',
       createdAt: new Date().toISOString(),
       storeIds: [],
-      photoURL: user.photoURL
+      photoURL: user.photoURL,
+      sharedAccess: [],
+      sharedAccessEmails: [],
+      sharedEditorsEmails: []
     };
 
     await setDoc(userRef, userData);
@@ -39,6 +43,162 @@ export async function syncUserProfile(user: any) {
   }
 
   return userDoc.data();
+}
+
+export type SharedAccessRole = 'manager' | 'viewer';
+
+export interface SharedAccessEntry {
+  email: string;
+  role: SharedAccessRole;
+  createdAt: string;
+  invitedByUid?: string;
+  invitedByEmail?: string;
+}
+
+export interface WorkspaceScope {
+  ownerUid: string;
+  accessMode: 'owner' | 'shared';
+  ownerName?: string;
+  ownerEmail?: string;
+  sharedRole?: SharedAccessRole;
+}
+
+const normalizeEmail = (value: string | undefined | null) => (value || '').trim().toLowerCase();
+
+const normalizeSharedAccessList = (raw: unknown): SharedAccessEntry[] => {
+  if (!Array.isArray(raw)) return [];
+  const entries: SharedAccessEntry[] = [];
+  raw.forEach((item) => {
+    if (!item || typeof item !== 'object') return;
+    const row = item as Record<string, unknown>;
+    const email = normalizeEmail(typeof row.email === 'string' ? row.email : '');
+    if (!email || !EMAIL_REGEX.test(email)) return;
+    const role: SharedAccessRole = row.role === 'viewer' ? 'viewer' : 'manager';
+    entries.push({
+      email,
+      role,
+      createdAt: typeof row.createdAt === 'string' ? row.createdAt : new Date().toISOString(),
+      invitedByUid: typeof row.invitedByUid === 'string' ? row.invitedByUid : undefined,
+      invitedByEmail: typeof row.invitedByEmail === 'string' ? row.invitedByEmail : undefined,
+    });
+  });
+  return entries;
+};
+
+export async function getUserSharedAccess(uid: string): Promise<SharedAccessEntry[]> {
+  const userRef = doc(db, 'users', uid);
+  const snap = await getDoc(userRef);
+  if (!snap.exists()) return [];
+  return normalizeSharedAccessList(snap.data().sharedAccess);
+}
+
+export async function upsertUserSharedAccess(
+  uid: string,
+  invitedEmail: string,
+  role: SharedAccessRole,
+  inviter?: { uid?: string; email?: string | null }
+): Promise<SharedAccessEntry[]> {
+  const email = normalizeEmail(invitedEmail);
+  if (!EMAIL_REGEX.test(email)) {
+    throw new Error('Invalid email');
+  }
+
+  const userRef = doc(db, 'users', uid);
+  const snap = await getDoc(userRef);
+  const ownerEmail = normalizeEmail(snap.data()?.email as string | undefined);
+  if (ownerEmail && email === ownerEmail) {
+    throw new Error('Cannot share with yourself');
+  }
+
+  const current = normalizeSharedAccessList(snap.data()?.sharedAccess);
+  const existing = current.find((entry) => entry.email === email);
+  const nextEntry: SharedAccessEntry = {
+    email,
+    role,
+    createdAt: existing?.createdAt || new Date().toISOString(),
+    invitedByUid: inviter?.uid || existing?.invitedByUid,
+    invitedByEmail: normalizeEmail(inviter?.email) || existing?.invitedByEmail,
+  };
+  const next = [...current.filter((entry) => entry.email !== email), nextEntry];
+  const sharedAccessEmails = Array.from(new Set(next.map((entry) => entry.email)));
+  const sharedEditorsEmails = Array.from(
+    new Set(next.filter((entry) => entry.role === 'manager').map((entry) => entry.email))
+  );
+
+  await setDoc(
+    userRef,
+    {
+      sharedAccess: next,
+      sharedAccessEmails,
+      sharedEditorsEmails,
+    },
+    { merge: true }
+  );
+  return next;
+}
+
+export async function removeUserSharedAccess(uid: string, invitedEmail: string): Promise<SharedAccessEntry[]> {
+  const email = normalizeEmail(invitedEmail);
+  const userRef = doc(db, 'users', uid);
+  const snap = await getDoc(userRef);
+  const current = normalizeSharedAccessList(snap.data()?.sharedAccess);
+  const next = current.filter((entry) => entry.email !== email);
+  const sharedAccessEmails = Array.from(new Set(next.map((entry) => entry.email)));
+  const sharedEditorsEmails = Array.from(
+    new Set(next.filter((entry) => entry.role === 'manager').map((entry) => entry.email))
+  );
+  await setDoc(
+    userRef,
+    {
+      sharedAccess: next,
+      sharedAccessEmails,
+      sharedEditorsEmails,
+    },
+    { merge: true }
+  );
+  return next;
+}
+
+export async function resolveWorkspaceScope(user: { uid: string; email?: string | null } | null): Promise<WorkspaceScope | null> {
+  if (!user?.uid) return null;
+  const myEmail = normalizeEmail(user.email);
+  const myRef = doc(db, 'users', user.uid);
+  const mySnap = await getDoc(myRef);
+  const myData = mySnap.exists() ? mySnap.data() : {};
+
+  if (!myEmail) {
+    return {
+      ownerUid: user.uid,
+      accessMode: 'owner',
+      ownerName: typeof myData?.name === 'string' ? myData.name : undefined,
+      ownerEmail: typeof myData?.email === 'string' ? myData.email : undefined,
+    };
+  }
+
+  const ownersRef = collection(db, 'users');
+  const q = query(ownersRef, where('sharedAccessEmails', 'array-contains', myEmail), limit(5));
+  const sharedSnap = await getDocs(q);
+  const ownerDoc = sharedSnap.docs.find((row) => row.id !== user.uid);
+  if (!ownerDoc) {
+    return {
+      ownerUid: user.uid,
+      accessMode: 'owner',
+      ownerName: typeof myData?.name === 'string' ? myData.name : undefined,
+      ownerEmail: typeof myData?.email === 'string' ? myData.email : undefined,
+    };
+  }
+
+  const ownerData = ownerDoc.data();
+  const sharedAccess = normalizeSharedAccessList(ownerData.sharedAccess);
+  const role = sharedAccess.find((entry) => entry.email === myEmail)?.role;
+
+  return {
+    ownerUid: ownerDoc.id,
+    accessMode: 'shared',
+    ownerName: typeof ownerData.name === 'string' ? ownerData.name : undefined,
+    ownerEmail: typeof ownerData.email === 'string' ? ownerData.email : undefined,
+    sharedRole: role,
+  };
 }
 
 export interface AutoAdsSchedule {

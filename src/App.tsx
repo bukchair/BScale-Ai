@@ -32,7 +32,7 @@ import { SystemMail } from './pages/SystemMail';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { SalesBot } from './components/SalesBot';
 import { useLanguage } from './contexts/LanguageContext';
-import { auth, onAuthStateChanged, syncUserProfile } from './lib/firebase';
+import { auth, onAuthStateChanged, resolveWorkspaceScope, syncUserProfile } from './lib/firebase';
 import { runAutoAdsIfNeeded } from './lib/autoAdsRunner';
 
 export default function App() {
@@ -136,7 +136,14 @@ export default function App() {
         const profile = await syncUserProfile(user);
         setUserProfile(profile);
         setView('app');
-        runAutoAdsIfNeeded(user.uid).catch(() => {});
+        let scopeOwnerUid = user.uid;
+        try {
+          const scope = await resolveWorkspaceScope({ uid: user.uid, email: user.email });
+          scopeOwnerUid = scope?.ownerUid || user.uid;
+        } catch {
+          scopeOwnerUid = user.uid;
+        }
+        runAutoAdsIfNeeded(scopeOwnerUid).catch(() => {});
       } else {
         setUserProfile(null);
         // Only go back to landing if we were in the app

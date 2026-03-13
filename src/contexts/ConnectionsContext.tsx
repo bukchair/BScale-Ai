@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { doc, onSnapshot, setDoc, getDoc } from 'firebase/firestore';
-import { auth, db } from '../lib/firebase';
+import { auth, db, resolveWorkspaceScope, type WorkspaceScope } from '../lib/firebase';
 import { verifyWooCommerceConnection } from '../services/woocommerceService';
 import { fetchMetaAdAccounts } from '../services/metaService';
 import { fetchGoogleAdAccounts } from '../services/googleService';
@@ -31,6 +31,11 @@ export interface Connection {
 
 interface ConnectionsContextType {
   connections: Connection[];
+  dataOwnerUid: string | null;
+  dataAccessMode: 'owner' | 'shared';
+  workspaceOwnerName: string | null;
+  workspaceOwnerEmail: string | null;
+  sharedRole: 'manager' | 'viewer' | null;
   toggleConnection: (id: string, subId?: string) => Promise<void>;
   updateConnectionSettings: (id: string, settings: ConnectionSettings) => Promise<void>;
   clearConnectionSettings: (id: string) => Promise<void>;
@@ -116,16 +121,54 @@ const ConnectionsContext = createContext<ConnectionsContextType | undefined>(und
 export function ConnectionsProvider({ children }: { children: ReactNode }) {
   const [connections, setConnections] = useState<Connection[]>(initialConnections);
   const [isLoading, setIsLoading] = useState(true);
+  const [dataOwnerUid, setDataOwnerUid] = useState<string | null>(null);
+  const [dataAccessMode, setDataAccessMode] = useState<'owner' | 'shared'>('owner');
+  const [workspaceOwnerName, setWorkspaceOwnerName] = useState<string | null>(null);
+  const [workspaceOwnerEmail, setWorkspaceOwnerEmail] = useState<string | null>(null);
+  const [sharedRole, setSharedRole] = useState<'manager' | 'viewer' | null>(null);
 
   useEffect(() => {
-    const unsubscribeAuth = auth.onAuthStateChanged((user) => {
+    let unsubGlobal: (() => void) | null = null;
+    let unsubUser: (() => void) | null = null;
+    let isCancelled = false;
+
+    const clearDataListeners = () => {
+      if (unsubGlobal) unsubGlobal();
+      if (unsubUser) unsubUser();
+      unsubGlobal = null;
+      unsubUser = null;
+    };
+
+    const unsubscribeAuth = auth.onAuthStateChanged(async (user) => {
+      clearDataListeners();
       if (!user) {
         setConnections(initialConnections);
+        setDataOwnerUid(null);
+        setDataAccessMode('owner');
+        setWorkspaceOwnerName(null);
+        setWorkspaceOwnerEmail(null);
+        setSharedRole(null);
         setIsLoading(false);
         return;
       }
 
-      const userConnectionsRef = doc(db, 'users', user.uid, 'settings', 'connections');
+      setIsLoading(true);
+      let scope: WorkspaceScope | null = null;
+      try {
+        scope = await resolveWorkspaceScope({ uid: user.uid, email: user.email });
+      } catch (err) {
+        console.error('Failed to resolve workspace scope, falling back to own workspace:', err);
+      }
+      if (isCancelled) return;
+
+      const scopedOwnerUid = scope?.ownerUid || user.uid;
+      setDataOwnerUid(scopedOwnerUid);
+      setDataAccessMode(scope?.accessMode || 'owner');
+      setWorkspaceOwnerName(scope?.ownerName || null);
+      setWorkspaceOwnerEmail(scope?.ownerEmail || null);
+      setSharedRole(scope?.sharedRole || null);
+
+      const userConnectionsRef = doc(db, 'users', scopedOwnerUid, 'settings', 'connections');
       const globalAiRef = doc(db, 'appSettings', 'connections');
 
       let globalItems: Connection[] = [];
@@ -151,7 +194,7 @@ export function ConnectionsProvider({ children }: { children: ReactNode }) {
         setIsLoading(false);
       };
 
-      const unsubGlobal = onSnapshot(
+      unsubGlobal = onSnapshot(
         globalAiRef,
         (snap) => {
           if (snap.exists()) {
@@ -166,7 +209,7 @@ export function ConnectionsProvider({ children }: { children: ReactNode }) {
         handleSnapshotError('global')
       );
 
-      const unsubUser = onSnapshot(
+      unsubUser = onSnapshot(
         userConnectionsRef,
         (snap) => {
           if (snap.exists()) {
@@ -189,19 +232,20 @@ export function ConnectionsProvider({ children }: { children: ReactNode }) {
         handleSnapshotError('user')
       );
 
-      return () => {
-        unsubGlobal();
-        unsubUser();
-      };
     });
 
-    return () => unsubscribeAuth();
+    return () => {
+      isCancelled = true;
+      clearDataListeners();
+      unsubscribeAuth();
+    };
   }, []);
 
   const persistUserConnections = async (items: Connection[]) => {
     const user = auth.currentUser;
     if (!user) return;
-    const ref = doc(db, 'users', user.uid, 'settings', 'connections');
+    const scopedOwnerUid = dataOwnerUid || user.uid;
+    const ref = doc(db, 'users', scopedOwnerUid, 'settings', 'connections');
     try {
       await setDoc(ref, { items }, { merge: true });
     } catch (err) {
@@ -344,7 +388,8 @@ export function ConnectionsProvider({ children }: { children: ReactNode }) {
       return { success: false, message: 'User not authenticated' };
     }
 
-    const userConnectionsRef = doc(db, 'users', user.uid, 'settings', 'connections');
+    const scopedOwnerUid = dataOwnerUid || user.uid;
+    const userConnectionsRef = doc(db, 'users', scopedOwnerUid, 'settings', 'connections');
     const globalAiRef = doc(db, 'appSettings', 'connections');
 
     const [userSnap, globalSnap] = await Promise.all([getDoc(userConnectionsRef), getDoc(globalAiRef)]);
@@ -461,7 +506,12 @@ export function ConnectionsProvider({ children }: { children: ReactNode }) {
 
   return (
     <ConnectionsContext.Provider value={{ 
-      connections, 
+      connections,
+      dataOwnerUid,
+      dataAccessMode,
+      workspaceOwnerName,
+      workspaceOwnerEmail,
+      sharedRole,
       toggleConnection, 
       updateConnectionSettings,
       clearConnectionSettings,

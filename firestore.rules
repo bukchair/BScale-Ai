@@ -21,6 +21,29 @@ service cloud.firestore {
     function isAgency() {
       return isAuthenticated() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'agency';
     }
+
+    function isSharedWithResource(data) {
+      return isAuthenticated() &&
+             request.auth.token.email is string &&
+             data.sharedAccessEmails is list &&
+             request.auth.token.email in data.sharedAccessEmails;
+    }
+
+    function isSharedWithUser(userId) {
+      let owner = get(/databases/$(database)/documents/users/$(userId)).data;
+      return isAuthenticated() &&
+             request.auth.token.email is string &&
+             owner.sharedAccessEmails is list &&
+             request.auth.token.email in owner.sharedAccessEmails;
+    }
+
+    function hasSharedEditAccess(userId) {
+      let owner = get(/databases/$(database)/documents/users/$(userId)).data;
+      return isAuthenticated() &&
+             request.auth.token.email is string &&
+             owner.sharedEditorsEmails is list &&
+             request.auth.token.email in owner.sharedEditorsEmails;
+    }
     
     function hasStoreAccess(storeId) {
       let user = get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
@@ -52,7 +75,7 @@ service cloud.firestore {
     // ===============================================================
     
     match /users/{userId} {
-      allow read: if isOwner(userId) || isAdmin() || isAgency();
+      allow read: if isOwner(userId) || isAdmin() || isAgency() || isSharedWithResource(resource.data);
       
       // Only admins can create admins/agencies. Users can create themselves as 'owner' initially.
       allow create: if isAuthenticated() && isValidUser(request.resource.data) && 
@@ -65,7 +88,18 @@ service cloud.firestore {
       allow delete: if isAdmin();
 
       match /settings/{settingId} {
-        allow read, write: if isOwner(userId) || isAdmin();
+        allow read: if isOwner(userId) || isAdmin() || isSharedWithUser(userId);
+        allow write: if isOwner(userId) || isAdmin() || hasSharedEditAccess(userId);
+      }
+
+      match /savedAds/{adId} {
+        allow read: if isOwner(userId) || isAdmin() || isSharedWithUser(userId);
+        allow write: if isOwner(userId) || isAdmin() || hasSharedEditAccess(userId);
+      }
+
+      match /audiences/{audienceId} {
+        allow read: if isOwner(userId) || isAdmin() || isSharedWithUser(userId);
+        allow write: if isOwner(userId) || isAdmin() || hasSharedEditAccess(userId);
       }
     }
 
