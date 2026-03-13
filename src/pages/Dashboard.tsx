@@ -209,22 +209,26 @@ export function Dashboard() {
   const [gscStats, setGscStats] = useState(DEMO_GSC_STATS);
   const [recentOrders, setRecentOrders] = useState<WooCommerceOrder[]>(DEMO_RECENT_ORDERS);
   const [campaignSummary, setCampaignSummary] = useState<CampaignSummary>(DEMO_CAMPAIGN_SUMMARY);
+  const [financialAvailability, setFinancialAvailability] = useState({
+    revenue: false,
+    spend: false,
+    netProfit: false,
+    roas: false,
+  });
 
-  const [isFinancialUsingDemo, setIsFinancialUsingDemo] = useState(true);
   const [isGa4UsingDemo, setIsGa4UsingDemo] = useState(true);
   const [isOrdersUsingDemo, setIsOrdersUsingDemo] = useState(true);
   const [isCampaignsUsingDemo, setIsCampaignsUsingDemo] = useState(true);
   const [isGscUsingDemo, setIsGscUsingDemo] = useState(true);
 
   useEffect(() => {
-    setTotalRevenue(fallbackData.totalRevenue);
-    setTotalSpend(fallbackData.totalSpend);
-    setNetProfit(fallbackData.netProfit);
-    setRoas(fallbackData.roas);
-  }, [fallbackData]);
-
-  useEffect(() => {
     hasLoadedRealDataRef.current = false;
+    setFinancialAvailability({
+      revenue: false,
+      spend: false,
+      netProfit: false,
+      roas: false,
+    });
   }, [bounds.startDate, bounds.endDate]);
 
   useEffect(() => {
@@ -272,6 +276,8 @@ export function Dashboard() {
       let hasGscLive = false;
       let hasOrdersLive = false;
       let hasCampaignsLive = false;
+      let hasRevenueLive = false;
+      let hasSpendLive = false;
       let ga4Live = DEMO_GA4_STATS;
       let gscLive = DEMO_GSC_STATS;
       let latestOrdersLive: WooCommerceOrder[] = [];
@@ -295,9 +301,8 @@ export function Dashboard() {
             (sum, row) => sum + toNumber(row.netSales || row.totalSales, 0),
             0
           );
-          if (revenueFromRange > 0) {
-            liveRevenue = revenueFromRange;
-          }
+          liveRevenue = revenueFromRange;
+          hasRevenueLive = true;
         } catch (error) {
           console.warn('Failed to load WooCommerce sales range', error);
         }
@@ -318,6 +323,7 @@ export function Dashboard() {
               )
               .slice(0, 5);
             hasOrdersLive = true;
+            hasRevenueLive = true;
             if (liveRevenue <= 0) {
               liveRevenue = orders.reduce((sum, order) => sum + toNumber(order.total, 0), 0);
             }
@@ -400,6 +406,7 @@ export function Dashboard() {
               });
               liveSpend += spend;
             });
+            hasSpendLive = true;
             if (googleCampaigns.length > 0) {
               hasCampaignsLive = true;
             }
@@ -425,6 +432,7 @@ export function Dashboard() {
             });
             liveSpend += spend;
           });
+          hasSpendLive = true;
           if (metaCampaigns.length > 0) {
             hasCampaignsLive = true;
           }
@@ -456,6 +464,7 @@ export function Dashboard() {
             });
             liveSpend += spend;
           });
+          hasSpendLive = true;
           if ((Array.isArray(tiktokCampaigns) ? tiktokCampaigns.length : 0) > 0) {
             hasCampaignsLive = true;
           }
@@ -466,16 +475,21 @@ export function Dashboard() {
 
       if (cancelled) return;
 
-      const finalRevenue = liveRevenue > 0 ? liveRevenue : toNumber(fallbackData.totalRevenue, 0);
-      const finalSpend = liveSpend > 0 ? liveSpend : toNumber(fallbackData.totalSpend, 0);
-      const finalRoas = finalSpend > 0 ? (finalRevenue / finalSpend).toFixed(2) : '0.00';
+      const finalRevenue = hasRevenueLive ? liveRevenue : 0;
+      const finalSpend = hasSpendLive ? liveSpend : 0;
+      const finalRoas = hasRevenueLive && hasSpendLive && finalSpend > 0 ? (finalRevenue / finalSpend).toFixed(2) : '0.00';
       const finalNetProfit = finalRevenue - finalSpend;
 
       setTotalRevenue(finalRevenue);
       setTotalSpend(finalSpend);
       setRoas(finalRoas);
       setNetProfit(finalNetProfit);
-      setIsFinancialUsingDemo(!(liveRevenue > 0 || liveSpend > 0));
+      setFinancialAvailability({
+        revenue: hasRevenueLive,
+        spend: hasSpendLive,
+        netProfit: hasRevenueLive && hasSpendLive,
+        roas: hasRevenueLive && hasSpendLive && finalSpend > 0,
+      });
 
       setGa4Stats(hasGa4Live ? ga4Live : DEMO_GA4_STATS);
       setIsGa4UsingDemo(!hasGa4Live);
@@ -510,9 +524,9 @@ export function Dashboard() {
     fallbackData.totalSpend,
   ]);
 
-  const safeTotalRevenue = toNumber(totalRevenue, fallbackData.totalRevenue);
-  const safeTotalSpend = toNumber(totalSpend, fallbackData.totalSpend);
-  const safeNetProfit = toNumber(netProfit, fallbackData.netProfit);
+  const safeTotalRevenue = toNumber(totalRevenue, 0);
+  const safeTotalSpend = toNumber(totalSpend, 0);
+  const safeNetProfit = toNumber(netProfit, 0);
   const safeRoas = (() => {
     const parsed = Number(roas);
     if (Number.isFinite(parsed)) return parsed.toFixed(2);
@@ -547,7 +561,7 @@ export function Dashboard() {
   const optimizationRecommendations = useMemo(() => {
     const recommendations: string[] = [];
 
-    if (Number(safeRoas) < 2) {
+    if (financialAvailability.roas && Number(safeRoas) < 2) {
       recommendations.push('להגדיל תקציב רק בקמפיינים עם המרות בפועל ולעצור קבוצות מודעות חלשות.');
     }
     if (safeGscStats.avgPosition > 12) {
@@ -568,7 +582,7 @@ export function Dashboard() {
     }
 
     return recommendations.slice(0, 5);
-  }, [campaignSummary.activeCampaigns, campaignSummary.totalCampaigns, recentOrders.length, safeGa4Stats.activeNow, safeGscStats.avgPosition, safeGscStats.ctr, safeRoas]);
+  }, [campaignSummary.activeCampaigns, campaignSummary.totalCampaigns, financialAvailability.roas, recentOrders.length, safeGa4Stats.activeNow, safeGscStats.avgPosition, safeGscStats.ctr, safeRoas]);
 
   const goToPath = (path: string) => {
     if (typeof window === 'undefined') return;
@@ -615,26 +629,38 @@ export function Dashboard() {
               </div>
               <h2 className="font-bold text-gray-900 dark:text-white">הכנסות</h2>
             </div>
-            <DemoTag show={isFinancialUsingDemo} />
           </div>
 
           <div className="space-y-2">
-            <div className="flex items-center justify-between text-sm">
-              <span className="text-gray-500">סה"כ הכנסות</span>
-              <span className="font-extrabold text-emerald-700">{formatCurrency(safeTotalRevenue)}</span>
-            </div>
-            <div className="flex items-center justify-between text-sm">
-              <span className="text-gray-500">סה"כ הוצאות פרסום</span>
-              <span className="font-bold text-red-600">{formatCurrency(safeTotalSpend)}</span>
-            </div>
-            <div className="flex items-center justify-between text-sm">
-              <span className="text-gray-500">רווח נקי</span>
-              <span className="font-bold text-indigo-600">{formatCurrency(safeNetProfit)}</span>
-            </div>
-            <div className="flex items-center justify-between text-sm">
-              <span className="text-gray-500">ROAS</span>
-              <span className="font-black text-gray-900 dark:text-white">{safeRoas}x</span>
-            </div>
+            {financialAvailability.revenue && (
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-gray-500">סה"כ הכנסות</span>
+                <span className="font-extrabold text-emerald-700">{formatCurrency(safeTotalRevenue)}</span>
+              </div>
+            )}
+            {financialAvailability.spend && (
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-gray-500">סה"כ הוצאות פרסום</span>
+                <span className="font-bold text-red-600">{formatCurrency(safeTotalSpend)}</span>
+              </div>
+            )}
+            {financialAvailability.netProfit && (
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-gray-500">רווח נקי</span>
+                <span className="font-bold text-indigo-600">{formatCurrency(safeNetProfit)}</span>
+              </div>
+            )}
+            {financialAvailability.roas && (
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-gray-500">ROAS</span>
+                <span className="font-black text-gray-900 dark:text-white">{safeRoas}x</span>
+              </div>
+            )}
+            {!financialAvailability.revenue && !financialAvailability.spend && (
+              <p className="text-xs text-gray-500">
+                עדיין אין נתונים חיים להכנסות או הוצאות פרסום לטווח התאריכים שנבחר.
+              </p>
+            )}
           </div>
 
           <button
