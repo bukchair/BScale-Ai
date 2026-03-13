@@ -154,6 +154,13 @@ const DEMO_CAMPAIGN_SUMMARY: CampaignSummary = {
     { platform: 'TikTok', count: 2 },
   ],
 };
+const EMPTY_CAMPAIGN_SUMMARY: CampaignSummary = {
+  totalCampaigns: 0,
+  activeCampaigns: 0,
+  totalSpend: 0,
+  avgRoas: 0,
+  platformBreakdown: [],
+};
 
 const toNumber = (value: unknown, fallback = 0): number => {
   const parsed = typeof value === 'number' ? value : Number(value);
@@ -491,17 +498,53 @@ export function Dashboard() {
         roas: hasRevenueLive && hasSpendLive && finalSpend > 0,
       });
 
-      setGa4Stats(hasGa4Live ? ga4Live : DEMO_GA4_STATS);
-      setIsGa4UsingDemo(!hasGa4Live);
+      const hasAnyLiveData =
+        hasRevenueLive || hasSpendLive || hasGa4Live || hasGscLive || hasOrdersLive || hasCampaignsLive;
+      const useDemoFallback = !hasAnyLiveData;
 
-      setGscStats(hasGscLive ? gscLive : DEMO_GSC_STATS);
-      setIsGscUsingDemo(!hasGscLive);
+      if (hasGa4Live) {
+        setGa4Stats(ga4Live);
+        setIsGa4UsingDemo(false);
+      } else if (useDemoFallback) {
+        setGa4Stats(DEMO_GA4_STATS);
+        setIsGa4UsingDemo(true);
+      } else {
+        setGa4Stats({ activeNow: 0, totalUsers: 0 });
+        setIsGa4UsingDemo(false);
+      }
 
-      setRecentOrders(hasOrdersLive ? latestOrdersLive : DEMO_RECENT_ORDERS);
-      setIsOrdersUsingDemo(!hasOrdersLive);
+      if (hasGscLive) {
+        setGscStats(gscLive);
+        setIsGscUsingDemo(false);
+      } else if (useDemoFallback) {
+        setGscStats(DEMO_GSC_STATS);
+        setIsGscUsingDemo(true);
+      } else {
+        setGscStats({ clicks: 0, impressions: 0, avgPosition: 0, ctr: 0 });
+        setIsGscUsingDemo(false);
+      }
 
-      setCampaignSummary(hasCampaignsLive ? buildCampaignSummary(campaignRows) : DEMO_CAMPAIGN_SUMMARY);
-      setIsCampaignsUsingDemo(!hasCampaignsLive);
+      if (hasOrdersLive) {
+        setRecentOrders(latestOrdersLive);
+        setIsOrdersUsingDemo(false);
+      } else if (useDemoFallback) {
+        setRecentOrders(DEMO_RECENT_ORDERS);
+        setIsOrdersUsingDemo(true);
+      } else {
+        setRecentOrders([]);
+        setIsOrdersUsingDemo(false);
+      }
+
+      if (hasCampaignsLive) {
+        setCampaignSummary(buildCampaignSummary(campaignRows));
+        setIsCampaignsUsingDemo(false);
+      } else if (useDemoFallback) {
+        setCampaignSummary(DEMO_CAMPAIGN_SUMMARY);
+        setIsCampaignsUsingDemo(true);
+      } else {
+        setCampaignSummary(EMPTY_CAMPAIGN_SUMMARY);
+        setIsCampaignsUsingDemo(false);
+      }
       setIsLoadingOverview(false);
     }
 
@@ -683,20 +726,27 @@ export function Dashboard() {
             <DemoTag show={isGa4UsingDemo} />
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div className="rounded-xl border border-blue-100 bg-blue-50/70 p-3">
-              <p className="text-[11px] font-semibold text-blue-700">פעילים עכשיו</p>
-              <p className="text-3xl font-black text-blue-600 mt-1">{safeGa4Stats.activeNow}</p>
-            </div>
-            <div className="rounded-xl border border-indigo-100 bg-indigo-50/70 p-3">
-              <p className="text-[11px] font-semibold text-indigo-700">סה"כ משתמשים</p>
-              <p className="text-3xl font-black text-indigo-600 mt-1">{safeGa4Stats.totalUsers.toLocaleString()}</p>
-            </div>
-          </div>
-
-          <p className="text-xs text-gray-500">
-            מציג תמונת מצב מיידית של התנועה לאתר ומסייע להבין האם הקמפיינים מביאים גולשים בזמן אמת.
-          </p>
+          {isGa4UsingDemo || safeGa4Stats.activeNow > 0 || safeGa4Stats.totalUsers > 0 ? (
+            <>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="rounded-xl border border-blue-100 bg-blue-50/70 p-3">
+                  <p className="text-[11px] font-semibold text-blue-700">פעילים עכשיו</p>
+                  <p className="text-3xl font-black text-blue-600 mt-1">{safeGa4Stats.activeNow}</p>
+                </div>
+                <div className="rounded-xl border border-indigo-100 bg-indigo-50/70 p-3">
+                  <p className="text-[11px] font-semibold text-indigo-700">סה"כ משתמשים</p>
+                  <p className="text-3xl font-black text-indigo-600 mt-1">{safeGa4Stats.totalUsers.toLocaleString()}</p>
+                </div>
+              </div>
+              <p className="text-xs text-gray-500">
+                מציג תמונת מצב מיידית של התנועה לאתר ומסייע להבין האם הקמפיינים מביאים גולשים בזמן אמת.
+              </p>
+            </>
+          ) : (
+            <p className="text-xs text-gray-500">
+              אין כרגע נתוני GA4 חיים להצגה.
+            </p>
+          )}
         </div>
 
         <div className="bg-white dark:bg-[#111] rounded-2xl border border-gray-200 dark:border-white/10 p-5 shadow-sm space-y-4">
@@ -711,24 +761,28 @@ export function Dashboard() {
           </div>
 
           <div className="space-y-2">
-            {recentOrders.slice(0, 5).map((order) => {
-              const customerName =
-                `${order.billing.first_name || ''} ${order.billing.last_name || ''}`.trim() || 'לקוח';
-              return (
-                <div key={order.id} className="rounded-xl border border-gray-200 p-2.5 bg-gray-50/60">
-                  <div className="flex items-center justify-between gap-2">
-                    <p className="text-xs font-bold text-gray-900">#{order.number}</p>
-                    <span className="text-[11px] text-gray-500">{formatDate(order.date_created)}</span>
+            {recentOrders.length ? (
+              recentOrders.slice(0, 5).map((order) => {
+                const customerName =
+                  `${order.billing.first_name || ''} ${order.billing.last_name || ''}`.trim() || 'לקוח';
+                return (
+                  <div key={order.id} className="rounded-xl border border-gray-200 p-2.5 bg-gray-50/60">
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="text-xs font-bold text-gray-900">#{order.number}</p>
+                      <span className="text-[11px] text-gray-500">{formatDate(order.date_created)}</span>
+                    </div>
+                    <div className="flex items-center justify-between gap-2 mt-1">
+                      <p className="text-xs text-gray-700 truncate">{customerName}</p>
+                      <p className="text-xs font-extrabold text-indigo-700 whitespace-nowrap">
+                        {formatCurrency(order.total)}
+                      </p>
+                    </div>
                   </div>
-                  <div className="flex items-center justify-between gap-2 mt-1">
-                    <p className="text-xs text-gray-700 truncate">{customerName}</p>
-                    <p className="text-xs font-extrabold text-indigo-700 whitespace-nowrap">
-                      {formatCurrency(order.total)}
-                    </p>
-                  </div>
-                </div>
-              );
-            })}
+                );
+              })
+            ) : (
+              <p className="text-xs text-gray-500">אין כרגע נתוני הזמנות חיים להצגה.</p>
+            )}
           </div>
 
           <button
@@ -751,35 +805,41 @@ export function Dashboard() {
             <DemoTag show={isCampaignsUsingDemo} />
           </div>
 
-          <div className="grid grid-cols-2 gap-2 text-sm">
-            <div className="rounded-xl border border-gray-200 p-3 bg-gray-50">
-              <p className="text-gray-500 text-xs">סה"כ קמפיינים</p>
-              <p className="text-xl font-black text-gray-900">{campaignSummary.totalCampaigns}</p>
-            </div>
-            <div className="rounded-xl border border-gray-200 p-3 bg-gray-50">
-              <p className="text-gray-500 text-xs">פעילים כרגע</p>
-              <p className="text-xl font-black text-emerald-600">{campaignSummary.activeCampaigns}</p>
-            </div>
-            <div className="rounded-xl border border-gray-200 p-3 bg-gray-50">
-              <p className="text-gray-500 text-xs">הוצאה כוללת</p>
-              <p className="text-xl font-black text-red-600">{formatCurrency(campaignSummary.totalSpend)}</p>
-            </div>
-            <div className="rounded-xl border border-gray-200 p-3 bg-gray-50">
-              <p className="text-gray-500 text-xs">ROAS / ROS</p>
-              <p className="text-xl font-black text-indigo-600">{campaignSummary.avgRoas.toFixed(2)}x</p>
-            </div>
-          </div>
+          {isCampaignsUsingDemo || campaignSummary.totalCampaigns > 0 ? (
+            <>
+              <div className="grid grid-cols-2 gap-2 text-sm">
+                <div className="rounded-xl border border-gray-200 p-3 bg-gray-50">
+                  <p className="text-gray-500 text-xs">סה"כ קמפיינים</p>
+                  <p className="text-xl font-black text-gray-900">{campaignSummary.totalCampaigns}</p>
+                </div>
+                <div className="rounded-xl border border-gray-200 p-3 bg-gray-50">
+                  <p className="text-gray-500 text-xs">פעילים כרגע</p>
+                  <p className="text-xl font-black text-emerald-600">{campaignSummary.activeCampaigns}</p>
+                </div>
+                <div className="rounded-xl border border-gray-200 p-3 bg-gray-50">
+                  <p className="text-gray-500 text-xs">הוצאה כוללת</p>
+                  <p className="text-xl font-black text-red-600">{formatCurrency(campaignSummary.totalSpend)}</p>
+                </div>
+                <div className="rounded-xl border border-gray-200 p-3 bg-gray-50">
+                  <p className="text-gray-500 text-xs">ROAS / ROS</p>
+                  <p className="text-xl font-black text-indigo-600">{campaignSummary.avgRoas.toFixed(2)}x</p>
+                </div>
+              </div>
 
-          <div className="flex flex-wrap gap-2">
-            {campaignSummary.platformBreakdown.map((row) => (
-              <span
-                key={row.platform}
-                className="text-[11px] font-bold text-gray-700 bg-gray-100 border border-gray-200 px-2 py-1 rounded-full"
-              >
-                {row.platform}: {row.count}
-              </span>
-            ))}
-          </div>
+              <div className="flex flex-wrap gap-2">
+                {campaignSummary.platformBreakdown.map((row) => (
+                  <span
+                    key={row.platform}
+                    className="text-[11px] font-bold text-gray-700 bg-gray-100 border border-gray-200 px-2 py-1 rounded-full"
+                  >
+                    {row.platform}: {row.count}
+                  </span>
+                ))}
+              </div>
+            </>
+          ) : (
+            <p className="text-xs text-gray-500">אין כרגע נתוני קמפיינים חיים להצגה.</p>
+          )}
 
           <button
             onClick={() => goToPath('/campaigns')}
