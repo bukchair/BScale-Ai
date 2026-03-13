@@ -377,11 +377,29 @@ export async function fetchWooCommerceOrdersByRange(
     ];
   }
 
-  try {
-    const perPage = 100;
-    const endpoint = `orders?per_page=${perPage}&status=any&after=${encodeURIComponent(
-      dateMinISO
-    )}&before=${encodeURIComponent(dateMaxISO)}`;
+  const toNumber = (value: unknown): number => {
+    if (typeof value === 'number') return Number.isFinite(value) ? value : 0;
+    if (typeof value === 'string') {
+      const parsed = parseFloat(value);
+      return Number.isFinite(parsed) ? parsed : 0;
+    }
+    return 0;
+  };
+
+  const parseRows = (payload: unknown): any[] => {
+    if (Array.isArray(payload)) return payload;
+    if (payload && typeof payload === 'object') {
+      const asObj = payload as Record<string, unknown>;
+      if (Array.isArray(asObj.orders)) return asObj.orders as any[];
+      if (Array.isArray(asObj.data)) return asObj.data as any[];
+    }
+    return [];
+  };
+
+  const fetchPage = async (page: number, perPage: number): Promise<any[]> => {
+    const endpoint =
+      `orders?per_page=${perPage}&page=${page}&orderby=date&order=desc` +
+      `&after=${encodeURIComponent(dateMinISO)}&before=${encodeURIComponent(dateMaxISO)}`;
 
     const response = await fetch(`${API_BASE}/api/proxy/woocommerce`, {
       method: 'POST',
@@ -390,64 +408,76 @@ export async function fetchWooCommerceOrdersByRange(
         url,
         key,
         secret,
-        endpoint
-      })
+        endpoint,
+      }),
     });
 
     const text = await response.text();
     if (!text) {
+      if (!response.ok) {
+        throw new Error(`WooCommerce API returned empty response (${response.status})`);
+      }
       return [];
     }
 
-    let data: any;
+    let parsed: any;
     try {
-      data = JSON.parse(text);
+      parsed = JSON.parse(text);
     } catch {
-      console.warn('Failed to parse WooCommerce orders response, returning empty list');
-      return [];
+      throw new Error('WooCommerce returned invalid JSON for orders request');
     }
 
-    const rows: any[] = Array.isArray(data) ? data : [data];
+    if (!response.ok) {
+      const message =
+        (parsed && typeof parsed.message === 'string' && parsed.message) ||
+        `WooCommerce API error (${response.status})`;
+      throw new Error(message);
+    }
 
-    return rows.map((row) => ({
-      id: row.id,
-      number: String(row.number ?? row.id),
-      status: row.status || 'pending',
-      currency: row.currency || 'ILS',
-      total:
-        typeof row.total === 'string'
-          ? parseFloat(row.total || '0')
-          : Number(row.total || 0),
-      total_tax:
-        typeof row.total_tax === 'string'
-          ? parseFloat(row.total_tax || '0')
-          : Number(row.total_tax || 0),
-      shipping_total:
-        typeof row.shipping_total === 'string'
-          ? parseFloat(row.shipping_total || '0')
-          : Number(row.shipping_total || 0),
-      payment_method: row.payment_method || '',
-      payment_method_title: row.payment_method_title || '',
-      date_created: row.date_created || '',
-      date_modified: row.date_modified || '',
-      date_completed: row.date_completed || null,
-      customer_note: row.customer_note || '',
+    return parseRows(parsed);
+  };
+
+  try {
+    const perPage = 100;
+    const maxPages = 10;
+    const rawOrders: any[] = [];
+
+    for (let page = 1; page <= maxPages; page += 1) {
+      const pageRows = await fetchPage(page, perPage);
+      rawOrders.push(...pageRows);
+      if (pageRows.length < perPage) break;
+    }
+
+    return rawOrders.map((row) => ({
+      id: Number(row.id || 0),
+      number: String(row.number ?? row.id ?? ''),
+      status: typeof row.status === 'string' ? row.status : 'pending',
+      currency: typeof row.currency === 'string' ? row.currency : 'ILS',
+      total: toNumber(row.total),
+      total_tax: toNumber(row.total_tax),
+      shipping_total: toNumber(row.shipping_total),
+      payment_method: typeof row.payment_method === 'string' ? row.payment_method : '',
+      payment_method_title: typeof row.payment_method_title === 'string' ? row.payment_method_title : '',
+      date_created: typeof row.date_created === 'string' ? row.date_created : '',
+      date_modified: typeof row.date_modified === 'string' ? row.date_modified : '',
+      date_completed: typeof row.date_completed === 'string' ? row.date_completed : null,
+      customer_note: typeof row.customer_note === 'string' ? row.customer_note : '',
       billing: row.billing || {
         first_name: '',
         last_name: '',
         email: '',
-        phone: ''
+        phone: '',
       },
       shipping: row.shipping || {
         first_name: '',
-        last_name: ''
+        last_name: '',
       },
       line_items: Array.isArray(row.line_items) ? row.line_items : [],
-      meta_data: Array.isArray(row.meta_data) ? row.meta_data : []
+      meta_data: Array.isArray(row.meta_data) ? row.meta_data : [],
     }));
   } catch (error) {
     console.error('WooCommerce orders fetch error:', error);
-    return [];
+    throw error instanceof Error ? error : new Error('Failed to fetch WooCommerce orders');
   }
 }
 

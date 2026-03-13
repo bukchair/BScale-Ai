@@ -41,6 +41,11 @@ export function Orders() {
   const loadOrders = async () => {
     if (!isConnected || !storeUrl || !wooKey || !wooSecret) {
       setOrders([]);
+      if (isConnected) {
+        setError('חיבור WooCommerce קיים אך חסרים Store URL או מפתחות API.');
+      } else {
+        setError(null);
+      }
       return;
     }
     setIsLoading(true);
@@ -50,7 +55,8 @@ export function Orders() {
       setOrders(data);
     } catch (e) {
       console.error(e);
-      setError('שגיאה בטעינת הזמנות מ‑WooCommerce. בדוק את החיבור או נסה שוב מאוחר יותר.');
+      const message = e instanceof Error ? e.message : 'שגיאה לא ידועה';
+      setError(`שגיאה בטעינת הזמנות מ‑WooCommerce: ${message}`);
     } finally {
       setIsLoading(false);
     }
@@ -60,7 +66,15 @@ export function Orders() {
     if (isConnected) {
       loadOrders();
     }
-  }, [isConnected, isoMin, isoMax]);
+  }, [isConnected, storeUrl, wooKey, wooSecret, isoMin, isoMax]);
+
+  useEffect(() => {
+    if (!isConnected || !storeUrl || !wooKey || !wooSecret) return;
+    const interval = window.setInterval(() => {
+      loadOrders();
+    }, 60000);
+    return () => window.clearInterval(interval);
+  }, [isConnected, storeUrl, wooKey, wooSecret, isoMin, isoMax]);
 
   const filtered = useMemo(() => {
     return orders.filter((o) => {
