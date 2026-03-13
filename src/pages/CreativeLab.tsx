@@ -37,7 +37,7 @@ function stripHtmlToText(html: string | undefined | null): string {
 
 export function CreativeLab() {
   const { t, dir } = useLanguage();
-  const { connections, dataOwnerUid } = useConnections();
+  const { connections, dataOwnerUid, isWorkspaceReadOnly } = useConnections();
   const [prompt, setPrompt] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [generationStartedAt, setGenerationStartedAt] = useState<number | null>(null);
@@ -128,6 +128,10 @@ export function CreativeLab() {
   };
 
   const handleSaveAdCopy = async (option: { headline: string; primaryText: string; description: string }) => {
+    if (isWorkspaceReadOnly) {
+      showToast('מצב צפייה בלבד פעיל. לא ניתן לשמור נתונים.');
+      return;
+    }
     if (!scopedUid) {
       showToast('יש להתחבר כדי לשמור מודעה.');
       return;
@@ -147,6 +151,10 @@ export function CreativeLab() {
   };
 
   const handleSaveAdImage = async (imageDataUrl: string) => {
+    if (isWorkspaceReadOnly) {
+      showToast('מצב צפייה בלבד פעיל. לא ניתן לשמור נתונים.');
+      return;
+    }
     if (!scopedUid) {
       showToast('יש להתחבר כדי לשמור מודעה.');
       return;
@@ -348,6 +356,11 @@ export function CreativeLab() {
       {toast && (
         <div className="bg-emerald-50 border border-emerald-200 text-emerald-800 px-4 py-3 rounded-xl text-sm font-bold">
           {toast}
+        </div>
+      )}
+      {isWorkspaceReadOnly && (
+        <div className="bg-amber-50 border border-amber-200 text-amber-800 px-4 py-3 rounded-xl text-sm font-bold">
+          מצב צפייה בלבד פעיל. ניתן לצפות במערכת אך לא לשמור או לפרסם נתונים.
         </div>
       )}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -591,17 +604,30 @@ export function CreativeLab() {
                       </button>
                       <button
                         onClick={handleSaveAdImageClick}
-                        className="px-3 py-2 bg-emerald-600 text-white rounded-lg text-sm font-medium hover:bg-emerald-700 flex items-center gap-1"
+                        disabled={isWorkspaceReadOnly}
+                        className="px-3 py-2 bg-emerald-600 text-white rounded-lg text-sm font-medium hover:bg-emerald-700 flex items-center gap-1 disabled:opacity-40"
                       >
                         <Save className="w-4 h-4" /> שמור מודעה
                       </button>
-                      <button onClick={() => handlePublishTo('meta')} className="px-3 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 flex items-center gap-1">
+                      <button
+                        onClick={() => handlePublishTo('meta')}
+                        disabled={isWorkspaceReadOnly}
+                        className="px-3 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 flex items-center gap-1 disabled:opacity-40"
+                      >
                         <Send className="w-4 h-4" /> פרסם Meta
                       </button>
-                      <button onClick={() => handlePublishTo('google')} className="px-3 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 flex items-center gap-1">
+                      <button
+                        onClick={() => handlePublishTo('google')}
+                        disabled={isWorkspaceReadOnly}
+                        className="px-3 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 flex items-center gap-1 disabled:opacity-40"
+                      >
                         <Send className="w-4 h-4" /> פרסם Google
                       </button>
-                      <button onClick={() => handlePublishTo('tiktok')} className="px-3 py-2 bg-gray-800 text-white rounded-lg text-sm font-medium hover:bg-gray-900 flex items-center gap-1">
+                      <button
+                        onClick={() => handlePublishTo('tiktok')}
+                        disabled={isWorkspaceReadOnly}
+                        className="px-3 py-2 bg-gray-800 text-white rounded-lg text-sm font-medium hover:bg-gray-900 flex items-center gap-1 disabled:opacity-40"
+                      >
                         <Send className="w-4 h-4" /> פרסם TikTok
                       </button>
                       <button
@@ -630,13 +656,25 @@ export function CreativeLab() {
                     >
                       <Download className="w-4 h-4" /> הורדה
                     </button>
-                    <button onClick={() => handlePublishTo('meta')} className="px-4 py-2 bg-indigo-600 text-white font-medium rounded-lg hover:bg-indigo-700 transition-colors flex items-center gap-2">
+                    <button
+                      onClick={() => handlePublishTo('meta')}
+                      disabled={isWorkspaceReadOnly}
+                      className="px-4 py-2 bg-indigo-600 text-white font-medium rounded-lg hover:bg-indigo-700 transition-colors flex items-center gap-2 disabled:opacity-40"
+                    >
                       <Send className="w-4 h-4" /> פרסם ב-Meta
                     </button>
-                    <button onClick={() => handlePublishTo('google')} className="px-4 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2">
+                    <button
+                      onClick={() => handlePublishTo('google')}
+                      disabled={isWorkspaceReadOnly}
+                      className="px-4 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2 disabled:opacity-40"
+                    >
                       <Send className="w-4 h-4" /> פרסם ב-Google
                     </button>
-                    <button onClick={() => handlePublishTo('tiktok')} className="px-4 py-2 bg-gray-900 text-white font-medium rounded-lg hover:bg-gray-800 transition-colors flex items-center gap-2">
+                    <button
+                      onClick={() => handlePublishTo('tiktok')}
+                      disabled={isWorkspaceReadOnly}
+                      className="px-4 py-2 bg-gray-900 text-white font-medium rounded-lg hover:bg-gray-800 transition-colors flex items-center gap-2 disabled:opacity-40"
+                    >
                       <Send className="w-4 h-4" /> פרסם ב-TikTok
                     </button>
                   </div>
@@ -697,12 +735,38 @@ export function CreativeLab() {
                           >
                             <Type className="w-4 h-4" />
                           </button>
-                          <button onClick={() => handleSaveAdCopy(option)} className="p-1.5 bg-emerald-100 text-emerald-600 rounded hover:bg-emerald-200 transition-colors" title="שמור מודעה">
+                          <button
+                            onClick={() => handleSaveAdCopy(option)}
+                            disabled={isWorkspaceReadOnly}
+                            className="p-1.5 bg-emerald-100 text-emerald-600 rounded hover:bg-emerald-200 transition-colors disabled:opacity-40"
+                            title="שמור מודעה"
+                          >
                             <Save className="w-4 h-4" />
                           </button>
-                          <button onClick={() => handlePublishTo('meta')} className="p-1.5 bg-indigo-100 text-indigo-600 rounded hover:bg-indigo-200" title="פרסם Meta"><Send className="w-4 h-4" /></button>
-                          <button onClick={() => handlePublishTo('google')} className="p-1.5 bg-blue-100 text-blue-600 rounded hover:bg-blue-200" title="פרסם Google"><Send className="w-4 h-4" /></button>
-                          <button onClick={() => handlePublishTo('tiktok')} className="p-1.5 bg-gray-100 text-gray-700 rounded hover:bg-gray-200" title="פרסם TikTok"><Send className="w-4 h-4" /></button>
+                          <button
+                            onClick={() => handlePublishTo('meta')}
+                            disabled={isWorkspaceReadOnly}
+                            className="p-1.5 bg-indigo-100 text-indigo-600 rounded hover:bg-indigo-200 disabled:opacity-40"
+                            title="פרסם Meta"
+                          >
+                            <Send className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => handlePublishTo('google')}
+                            disabled={isWorkspaceReadOnly}
+                            className="p-1.5 bg-blue-100 text-blue-600 rounded hover:bg-blue-200 disabled:opacity-40"
+                            title="פרסם Google"
+                          >
+                            <Send className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => handlePublishTo('tiktok')}
+                            disabled={isWorkspaceReadOnly}
+                            className="p-1.5 bg-gray-100 text-gray-700 rounded hover:bg-gray-200 disabled:opacity-40"
+                            title="פרסם TikTok"
+                          >
+                            <Send className="w-4 h-4" />
+                          </button>
                         </div>
                       </div>
                       {editingCopyIndex === idx ? (

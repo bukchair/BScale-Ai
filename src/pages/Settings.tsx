@@ -779,8 +779,8 @@ export function Settings({ userProfile }: { userProfile?: { role?: string } | nu
                       onChange={(e) => setShareRole(e.target.value as SharedAccessRole)}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white"
                     >
-                      <option value="manager">Manager - ניהול מלא</option>
-                      <option value="viewer">Viewer - צפיה</option>
+                      <option value="manager">Manager - יכול לערוך ולנהל</option>
+                      <option value="viewer">Viewer - צפייה בלבד ללא שינוי נתונים</option>
                     </select>
                   </div>
                 </div>

@@ -36,6 +36,7 @@ interface ConnectionsContextType {
   workspaceOwnerName: string | null;
   workspaceOwnerEmail: string | null;
   sharedRole: 'manager' | 'viewer' | null;
+  isWorkspaceReadOnly: boolean;
   toggleConnection: (id: string, subId?: string) => Promise<void>;
   updateConnectionSettings: (id: string, settings: ConnectionSettings) => Promise<void>;
   clearConnectionSettings: (id: string) => Promise<void>;
@@ -126,6 +127,7 @@ export function ConnectionsProvider({ children }: { children: ReactNode }) {
   const [workspaceOwnerName, setWorkspaceOwnerName] = useState<string | null>(null);
   const [workspaceOwnerEmail, setWorkspaceOwnerEmail] = useState<string | null>(null);
   const [sharedRole, setSharedRole] = useState<'manager' | 'viewer' | null>(null);
+  const isWorkspaceReadOnly = dataAccessMode === 'shared' && sharedRole === 'viewer';
 
   useEffect(() => {
     let unsubGlobal: (() => void) | null = null;
@@ -273,6 +275,7 @@ export function ConnectionsProvider({ children }: { children: ReactNode }) {
   };
 
   const toggleConnection = async (id: string, subId?: string) => {
+    if (isWorkspaceReadOnly) return;
     const newConnections = connections.map(c => {
       if (c.id === id) {
         if (subId && c.subConnections) {
@@ -338,6 +341,7 @@ export function ConnectionsProvider({ children }: { children: ReactNode }) {
   };
 
   const updateConnectionSettings = async (id: string, settings: ConnectionSettings) => {
+    if (isWorkspaceReadOnly) return;
     const connectingConnections = connections.map(c => {
       if (c.id === id) {
         return { ...c, status: 'connecting' as ConnectionStatus };
@@ -367,6 +371,7 @@ export function ConnectionsProvider({ children }: { children: ReactNode }) {
   };
 
   const clearConnectionSettings = async (id: string) => {
+    if (isWorkspaceReadOnly) return;
     const next = connections.map((c) =>
       c.id === id ? { ...c, status: 'disconnected' as ConnectionStatus, score: undefined, settings: {} } : c
     );
@@ -375,6 +380,7 @@ export function ConnectionsProvider({ children }: { children: ReactNode }) {
   };
 
   const resetAllConnections = async () => {
+    if (isWorkspaceReadOnly) return;
     const aiPart = connections.filter((c) => AI_CONNECTION_IDS.includes(c.id as any));
     const platformPart = initialConnections.filter((c) => PLATFORM_CONNECTION_IDS.includes(c.id as any));
     const fresh = [...aiPart, ...platformPart];
@@ -383,6 +389,9 @@ export function ConnectionsProvider({ children }: { children: ReactNode }) {
   };
 
   const migrateAiConnectionsFromUser = async (): Promise<{ success: boolean; message: string }> => {
+    if (isWorkspaceReadOnly) {
+      return { success: false, message: 'Workspace is read-only for this user' };
+    }
     const user = auth.currentUser;
     if (!user) {
       return { success: false, message: 'User not authenticated' };
@@ -423,6 +432,9 @@ export function ConnectionsProvider({ children }: { children: ReactNode }) {
   };
 
   const testConnection = async (id: string): Promise<{ success: boolean; message: string }> => {
+    if (isWorkspaceReadOnly) {
+      return { success: false, message: 'Workspace is read-only for this user' };
+    }
     const connection = connections.find(c => c.id === id);
     if (!connection) return { success: false, message: 'חיבור לא נמצא' };
 
@@ -512,6 +524,7 @@ export function ConnectionsProvider({ children }: { children: ReactNode }) {
       workspaceOwnerName,
       workspaceOwnerEmail,
       sharedRole,
+      isWorkspaceReadOnly,
       toggleConnection, 
       updateConnectionSettings,
       clearConnectionSettings,

@@ -47,7 +47,7 @@ function buildPlatformDataSummary(connections: { id: string; status: string; set
 
 export function Audiences() {
   const { t, dir } = useLanguage();
-  const { connections, dataOwnerUid } = useConnections();
+  const { connections, dataOwnerUid, isWorkspaceReadOnly } = useConnections();
   const [audiences, setAudiences] = useState<Audience[]>([]);
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState<string | null>(null);
@@ -130,6 +130,7 @@ export function Audiences() {
   };
 
   const openCreate = (prefill?: Partial<typeof form> | AudienceRecommendation) => {
+    if (isWorkspaceReadOnly) return;
     if (prefill && 'suggestedName' in prefill) {
       const r = prefill as AudienceRecommendation;
       const platformMap = { Google: 'google' as const, Meta: 'meta' as const, TikTok: 'tiktok' as const, cross: 'meta' as const };
@@ -158,6 +159,7 @@ export function Audiences() {
   };
 
   const openEdit = (a: Audience) => {
+    if (isWorkspaceReadOnly) return;
     setForm({
       name: a.name,
       platform: a.platform,
@@ -171,6 +173,10 @@ export function Audiences() {
   };
 
   const handleSave = async () => {
+    if (isWorkspaceReadOnly) {
+      showToast('אין הרשאת עריכה. המשתמש מוגדר לצפייה בלבד.');
+      return;
+    }
     if (!uid || !form.name.trim()) {
       showToast('יש להזין שם קהל.');
       return;
@@ -201,6 +207,10 @@ export function Audiences() {
   };
 
   const handleDelete = async (id: string) => {
+    if (isWorkspaceReadOnly) {
+      showToast('אין הרשאת עריכה. המשתמש מוגדר לצפייה בלבד.');
+      return;
+    }
     if (!uid || !window.confirm('למחוק את הקהל?')) return;
     try {
       await deleteAudience(uid, id);
@@ -213,6 +223,10 @@ export function Audiences() {
   };
 
   const handleSyncToPlatform = async (a: Audience) => {
+    if (isWorkspaceReadOnly) {
+      showToast('אין הרשאת עריכה. המשתמש מוגדר לצפייה בלבד.');
+      return;
+    }
     if (!uid) return;
     setSyncingId(a.id);
     try {
@@ -241,6 +255,11 @@ export function Audiences() {
           {toast}
         </div>
       )}
+      {isWorkspaceReadOnly && (
+        <div className="bg-amber-50 border border-amber-200 text-amber-800 px-4 py-3 rounded-xl text-sm font-bold">
+          מצב צפייה בלבד פעיל. לא ניתן לערוך קהלים בחשבון זה.
+        </div>
+      )}
 
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
@@ -256,7 +275,11 @@ export function Audiences() {
             {recommendationsLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
             המלצות מ-AI
           </button>
-          <button onClick={() => openCreate()} className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors text-sm font-medium">
+          <button
+            onClick={() => openCreate()}
+            disabled={isWorkspaceReadOnly}
+            className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors text-sm font-medium disabled:opacity-50"
+          >
             <Plus className="w-4 h-4" />
             צור קהל
           </button>
@@ -331,8 +354,8 @@ export function Audiences() {
                         ) : (
                           <button
                             onClick={() => handleSyncToPlatform(aud)}
-                            disabled={syncingId === aud.id}
-                            className="text-indigo-600 hover:text-indigo-700 text-xs font-medium flex items-center gap-1"
+                            disabled={syncingId === aud.id || isWorkspaceReadOnly}
+                            className="text-indigo-600 hover:text-indigo-700 text-xs font-medium flex items-center gap-1 disabled:opacity-40"
                           >
                             {syncingId === aud.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <Send className="w-3 h-3" />}
                             ייצר לפלטפורמה
@@ -340,10 +363,18 @@ export function Audiences() {
                         )}
                       </td>
                       <td className="px-6 py-4 flex gap-1 justify-end">
-                        <button onClick={() => openEdit(aud)} className="p-1.5 text-gray-500 hover:text-indigo-600 rounded">
+                        <button
+                          onClick={() => openEdit(aud)}
+                          disabled={isWorkspaceReadOnly}
+                          className="p-1.5 text-gray-500 hover:text-indigo-600 rounded disabled:opacity-40"
+                        >
                           <Pencil className="w-4 h-4" />
                         </button>
-                        <button onClick={() => handleDelete(aud.id)} className="p-1.5 text-gray-500 hover:text-red-600 rounded">
+                        <button
+                          onClick={() => handleDelete(aud.id)}
+                          disabled={isWorkspaceReadOnly}
+                          className="p-1.5 text-gray-500 hover:text-red-600 rounded disabled:opacity-40"
+                        >
                           <Trash2 className="w-4 h-4" />
                         </button>
                       </td>
@@ -386,7 +417,8 @@ export function Audiences() {
                       onClick={() => {
                         openCreate(rec);
                       }}
-                      className="text-amber-300 hover:text-amber-200 text-xs font-bold flex items-center gap-1"
+                      disabled={isWorkspaceReadOnly}
+                      className="text-amber-300 hover:text-amber-200 text-xs font-bold flex items-center gap-1 disabled:opacity-40"
                     >
                       צור קהל <ArrowLeft className="w-3 h-3" />
                     </button>
@@ -477,14 +509,22 @@ export function Audiences() {
             </div>
             <div className="p-6 border-t border-gray-200 flex justify-end gap-2">
               {editingId && (
-                <button onClick={() => handleDelete(editingId)} className="px-4 py-2 text-red-600 border border-red-200 rounded-lg text-sm font-medium hover:bg-red-50">
+                <button
+                  onClick={() => handleDelete(editingId)}
+                  disabled={isWorkspaceReadOnly}
+                  className="px-4 py-2 text-red-600 border border-red-200 rounded-lg text-sm font-medium hover:bg-red-50 disabled:opacity-40"
+                >
                   מחק
                 </button>
               )}
               <button onClick={() => setModalOpen(false)} className="px-4 py-2 text-gray-700 border border-gray-200 rounded-lg text-sm font-medium hover:bg-gray-50">
                 ביטול
               </button>
-              <button onClick={handleSave} className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700">
+              <button
+                onClick={handleSave}
+                disabled={isWorkspaceReadOnly}
+                className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 disabled:opacity-40"
+              >
                 {editingId ? 'עדכן' : 'צור קהל'}
               </button>
             </div>

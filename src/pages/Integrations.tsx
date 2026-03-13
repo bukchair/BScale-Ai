@@ -31,7 +31,16 @@ export function Integrations({ userProfile }: { userProfile?: { role?: string; s
   const isAdmin = userProfile?.role === 'admin';
   const isDemo = userProfile?.subscriptionStatus === 'demo';
   const { t, dir } = useLanguage();
-  const { connections, toggleConnection, updateConnectionSettings, clearConnectionSettings, resetAllConnections, testConnection, migrateAiConnectionsFromUser } = useConnections();
+  const {
+    connections,
+    toggleConnection,
+    updateConnectionSettings,
+    clearConnectionSettings,
+    resetAllConnections,
+    testConnection,
+    migrateAiConnectionsFromUser,
+    isWorkspaceReadOnly,
+  } = useConnections();
   const [error, setError] = useState<{ id: string; message: string } | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [formValues, setFormValues] = useState<Record<string, string>>({});
@@ -40,8 +49,20 @@ export function Integrations({ userProfile }: { userProfile?: { role?: string; s
   const [success, setSuccess] = useState<string | null>(null);
 
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+  const blockIfReadOnly = (): boolean => {
+    if (!isWorkspaceReadOnly) return false;
+    setToast({
+      message:
+        languageSafeText(t('integrations.readOnlyWorkspace'), 'Workspace is view only for this user.'),
+      type: 'error',
+    });
+    setTimeout(() => setToast(null), 3000);
+    return true;
+  };
+  const languageSafeText = (value: string, fallback: string) => (value && value !== 'integrations.readOnlyWorkspace' ? value : fallback);
 
   const handleMigrateAi = async () => {
+    if (blockIfReadOnly()) return;
     try {
       const result = await migrateAiConnectionsFromUser();
       setToast({ message: result.message, type: result.success ? 'success' : 'error' });
@@ -53,6 +74,7 @@ export function Integrations({ userProfile }: { userProfile?: { role?: string; s
   };
 
   const handleTikTokConnect = async () => {
+    if (blockIfReadOnly()) return;
     try {
       const response = await fetch(`${import.meta.env.VITE_APP_URL}/api/auth/tiktok/url`);
       if (!response.ok) throw new Error('Failed to get auth URL');
@@ -76,6 +98,7 @@ export function Integrations({ userProfile }: { userProfile?: { role?: string; s
   };
 
   const handleMetaConnect = async () => {
+    if (blockIfReadOnly()) return;
     try {
       const response = await fetch(`${import.meta.env.VITE_APP_URL}/api/auth/meta/url`);
       if (!response.ok) throw new Error('Failed to get auth URL');
@@ -99,6 +122,7 @@ export function Integrations({ userProfile }: { userProfile?: { role?: string; s
   };
 
   const handleGoogleConnect = async () => {
+    if (blockIfReadOnly()) return;
     try {
       const base = (typeof import.meta.env.VITE_APP_URL === 'string' && import.meta.env.VITE_APP_URL) || '';
       const response = await fetch(`${base}/api/auth/google/url`);
@@ -187,6 +211,7 @@ export function Integrations({ userProfile }: { userProfile?: { role?: string; s
   }, [formValues]);
 
   const handleExpand = (integration: Connection) => {
+    if (isWorkspaceReadOnly) return;
     if (expandedId === integration.id) {
       setExpandedId(null);
     } else {
@@ -197,10 +222,12 @@ export function Integrations({ userProfile }: { userProfile?: { role?: string; s
   };
 
   const handleInputChange = (key: string, value: string) => {
+    if (isWorkspaceReadOnly) return;
     setFormValues(prev => ({ ...prev, [key]: value }));
   };
 
   const handleSave = async (id: string, overrideSettings?: Record<string, string>) => {
+    if (blockIfReadOnly()) return;
     setError(null);
     setSuccess(null);
     const settingsToSave = overrideSettings || formValues;
@@ -216,6 +243,7 @@ export function Integrations({ userProfile }: { userProfile?: { role?: string; s
   };
 
   const handleTest = async (id: string) => {
+    if (blockIfReadOnly()) return;
     setTestingId(id);
     setError(null);
     setSuccess(null);
@@ -243,6 +271,7 @@ export function Integrations({ userProfile }: { userProfile?: { role?: string; s
   };
 
   const handleToggle = async (id: string, subId?: string) => {
+    if (blockIfReadOnly()) return;
     setError(null);
     try {
       await toggleConnection(id, subId);
@@ -929,6 +958,11 @@ export function Integrations({ userProfile }: { userProfile?: { role?: string; s
 
       {/* Sections */}
       <div className="max-w-7xl mx-auto space-y-10 pb-12">
+        {isWorkspaceReadOnly && (
+          <div className="bg-amber-50 border-2 border-amber-200 p-4 rounded-2xl text-sm font-bold text-amber-800">
+            מצב צפייה בלבד פעיל. המשתמש יכול לצפות בנתונים אך לא לערוך חיבורים או הגדרות.
+          </div>
+        )}
         {aiConnections.length > 0 && (
           <section>
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-5">

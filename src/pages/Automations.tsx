@@ -30,7 +30,7 @@ const activities = [
 
 export function Automations() {
   const { t, dir } = useLanguage();
-  const { dataOwnerUid } = useConnections();
+  const { dataOwnerUid, isWorkspaceReadOnly } = useConnections();
   const [activeTab, setActiveTab] = useState<'approvals' | 'rules' | 'log' | 'auto-ads'>('approvals');
   const [searchTerm, setSearchTerm] = useState('');
   const [autoSchedule, setAutoSchedule] = useState<AutoAdsSchedule | null>(null);
@@ -61,6 +61,7 @@ export function Automations() {
   }, [uid]);
 
   const handleSaveAutoSchedule = async () => {
+    if (isWorkspaceReadOnly) return;
     if (!uid) return;
     setAutoScheduleSaving(true);
     const now = new Date().toISOString();
@@ -85,6 +86,7 @@ export function Automations() {
   };
 
   const handleRunNow = async () => {
+    if (isWorkspaceReadOnly) return;
     if (!uid) return;
     const result = await runAutoAdsIfNeeded(uid);
     setLastRunResult(result);
@@ -93,6 +95,11 @@ export function Automations() {
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
+      {isWorkspaceReadOnly && (
+        <div className="bg-amber-50 border border-amber-200 text-amber-800 px-4 py-3 rounded-xl text-sm font-bold">
+          מצב צפייה בלבד פעיל. לא ניתן לערוך אוטומציות בחשבון זה.
+        </div>
+      )}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">{t('nav.approvalsAutomations') || 'אישורים / אוטומציות'}</h1>
@@ -322,14 +329,15 @@ export function Automations() {
                 <div className="flex flex-wrap gap-3 pt-2">
                   <button
                     onClick={handleSaveAutoSchedule}
-                    disabled={autoScheduleSaving}
+                    disabled={autoScheduleSaving || isWorkspaceReadOnly}
                     className="px-4 py-2 bg-indigo-600 text-white rounded-lg font-medium hover:bg-indigo-700 disabled:opacity-50 text-sm"
                   >
                     {autoScheduleSaving ? 'שומר...' : 'שמור הגדרות'}
                   </button>
                   <button
                     onClick={handleRunNow}
-                    className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg font-medium hover:bg-gray-200 text-sm flex items-center gap-2"
+                    disabled={isWorkspaceReadOnly}
+                    className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg font-medium hover:bg-gray-200 text-sm flex items-center gap-2 disabled:opacity-50"
                   >
                     <RefreshCw className="w-4 h-4" /> הרץ עכשיו
                   </button>

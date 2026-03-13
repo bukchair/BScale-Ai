@@ -26,7 +26,7 @@ type OrderStatus = (typeof ORDER_STATUSES)[number];
 type StatusFilter = 'all' | OrderStatus;
 
 export function Orders() {
-  const { connections } = useConnections();
+  const { connections, isWorkspaceReadOnly } = useConnections();
   const { t, dir } = useLanguage();
   const { format: formatCurrency } = useCurrency();
   const { startDate, endDate } = useDateRangeBounds();
@@ -97,6 +97,7 @@ export function Orders() {
   };
 
   const handleOrderStatusChange = async (orderId: number, nextStatus: OrderStatus) => {
+    if (isWorkspaceReadOnly) return;
     if (!storeUrl || !wooKey || !wooSecret) return;
     const targetOrder = orders.find((order) => order.id === orderId);
     if (!targetOrder || targetOrder.status === nextStatus) return;
@@ -322,6 +323,11 @@ export function Orders() {
         <div className="flex flex-col sm:flex-row gap-3 sm:items-center sm:justify-between">
           <div className="flex items-center gap-2">
             <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">סטטוס</span>
+            {isWorkspaceReadOnly && (
+              <span className="text-[10px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full">
+                צפייה בלבד
+              </span>
+            )}
             <div className="flex flex-wrap gap-1.5">
               {(['all', ...ORDER_STATUSES] as StatusFilter[]).map(
                 (status) => (
@@ -430,7 +436,7 @@ export function Orders() {
                           <select
                             value={statusValue}
                             onChange={(e) => handleOrderStatusChange(o.id, e.target.value as OrderStatus)}
-                            disabled={isUpdatingStatus}
+                            disabled={isUpdatingStatus || isWorkspaceReadOnly}
                             className="w-full border border-gray-200 bg-white rounded-lg px-2 py-1 text-[11px] text-gray-700 font-semibold disabled:opacity-60"
                             aria-label={`עדכון סטטוס הזמנה ${o.number}`}
                           >
