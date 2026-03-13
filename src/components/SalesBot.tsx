@@ -10,7 +10,7 @@ type ChatMessage = {
   text: string;
 };
 
-type QuickAction = 'leads' | 'sales' | 'roas' | 'analysis';
+type QuickAction = 'leads' | 'sales' | 'support' | 'roas' | 'analysis';
 
 type NeedsFormState = {
   name: string;
@@ -29,6 +29,7 @@ type BotCopy = {
   send: string;
   quickLeads: string;
   quickSales: string;
+  quickSupport: string;
   quickRoas: string;
   quickAnalysis: string;
   cta: string;
@@ -52,6 +53,7 @@ type BotCopy = {
   openAria: string;
   respLeads: string;
   respSales: string;
+  respSupport: string;
   respRoas: string;
   respDefault: string;
   analysisPrompt: string;
@@ -64,7 +66,8 @@ const COPY: Record<Language, BotCopy> = {
     chatPlaceholder: 'כתוב מה אתה רוצה לשפר בפרסום או במכירות...',
     send: 'שלח',
     quickLeads: 'יותר לידים',
-    quickSales: 'יותר מכירות',
+    quickSales: 'מכירה',
+    quickSupport: 'תמיכה טכנית',
     quickRoas: 'שיפור ROAS',
     quickAnalysis: 'ניתוח צרכים',
     cta: 'אם זה רלוונטי, מלא את ניתוח הצרכים ונבנה לך תוכנית פעולה מותאמת.',
@@ -88,6 +91,7 @@ const COPY: Record<Language, BotCopy> = {
     openAria: 'פתח צאט מכירות',
     respLeads: 'כדי להגדיל לידים צריך לחדד הצעה, קהל ומסר. נבנה עבורך מהלך פשוט שמייצר פניות איכותיות.',
     respSales: 'כדי להגדיל מכירות צריך חיבור בין קמפיינים, משפך וקריאייטיב. אפשר לשפר תוצאות מהר כשפועלים לפי נתונים.',
+    respSupport: 'מעולה, תמיכה טכנית כאן לעזור. כתוב מה לא עובד, באיזה מסך, ומה השגיאה המדויקת כדי שנפתור מהר.',
     respRoas: 'שיפור ROAS מתחיל בהפחתת בזבוז תקציב והגדלת השקעה בקמפיינים מנצחים. נזהה יחד מה לעצור ומה להגדיל.',
     respDefault: 'נשמע טוב. כדי לתת המלצה אמיתית, אני צריך להבין מה אתה מוכר ומה היעד הקרוב שלך.',
     analysisPrompt: 'מעולה. מלא את ניתוח הצרכים ונעבור להצעה מדויקת.',
@@ -98,7 +102,8 @@ const COPY: Record<Language, BotCopy> = {
     chatPlaceholder: 'Write what you want to improve in sales or marketing...',
     send: 'Send',
     quickLeads: 'More leads',
-    quickSales: 'More sales',
+    quickSales: 'Sales',
+    quickSupport: 'Technical support',
     quickRoas: 'Improve ROAS',
     quickAnalysis: 'Needs analysis',
     cta: 'If relevant, fill the short needs analysis and we will build an action plan.',
@@ -122,6 +127,7 @@ const COPY: Record<Language, BotCopy> = {
     openAria: 'Open sales chat',
     respLeads: 'To increase leads, we need a sharper offer, audience and message. We can build a simple lead flow fast.',
     respSales: 'To increase sales, we align campaigns, funnel and creative. Data driven steps usually create quick wins.',
+    respSupport: 'Great, technical support is here to help. Share what is not working, on which screen, and the exact error.',
     respRoas: 'Improving ROAS starts with cutting waste and scaling winning campaigns. We can identify both quickly.',
     respDefault: 'Sounds good. To give a real recommendation, I need to understand what you sell and your immediate goal.',
     analysisPrompt: 'Great. Fill the needs analysis and we will move to a focused offer.',
@@ -132,7 +138,8 @@ const COPY: Record<Language, BotCopy> = {
     chatPlaceholder: 'Напишите, что хотите улучшить в маркетинге или продажах...',
     send: 'Отправить',
     quickLeads: 'Больше лидов',
-    quickSales: 'Больше продаж',
+    quickSales: 'Продажи',
+    quickSupport: 'Техподдержка',
     quickRoas: 'Улучшить ROAS',
     quickAnalysis: 'Анализ потребностей',
     cta: 'Заполните короткий анализ и мы подготовим план действий.',
@@ -156,6 +163,7 @@ const COPY: Record<Language, BotCopy> = {
     openAria: 'Открыть чат продаж',
     respLeads: 'Для роста лидов нужно уточнить оффер, аудиторию и сообщение. Это дает быстрый эффект.',
     respSales: 'Для роста продаж важно связать кампании, воронку и креатив в одну систему.',
+    respSupport: 'Отлично, техническая поддержка на связи. Опишите, что не работает, на каком экране и какой текст ошибки.',
     respRoas: 'Рост ROAS начинается со снижения потерь и усиления эффективных кампаний.',
     respDefault: 'Хорошо. Чтобы дать точную рекомендацию, нужно понять продукт и ближайшую цель.',
     analysisPrompt: 'Отлично. Заполните анализ потребностей и перейдем к точному предложению.',
@@ -166,7 +174,8 @@ const COPY: Record<Language, BotCopy> = {
     chatPlaceholder: 'Escreva o que você quer melhorar em marketing ou vendas...',
     send: 'Enviar',
     quickLeads: 'Mais leads',
-    quickSales: 'Mais vendas',
+    quickSales: 'Vendas',
+    quickSupport: 'Suporte tecnico',
     quickRoas: 'Melhorar ROAS',
     quickAnalysis: 'Analise de necessidades',
     cta: 'Preencha a analise curta e montamos um plano de ação.',
@@ -190,6 +199,7 @@ const COPY: Record<Language, BotCopy> = {
     openAria: 'Abrir chat de vendas',
     respLeads: 'Para gerar mais leads precisamos ajustar oferta, publico e mensagem.',
     respSales: 'Para vender mais, alinhamos campanhas, funil e criativo com foco em conversão.',
+    respSupport: 'Perfeito, suporte tecnico aqui. Escreva o que nao funciona, em qual tela, e a mensagem de erro.',
     respRoas: 'Melhorar ROAS começa com menos desperdicio e mais verba no que performa.',
     respDefault: 'Perfeito. Para recomendação real, preciso entender seu produto e sua meta imediata.',
     analysisPrompt: 'Ótimo. Preencha a analise de necessidades para avançarmos com proposta objetiva.',
@@ -200,7 +210,8 @@ const COPY: Record<Language, BotCopy> = {
     chatPlaceholder: 'Ecrivez ce que vous voulez améliorer en marketing ou ventes...',
     send: 'Envoyer',
     quickLeads: 'Plus de leads',
-    quickSales: 'Plus de ventes',
+    quickSales: 'Ventes',
+    quickSupport: 'Support technique',
     quickRoas: 'Améliorer le ROAS',
     quickAnalysis: 'Analyse des besoins',
     cta: 'Remplissez la courte analyse et nous construirons un plan d action.',
@@ -224,6 +235,7 @@ const COPY: Record<Language, BotCopy> = {
     openAria: 'Ouvrir le chat commercial',
     respLeads: 'Pour obtenir plus de leads, il faut clarifier l offre, l audience et le message.',
     respSales: 'Pour vendre plus, il faut aligner campagnes, tunnel et créatifs sur un objectif conversion.',
+    respSupport: 'Parfait, le support technique est la. Dites ce qui ne fonctionne pas, sur quel écran, et le message d erreur.',
     respRoas: 'Améliorer le ROAS commence par réduire le gaspillage et renforcer les campagnes gagnantes.',
     respDefault: 'Très bien. Pour une recommandation utile, je dois comprendre votre produit et votre objectif immédiat.',
     analysisPrompt: 'Parfait. Remplissez l analyse des besoins et nous passons a une offre ciblée.',
@@ -255,6 +267,7 @@ export function SalesBot() {
     () => [
       { id: 'leads' as QuickAction, label: copy.quickLeads },
       { id: 'sales' as QuickAction, label: copy.quickSales },
+      { id: 'support' as QuickAction, label: copy.quickSupport },
       { id: 'roas' as QuickAction, label: copy.quickRoas },
       { id: 'analysis' as QuickAction, label: copy.quickAnalysis },
     ],
@@ -291,10 +304,23 @@ export function SalesBot() {
     if (
       q.includes('sale') ||
       q.includes('מכירות') ||
+      q.includes('מכירה') ||
       q.includes('продаж') ||
       q.includes('vendas')
     ) {
       return `${copy.respSales}\n\n${copy.cta}`;
+    }
+    if (
+      q.includes('support') ||
+      q.includes('תמיכה') ||
+      q.includes('תקלה') ||
+      q.includes('error') ||
+      q.includes('שגיאה') ||
+      q.includes('тех') ||
+      q.includes('suporte') ||
+      q.includes('support technique')
+    ) {
+      return `${copy.respSupport}\n\n${copy.cta}`;
     }
     if (q.includes('roas') || q.includes('roi') || q.includes('רווח')) {
       return `${copy.respRoas}\n\n${copy.cta}`;
@@ -317,7 +343,9 @@ export function SalesBot() {
         ? copy.respLeads
         : action === 'sales'
           ? copy.respSales
-          : copy.respRoas;
+          : action === 'support'
+            ? copy.respSupport
+            : copy.respRoas;
 
     appendMessage('bot', `${response}\n\n${copy.cta}`);
   };
