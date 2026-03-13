@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Bot, MessageCircle, Send, Sparkles, X } from 'lucide-react';
 import { useLanguage, type Language } from '../contexts/LanguageContext';
 import { cn } from '../lib/utils';
@@ -10,7 +10,7 @@ type ChatMessage = {
   text: string;
 };
 
-type QuickAction = 'leads' | 'sales' | 'support' | 'roas' | 'analysis';
+type QuickAction = 'leads' | 'sales' | 'support' | 'roas' | 'analysis' | 'leadForm';
 
 type NeedsFormState = {
   name: string;
@@ -32,6 +32,7 @@ type BotCopy = {
   quickSupport: string;
   quickRoas: string;
   quickAnalysis: string;
+  quickLeadForm: string;
   cta: string;
   needAnalysisTitle: string;
   needAnalysisHint: string;
@@ -57,6 +58,8 @@ type BotCopy = {
   respRoas: string;
   respDefault: string;
   analysisPrompt: string;
+  leadPrompt: string;
+  liveNow: string;
 };
 
 const COPY: Record<Language, BotCopy> = {
@@ -70,6 +73,7 @@ const COPY: Record<Language, BotCopy> = {
     quickSupport: 'תמיכה טכנית',
     quickRoas: 'שיפור ROAS',
     quickAnalysis: 'ניתוח צרכים',
+    quickLeadForm: 'השלמת הרשמת ליד',
     cta: 'אם זה רלוונטי, מלא את ניתוח הצרכים ונבנה לך תוכנית פעולה מותאמת.',
     needAnalysisTitle: 'ניתוח צרכים קצר',
     needAnalysisHint: 'מילוי קצר של הפרטים עוזר לנו להחזיר לך הצעה מדויקת.',
@@ -95,6 +99,8 @@ const COPY: Record<Language, BotCopy> = {
     respRoas: 'שיפור ROAS מתחיל בהפחתת בזבוז תקציב והגדלת השקעה בקמפיינים מנצחים. נזהה יחד מה לעצור ומה להגדיל.',
     respDefault: 'נשמע טוב. כדי לתת המלצה אמיתית, אני צריך להבין מה אתה מוכר ומה היעד הקרוב שלך.',
     analysisPrompt: 'מעולה. מלא את ניתוח הצרכים ונעבור להצעה מדויקת.',
+    leadPrompt: 'מצוין. נשלים עכשיו הרשמת ליד קצרה כדי שנחזור אליך עם מענה מדויק ומהיר.',
+    liveNow: 'צאט לייב',
   },
   en: {
     title: 'BScale Sales Chat',
@@ -106,6 +112,7 @@ const COPY: Record<Language, BotCopy> = {
     quickSupport: 'Technical support',
     quickRoas: 'Improve ROAS',
     quickAnalysis: 'Needs analysis',
+    quickLeadForm: 'Complete lead signup',
     cta: 'If relevant, fill the short needs analysis and we will build an action plan.',
     needAnalysisTitle: 'Quick needs analysis',
     needAnalysisHint: 'A short form helps us return with a focused offer.',
@@ -131,6 +138,8 @@ const COPY: Record<Language, BotCopy> = {
     respRoas: 'Improving ROAS starts with cutting waste and scaling winning campaigns. We can identify both quickly.',
     respDefault: 'Sounds good. To give a real recommendation, I need to understand what you sell and your immediate goal.',
     analysisPrompt: 'Great. Fill the needs analysis and we will move to a focused offer.',
+    leadPrompt: 'Great. Let us complete a short lead signup so we can get back to you quickly with a focused plan.',
+    liveNow: 'Live chat',
   },
   ru: {
     title: 'BScale Sales Chat',
@@ -142,6 +151,7 @@ const COPY: Record<Language, BotCopy> = {
     quickSupport: 'Техподдержка',
     quickRoas: 'Улучшить ROAS',
     quickAnalysis: 'Анализ потребностей',
+    quickLeadForm: 'Завершить регистрацию лида',
     cta: 'Заполните короткий анализ и мы подготовим план действий.',
     needAnalysisTitle: 'Короткий анализ потребностей',
     needAnalysisHint: 'Короткая форма помогает дать точное предложение.',
@@ -167,6 +177,8 @@ const COPY: Record<Language, BotCopy> = {
     respRoas: 'Рост ROAS начинается со снижения потерь и усиления эффективных кампаний.',
     respDefault: 'Хорошо. Чтобы дать точную рекомендацию, нужно понять продукт и ближайшую цель.',
     analysisPrompt: 'Отлично. Заполните анализ потребностей и перейдем к точному предложению.',
+    leadPrompt: 'Отлично. Заполним короткую форму лида и мы быстро вернемся с точным решением.',
+    liveNow: 'Живой чат',
   },
   pt: {
     title: 'BScale Sales Chat',
@@ -178,6 +190,7 @@ const COPY: Record<Language, BotCopy> = {
     quickSupport: 'Suporte tecnico',
     quickRoas: 'Melhorar ROAS',
     quickAnalysis: 'Analise de necessidades',
+    quickLeadForm: 'Concluir cadastro de lead',
     cta: 'Preencha a analise curta e montamos um plano de ação.',
     needAnalysisTitle: 'Analise rapida de necessidades',
     needAnalysisHint: 'Uma forma curta ajuda a entregar proposta mais precisa.',
@@ -203,6 +216,8 @@ const COPY: Record<Language, BotCopy> = {
     respRoas: 'Melhorar ROAS começa com menos desperdicio e mais verba no que performa.',
     respDefault: 'Perfeito. Para recomendação real, preciso entender seu produto e sua meta imediata.',
     analysisPrompt: 'Ótimo. Preencha a analise de necessidades para avançarmos com proposta objetiva.',
+    leadPrompt: 'Ótimo. Vamos concluir um cadastro curto de lead para retornarmos rápido com um plano objetivo.',
+    liveNow: 'Chat ao vivo',
   },
   fr: {
     title: 'BScale Sales Chat',
@@ -214,6 +229,7 @@ const COPY: Record<Language, BotCopy> = {
     quickSupport: 'Support technique',
     quickRoas: 'Améliorer le ROAS',
     quickAnalysis: 'Analyse des besoins',
+    quickLeadForm: 'Finaliser l inscription du lead',
     cta: 'Remplissez la courte analyse et nous construirons un plan d action.',
     needAnalysisTitle: 'Analyse rapide des besoins',
     needAnalysisHint: 'Un court formulaire permet de revenir avec une offre ciblée.',
@@ -239,6 +255,8 @@ const COPY: Record<Language, BotCopy> = {
     respRoas: 'Améliorer le ROAS commence par réduire le gaspillage et renforcer les campagnes gagnantes.',
     respDefault: 'Très bien. Pour une recommandation utile, je dois comprendre votre produit et votre objectif immédiat.',
     analysisPrompt: 'Parfait. Remplissez l analyse des besoins et nous passons a une offre ciblée.',
+    leadPrompt: 'Parfait. Finalisons un court formulaire de lead et nous revenons vite avec un plan ciblé.',
+    liveNow: 'Chat en direct',
   },
 };
 
@@ -261,7 +279,10 @@ export function SalesBot() {
   const [showAnalysis, setShowAnalysis] = useState(false);
   const [form, setForm] = useState<NeedsFormState>(INITIAL_FORM);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isBotTyping, setIsBotTyping] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const messagesEndRef = useRef<HTMLDivElement | null>(null);
+  const typingTimeoutsRef = useRef<number[]>([]);
 
   const quickActions = useMemo(
     () => [
@@ -278,8 +299,32 @@ export function SalesBot() {
     setMessages([{ id: 'greeting', from: 'bot', text: copy.greeting }]);
   }, [copy.greeting]);
 
+  useEffect(() => {
+    return () => {
+      typingTimeoutsRef.current.forEach((timeoutId) => window.clearTimeout(timeoutId));
+      typingTimeoutsRef.current = [];
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+  }, [messages, isBotTyping, isOpen, showAnalysis, submitError]);
+
   const appendMessage = (from: 'bot' | 'user', text: string) => {
     setMessages((prev) => [...prev, { id: `${from}-${Date.now()}`, from, text }]);
+  };
+
+  const appendBotMessageWithTyping = (text: string, delayMs = 800) => {
+    setIsBotTyping(true);
+    const timeoutId = window.setTimeout(() => {
+      appendMessage('bot', text);
+      typingTimeoutsRef.current = typingTimeoutsRef.current.filter((id) => id !== timeoutId);
+      if (typingTimeoutsRef.current.length === 0) {
+        setIsBotTyping(false);
+      }
+    }, delayMs);
+    typingTimeoutsRef.current.push(timeoutId);
   };
 
   const normalize = (value: string) =>
@@ -332,8 +377,8 @@ export function SalesBot() {
     appendMessage('user', label);
     setSubmitError(null);
 
-    if (action === 'analysis') {
-      appendMessage('bot', copy.analysisPrompt);
+    if (action === 'analysis' || action === 'leadForm') {
+      appendBotMessageWithTyping(action === 'leadForm' ? copy.leadPrompt : copy.analysisPrompt, 700);
       setShowAnalysis(true);
       return;
     }
@@ -347,7 +392,7 @@ export function SalesBot() {
             ? copy.respSupport
             : copy.respRoas;
 
-    appendMessage('bot', `${response}\n\n${copy.cta}`);
+    appendBotMessageWithTyping(`${response}\n\n${copy.cta}`);
   };
 
   const handleSend = () => {
@@ -356,7 +401,7 @@ export function SalesBot() {
     appendMessage('user', text);
     setInput('');
     setSubmitError(null);
-    appendMessage('bot', getSalesResponse(text));
+    appendBotMessageWithTyping(getSalesResponse(text));
   };
 
   const handleSubmitAnalysis = async () => {
@@ -390,7 +435,7 @@ export function SalesBot() {
         assignedAdminEmail: ADMIN_SALES_EMAIL,
       });
 
-      appendMessage('bot', copy.success);
+      appendBotMessageWithTyping(copy.success, 500);
       setForm(INITIAL_FORM);
       setShowAnalysis(false);
     } catch (error) {
@@ -413,6 +458,10 @@ export function SalesBot() {
             <div className="flex items-center gap-2">
               <Bot className="w-4 h-4" />
               <p className="text-sm font-bold">{copy.title}</p>
+              <span className="inline-flex items-center gap-1 rounded-full bg-white/20 px-2 py-0.5 text-[10px] font-bold">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-300 animate-pulse" />
+                {copy.liveNow}
+              </span>
             </div>
             <button onClick={() => setIsOpen(false)} className="p-1 rounded-md hover:bg-white/15 transition-colors">
               <X className="w-4 h-4" />
@@ -433,6 +482,14 @@ export function SalesBot() {
                 {message.text}
               </div>
             ))}
+            {isBotTyping && (
+              <div className="rounded-xl px-3 py-2 text-sm max-w-[92%] bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-white/10 text-gray-700 dark:text-gray-200 inline-flex items-center gap-1.5">
+                <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-pulse" />
+                <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-pulse [animation-delay:150ms]" />
+                <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-pulse [animation-delay:300ms]" />
+              </div>
+            )}
+            <div ref={messagesEndRef} />
           </div>
 
           <div className="p-3 border-t border-gray-100 dark:border-white/10 bg-white dark:bg-[#111] space-y-3">
@@ -447,6 +504,12 @@ export function SalesBot() {
                 </button>
               ))}
             </div>
+            <button
+              onClick={() => handleQuickAction('leadForm', copy.quickLeadForm)}
+              className="w-full rounded-lg border border-indigo-200 bg-indigo-50 text-indigo-800 py-2 text-xs font-bold hover:bg-indigo-100 transition-colors"
+            >
+              {copy.quickLeadForm}
+            </button>
 
             <div className="flex items-center gap-2">
               <input
