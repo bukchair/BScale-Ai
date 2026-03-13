@@ -4,6 +4,12 @@ const API_BASE =
     import.meta.env.VITE_APP_URL) ||
   '';
 
+const sanitizeWooErrorText = (value: string): string =>
+  value
+    .replace(/<[^>]*>/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
 export async function verifyWooCommerceConnection(url: string, key: string, secret: string) {
   if (!url || !key || !secret || key === 'mock' || secret === 'mock') {
     throw new Error('Missing or invalid credentials');
@@ -139,6 +145,47 @@ export async function updateWooCommerceProduct(url: string, key: string, secret:
     return await response.json();
   } catch (error) {
     console.error("WooCommerce Update Error:", error);
+    throw error;
+  }
+}
+
+export async function updateWooCommerceOrderStatus(
+  url: string,
+  key: string,
+  secret: string,
+  orderId: number,
+  status: string
+) {
+  try {
+    const response = await fetch(`${API_BASE}/api/proxy/woocommerce`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url, key, secret, endpoint: `orders/${orderId}`, method: 'PUT', data: { status } })
+    });
+
+    const text = await response.text();
+    let payload: any = null;
+
+    if (text) {
+      try {
+        payload = JSON.parse(text);
+      } catch {
+        if (!response.ok) {
+          throw new Error(`WooCommerce API Error (${response.status})`);
+        }
+      }
+    }
+
+    if (!response.ok) {
+      const rawMessage =
+        (payload && typeof payload.message === 'string' && payload.message) ||
+        `WooCommerce API Error (${response.status})`;
+      throw new Error(sanitizeWooErrorText(rawMessage));
+    }
+
+    return payload;
+  } catch (error) {
+    console.error('WooCommerce Order Status Update Error:', error);
     throw error;
   }
 }

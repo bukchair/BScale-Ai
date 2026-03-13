@@ -3,7 +3,11 @@ import { useConnections } from '../contexts/ConnectionsContext';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useCurrency } from '../contexts/CurrencyContext';
 import { useDateRangeBounds } from '../contexts/DateRangeContext';
-import { fetchWooCommerceOrdersByRange, type WooCommerceOrder } from '../services/woocommerceService';
+import {
+  fetchWooCommerceOrdersByRange,
+  updateWooCommerceOrderStatus,
+  type WooCommerceOrder
+} from '../services/woocommerceService';
 import { cn } from '../lib/utils';
 import {
   Loader2,
@@ -17,7 +21,9 @@ import {
   CalendarDays
 } from 'lucide-react';
 
-type StatusFilter = 'all' | 'pending' | 'processing' | 'completed' | 'cancelled' | 'refunded' | 'failed';
+const ORDER_STATUSES = ['pending', 'processing', 'on-hold', 'completed', 'cancelled', 'refunded', 'failed'] as const;
+type OrderStatus = (typeof ORDER_STATUSES)[number];
+type StatusFilter = 'all' | OrderStatus;
 
 export function Orders() {
   const { connections } = useConnections();
@@ -29,6 +35,7 @@ export function Orders() {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [updatingOrderId, setUpdatingOrderId] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [lastSyncedAt, setLastSyncedAt] = useState<Date | null>(null);
   const [syncTick, setSyncTick] = useState(0);
@@ -86,6 +93,32 @@ export function Orders() {
       setError(`שגיאה בטעינת הזמנות מ‑WooCommerce: ${cleanError(message)}`);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleOrderStatusChange = async (orderId: number, nextStatus: OrderStatus) => {
+    if (!storeUrl || !wooKey || !wooSecret) return;
+    const targetOrder = orders.find((order) => order.id === orderId);
+    if (!targetOrder || targetOrder.status === nextStatus) return;
+
+    const prevStatus = targetOrder.status;
+    setError(null);
+    setUpdatingOrderId(orderId);
+    setOrders((prev) =>
+      prev.map((order) => (order.id === orderId ? { ...order, status: nextStatus } : order))
+    );
+
+    try {
+      await updateWooCommerceOrderStatus(storeUrl, wooKey, wooSecret, orderId, nextStatus);
+      setLastSyncedAt(new Date());
+    } catch (e) {
+      const message = e instanceof Error ? e.message : 'שגיאה לא ידועה';
+      setOrders((prev) =>
+        prev.map((order) => (order.id === orderId ? { ...order, status: prevStatus } : order))
+      );
+      setError(`שגיאה בעדכון סטטוס הזמנה #${targetOrder.number}: ${cleanError(message)}`);
+    } finally {
+      setUpdatingOrderId(null);
     }
   };
 
@@ -290,7 +323,7 @@ export function Orders() {
           <div className="flex items-center gap-2">
             <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">סטטוס</span>
             <div className="flex flex-wrap gap-1.5">
-              {(['all', 'pending', 'processing', 'completed', 'cancelled', 'refunded', 'failed'] as StatusFilter[]).map(
+              {(['all', ...ORDER_STATUSES] as StatusFilter[]).map(
                 (status) => (
                   <button
                     key={status}
@@ -360,8 +393,14 @@ export function Orders() {
               ) : (
                 filtered.map((o) => {
                   const customerName = `${o.billing.first_name || ''} ${o.billing.last_name || ''}`.trim() || '—';
-                  const items = o.line_items.map((li) => `${li.name} x${li.quantity}`).join(' | ');
+                  const itemLines = o.line_items.map((li) => {
+                    const sku = li.sku ? ` | SKU: ${li.sku}` : '';
+                    const itemTotal = li.total ? ` | סה"כ: ${li.total} ${o.currency}` : '';
+                    return `${li.name}${sku} | כמות: ${li.quantity}${itemTotal}`;
+                  });
                   const customerNote = (o.customer_note || '').trim();
+                  const isUpdatingStatus = updatingOrderId === o.id;
+                  const statusValue = ORDER_STATUSES.includes(o.status as OrderStatus) ? (o.status as OrderStatus) : '';
                   return (
                     <tr key={o.id} className="border-b border-gray-100 hover:bg-gray-50/50">
                       <td className="px-3 py-2 font-mono text-[11px] text-gray-600">#{o.number}</td>
@@ -371,22 +410,48 @@ export function Orders() {
                       <td className="px-3 py-2 text-gray-900 font-medium">{customerName}</td>
                       <td className="px-3 py-2 text-gray-600">{o.billing.email || '—'}</td>
                       <td className="px-3 py-2">
-                        <span
-                          className={cn(
-                            'px-2 py-0.5 rounded-full text-[11px] font-bold capitalize',
-                            o.status === 'completed'
-                              ? 'bg-emerald-100 text-emerald-700'
-                              : o.status === 'processing'
-                              ? 'bg-sky-100 text-sky-700'
-                              : o.status === 'pending'
-                              ? 'bg-amber-100 text-amber-700'
-                              : o.status === 'cancelled' || o.status === 'refunded'
-                              ? 'bg-red-100 text-red-700'
-                              : 'bg-gray-100 text-gray-700'
+                        <div className="space-y-1.5 min-w-[150px]">
+                          <span
+                            className={cn(
+                              'inline-flex px-2 py-0.5 rounded-full text-[11px] font-bold capitalize',
+                              o.status === 'completed'
+                                ? 'bg-emerald-100 text-emerald-700'
+                                : o.status === 'processing'
+                                ? 'bg-sky-100 text-sky-700'
+                                : o.status === 'pending'
+                                ? 'bg-amber-100 text-amber-700'
+                                : o.status === 'cancelled' || o.status === 'refunded' || o.status === 'failed'
+                                ? 'bg-red-100 text-red-700'
+                                : 'bg-gray-100 text-gray-700'
+                            )}
+                          >
+                            {o.status}
+                          </span>
+                          <select
+                            value={statusValue}
+                            onChange={(e) => handleOrderStatusChange(o.id, e.target.value as OrderStatus)}
+                            disabled={isUpdatingStatus}
+                            className="w-full border border-gray-200 bg-white rounded-lg px-2 py-1 text-[11px] text-gray-700 font-semibold disabled:opacity-60"
+                            aria-label={`עדכון סטטוס הזמנה ${o.number}`}
+                          >
+                            {!statusValue && (
+                              <option value="" disabled>
+                                {o.status || 'unknown'}
+                              </option>
+                            )}
+                            {ORDER_STATUSES.map((statusOption) => (
+                              <option key={statusOption} value={statusOption}>
+                                {statusOption}
+                              </option>
+                            ))}
+                          </select>
+                          {isUpdatingStatus && (
+                            <div className="flex items-center gap-1 text-[10px] text-gray-500">
+                              <Loader2 className="w-3 h-3 animate-spin" />
+                              מעדכן...
+                            </div>
                           )}
-                        >
-                          {o.status}
-                        </span>
+                        </div>
                       </td>
                       <td className="px-3 py-2 font-bold text-gray-900 whitespace-nowrap">
                         {formatCurrency(o.total)}
@@ -394,10 +459,18 @@ export function Orders() {
                       <td className="px-3 py-2 text-gray-700">
                         {o.payment_method_title || o.payment_method || '—'}
                       </td>
-                      <td className="px-3 py-2 text-gray-700 max-w-xs truncate" title={items}>
-                        {items || '—'}
+                      <td className="px-3 py-2 text-gray-700 min-w-[280px] max-w-[420px]">
+                        {itemLines.length ? (
+                          <div className="space-y-1 whitespace-normal break-words leading-relaxed">
+                            {itemLines.map((itemLine, idx) => (
+                              <div key={`${o.id}-item-${idx}`}>{itemLine}</div>
+                            ))}
+                          </div>
+                        ) : (
+                          '—'
+                        )}
                       </td>
-                      <td className="px-3 py-2 text-gray-700 max-w-xs truncate">
+                      <td className="px-3 py-2 text-gray-700 max-w-xs whitespace-normal break-words">
                         {customerNote}
                       </td>
                     </tr>
