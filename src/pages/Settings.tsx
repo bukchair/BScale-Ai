@@ -18,7 +18,7 @@ import { useCurrency } from '../contexts/CurrencyContext';
 
 export function Settings({ userProfile }: { userProfile?: { role?: string } | null }) {
   const { t, dir } = useLanguage();
-  const { currency, setCurrency, availableCurrencies } = useCurrency();
+  const { currency, setCurrency, availableCurrencies, format: formatCurrency } = useCurrency();
   const {
     dataAccessMode,
     workspaceOwnerName,
@@ -415,9 +415,9 @@ export function Settings({ userProfile }: { userProfile?: { role?: string } | nu
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                   {[
-                    { id: 'starter', name: 'Starter', price: '$79', desc: 'עד 3 חנויות, חיבור ל‑Google + Meta + WooCommerce.' },
-                    { id: 'growth', name: 'Growth', price: '$149', desc: '5‑10 חנויות, AI מתקדם ותמיכה מועדפת.', recommended: true },
-                    { id: 'scale', name: 'Scale', price: '$299', desc: 'מספר חנויות בלתי מוגבל ו‑SLA מותאם.' }
+                    { id: 'starter', name: 'Starter', priceAmount: 79, desc: 'עד 3 חנויות, חיבור ל‑Google + Meta + WooCommerce.' },
+                    { id: 'growth', name: 'Growth', priceAmount: 149, desc: '5‑10 חנויות, AI מתקדם ותמיכה מועדפת.', recommended: true },
+                    { id: 'scale', name: 'Scale', priceAmount: 299, desc: 'מספר חנויות בלתי מוגבל ו‑SLA מותאם.' }
                   ].map((plan) => (
                     <div
                       key={plan.id}
@@ -433,7 +433,7 @@ export function Settings({ userProfile }: { userProfile?: { role?: string } | nu
                       )}
                       <h3 className="font-bold text-gray-900">{plan.name}</h3>
                       <div className="my-2">
-                        <span className="text-2xl font-black text-gray-900">{plan.price}</span>
+                        <span className="text-2xl font-black text-gray-900">{formatCurrency(plan.priceAmount)}</span>
                         <span className="text-xs text-gray-500"> / חודש</span>
                       </div>
                       <p className="text-xs text-gray-500 mb-4 leading-relaxed">{plan.desc}</p>
@@ -554,7 +554,7 @@ export function Settings({ userProfile }: { userProfile?: { role?: string } | nu
                     </div>
                     <div className="text-sm font-medium text-gray-900 flex items-center justify-between pt-2 border-t border-gray-100">
                       <span>סיכום חיוב היום</span>
-                      <span className="font-black text-indigo-600">$149.00</span>
+                      <span className="font-black text-indigo-600">{formatCurrency(149)}</span>
                     </div>
                     <p className="text-[11px] text-gray-500">
                       החיוב מתבצע במטבע שבחרת. יתכנו הפרשי שער והעמלות מצד ספק האשראי שלך.

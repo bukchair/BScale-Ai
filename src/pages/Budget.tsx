@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useDateRange } from '../contexts/DateRangeContext';
+import { useCurrency } from '../contexts/CurrencyContext';
 import { Wallet, TrendingUp, AlertCircle, ArrowRight, ArrowLeft, CheckCircle2, Settings2, Zap, TrendingDown } from 'lucide-react';
 import { cn } from '../lib/utils';
 
@@ -12,6 +13,7 @@ const platforms = [
 
 export function Budget() {
   const { t, dir } = useLanguage();
+  const { format: formatCurrency } = useCurrency();
   const { dateRange } = useDateRange();
   const periodLabel = dateRange === 'today' ? t('dashboard.today') : dateRange === '7days' ? t('dashboard.last7Days') : dateRange === '30days' ? t('dashboard.last30Days') : t('dashboard.customRange');
   const mult = dateRange === 'today' ? 1/30 : dateRange === '7days' ? 7/30 : 1;
@@ -23,6 +25,7 @@ export function Budget() {
   })), [mult]);
   const totalSpend = platformsAdjusted.reduce((acc, p) => acc + p.currentSpend, 0);
   const remainingBudget = totalBudget - totalSpend;
+  const formatSigned = (amount: number) => `${amount >= 0 ? '+' : '-'}${formatCurrency(Math.abs(amount))}`;
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
@@ -46,7 +49,7 @@ export function Budget() {
             </div>
             <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wider">{t('budget.totalBudget')}</h3>
           </div>
-          <p className="text-3xl font-black text-gray-900" dir="ltr">₪{totalBudget.toLocaleString()}</p>
+          <p className="text-3xl font-black text-gray-900" dir="ltr">{formatCurrency(totalBudget)}</p>
           <p className="text-xs text-gray-400 mt-1">{t('budget.monthlyAllocation')}</p>
         </div>
 
@@ -57,7 +60,7 @@ export function Budget() {
             </div>
             <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wider">{t('budget.currentSpend')}</h3>
           </div>
-          <p className="text-3xl font-black text-gray-900" dir="ltr">₪{totalSpend.toLocaleString()}</p>
+          <p className="text-3xl font-black text-gray-900" dir="ltr">{formatCurrency(totalSpend)}</p>
           <div className="w-full bg-gray-100 rounded-full h-1.5 mt-3" dir="ltr">
             <div 
               className={cn("h-1.5 rounded-full", (totalSpend / totalBudget) > 0.9 ? "bg-red-500" : "bg-indigo-600")} 
@@ -73,7 +76,7 @@ export function Budget() {
             </div>
             <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wider">{t('budget.remaining')}</h3>
           </div>
-          <p className="text-3xl font-black text-gray-900" dir="ltr">₪{remainingBudget.toLocaleString()}</p>
+          <p className="text-3xl font-black text-gray-900" dir="ltr">{formatCurrency(remainingBudget)}</p>
           <p className="text-xs text-gray-400 mt-1">{t('budget.availableAllocation')}</p>
         </div>
       </div>
@@ -96,7 +99,7 @@ export function Budget() {
             <div className="flex-1 space-y-2 w-full">
               <div className="flex items-center justify-between text-sm">
                 <span className="font-medium text-gray-700">{t('budget.reduceTikTok')}</span>
-                <span className="text-red-600 font-bold" dir="ltr">-₪500</span>
+                <span className="text-red-600 font-bold" dir="ltr">{formatSigned(-500)}</span>
               </div>
               <p className="text-xs text-gray-500">{t('budget.reduceTikTokDesc')}</p>
             </div>
@@ -108,7 +111,7 @@ export function Budget() {
             <div className="flex-1 space-y-2 w-full">
               <div className="flex items-center justify-between text-sm">
                 <span className="font-medium text-gray-700">{t('budget.increaseGoogle')}</span>
-                <span className="text-emerald-600 font-bold" dir="ltr">+₪500</span>
+                <span className="text-emerald-600 font-bold" dir="ltr">{formatSigned(500)}</span>
               </div>
               <p className="text-xs text-gray-500">{t('budget.increaseGoogleDesc')}</p>
             </div>
@@ -142,10 +145,10 @@ export function Budget() {
               {platformsAdjusted.map((platform) => (
                 <tr key={platform.id} className="hover:bg-gray-50 transition-colors">
                   <td className="px-6 py-4 font-medium text-gray-900">{platform.name}</td>
-                  <td className="px-6 py-4" dir="ltr">₪{platform.allocatedBudget.toLocaleString()}</td>
+                  <td className="px-6 py-4" dir="ltr">{formatCurrency(platform.allocatedBudget)}</td>
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-2">
-                      <span dir="ltr">₪{platform.currentSpend.toLocaleString()}</span>
+                      <span dir="ltr">{formatCurrency(platform.currentSpend)}</span>
                       <span className="text-xs text-gray-500" dir="ltr">
                         ({Math.round((platform.currentSpend / platform.allocatedBudget) * 100)}%)
                       </span>

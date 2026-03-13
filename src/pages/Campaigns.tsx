@@ -5,20 +5,22 @@ import { cn } from '../lib/utils';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useConnections } from '../contexts/ConnectionsContext';
 import { useDateRange } from '../contexts/DateRangeContext';
+import { useCurrency } from '../contexts/CurrencyContext';
 import { fetchTikTokCampaigns } from '../services/tiktokService';
 import { fetchMetaCampaigns } from '../services/metaService';
 import { fetchGoogleCampaigns, sendGmailNotification } from '../services/googleService';
 import { auth } from '../lib/firebase';
 
 const mockCampaignData = [
-  { id: 1, name: 'Summer Sale - Shoes', platform: 'Google', status: 'Active', spend: '₪1,200', roas: '2.5', cpa: '₪45' },
-  { id: 2, name: 'Retargeting - Abandoned Cart', platform: 'Meta', status: 'Active', spend: '₪800', roas: '4.2', cpa: '₪22' },
-  { id: 3, name: 'New Collection - Video', platform: 'TikTok', status: 'Paused', spend: '₪400', roas: '1.1', cpa: '₪85' },
-  { id: 4, name: 'Brand Search', platform: 'Google', status: 'Active', spend: '₪300', roas: '8.5', cpa: '₪12' },
+  { id: 1, name: 'Summer Sale - Shoes', platform: 'Google', status: 'Active', spend: 1200, roas: 2.5, cpa: 45 },
+  { id: 2, name: 'Retargeting - Abandoned Cart', platform: 'Meta', status: 'Active', spend: 800, roas: 4.2, cpa: 22 },
+  { id: 3, name: 'New Collection - Video', platform: 'TikTok', status: 'Paused', spend: 400, roas: 1.1, cpa: 85 },
+  { id: 4, name: 'Brand Search', platform: 'Google', status: 'Active', spend: 300, roas: 8.5, cpa: 12 },
 ];
 
 export function Campaigns() {
   const { t, dir } = useLanguage();
+  const { format: formatCurrency } = useCurrency();
   const { connections } = useConnections();
   const { dateRange } = useDateRange();
   const periodLabel = dateRange === 'today' ? t('dashboard.today') : dateRange === '7days' ? t('dashboard.last7Days') : dateRange === '30days' ? t('dashboard.last30Days') : t('dashboard.customRange');
@@ -35,6 +37,14 @@ export function Campaigns() {
   const [statusFilter, setStatusFilter] = useState('All');
   const [sortField, setSortField] = useState('name');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
+  const toAmount = (value: unknown): number => {
+    if (typeof value === 'number') return Number.isFinite(value) ? value : 0;
+    if (typeof value === 'string') {
+      const parsed = parseFloat(value.replace(/[^\d.-]/g, ''));
+      return Number.isFinite(parsed) ? parsed : 0;
+    }
+    return 0;
+  };
 
   const fetchRecommendations = async () => {
     setLoading(true);
@@ -67,9 +77,9 @@ export function Campaigns() {
           name: c.campaign_name,
           platform: 'TikTok',
           status: c.operation_status === 'ENABLE' ? 'Active' : 'Paused',
-          spend: `₪${(Math.random() * 1000).toFixed(0)}`, // TikTok API might need more calls for spend, simulating for now
-          roas: (Math.random() * 5 + 1).toFixed(1),
-          cpa: `₪${(Math.random() * 100 + 10).toFixed(0)}`
+          spend: Number((Math.random() * 1000).toFixed(0)), // TikTok API might need more calls for spend, simulating for now
+          roas: Number((Math.random() * 5 + 1).toFixed(1)),
+          cpa: Number((Math.random() * 100 + 10).toFixed(0))
         }));
         
         setRealCampaigns(prev => [...prev.filter(c => c.platform !== 'TikTok'), ...formattedCampaigns]);
@@ -182,7 +192,7 @@ export function Campaigns() {
 
   const allCampaigns = realCampaigns.length > 0
     ? realCampaigns
-    : [];
+    : mockCampaignData;
 
   const filteredAndSortedCampaigns = allCampaigns
     .filter(campaign => {
@@ -195,13 +205,12 @@ export function Campaigns() {
       let valA: any = a[sortField as keyof typeof a];
       let valB: any = b[sortField as keyof typeof b];
 
-      // Handle numeric values (spend, cpa)
-      if (typeof valA === 'string' && valA.startsWith('₪')) {
-        valA = parseFloat(valA.replace('₪', '').replace(',', ''));
-        valB = parseFloat((valB as string).replace('₪', '').replace(',', ''));
-      } else if (sortField === 'roas') {
-        valA = parseFloat(valA as string);
-        valB = parseFloat(valB as string);
+      if (sortField === 'spend' || sortField === 'cpa' || sortField === 'roas') {
+        valA = toAmount(valA);
+        valB = toAmount(valB);
+      } else {
+        valA = String(valA || '').toLowerCase();
+        valB = String(valB || '').toLowerCase();
       }
 
       if (valA < valB) return sortOrder === 'asc' ? -1 : 1;
@@ -335,9 +344,9 @@ export function Campaigns() {
                           {campaign.status}
                         </span>
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{campaign.spend}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{campaign.roas}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{campaign.cpa}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{formatCurrency(toAmount(campaign.spend))}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{toAmount(campaign.roas).toFixed(2)}x</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{formatCurrency(toAmount(campaign.cpa))}</td>
                     </tr>
                   ))
                 ) : (

@@ -19,9 +19,9 @@ type CreativeProduct = {
 };
 
 const mockProductsFallback: CreativeProduct[] = [
-  { id: 1, name: 'נעלי ריצה מקצועיות', shortDesc: 'נעלי ריצה נוחות.', longDesc: 'נעלי ריצה מקצועיות עם סוליה בולמת זעזועים.', price: '₪450', imageUrl: null },
-  { id: 2, name: 'שעון חכם ספורט', shortDesc: 'שעון חכם למעקב.', longDesc: 'שעון חכם עם מד דופק, GPS ומעקב שינה.', price: '₪890', imageUrl: null },
-  { id: 3, name: 'אוזניות אלחוטיות', shortDesc: 'אוזניות בלוטוס.', longDesc: 'אוזניות אלחוטיות עם סינון רעשים וסוללה ל-24 שעות.', price: '₪350', imageUrl: null },
+  { id: 1, name: 'נעלי ריצה מקצועיות', shortDesc: 'נעלי ריצה נוחות.', longDesc: 'נעלי ריצה מקצועיות עם סוליה בולמת זעזועים.', price: '450', imageUrl: null },
+  { id: 2, name: 'שעון חכם ספורט', shortDesc: 'שעון חכם למעקב.', longDesc: 'שעון חכם עם מד דופק, GPS ומעקב שינה.', price: '890', imageUrl: null },
+  { id: 3, name: 'אוזניות אלחוטיות', shortDesc: 'אוזניות בלוטוס.', longDesc: 'אוזניות אלחוטיות עם סינון רעשים וסוללה ל-24 שעות.', price: '350', imageUrl: null },
 ];
 
 function stripHtmlToText(html: string | undefined | null): string {
@@ -92,7 +92,7 @@ export function CreativeLab() {
               name: stripHtmlToText(p.name),
               shortDesc: stripHtmlToText(p.short_description),
               longDesc: stripHtmlToText(p.description),
-              price: p.price ? `₪${p.price}` : '',
+              price: p.price ? String(p.price) : '',
               imageUrl: images[0] || null,
               galleryUrls: images.slice(1, 4),
             } as CreativeProduct;

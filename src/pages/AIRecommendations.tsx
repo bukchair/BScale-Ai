@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useConnections } from '../contexts/ConnectionsContext';
+import { useCurrency } from '../contexts/CurrencyContext';
 import { generateAIRecommendations } from '../services/geminiService';
 import { getAIKeysFromConnections, hasAnyAIKey } from '../lib/multiAI';
 import { Lightbulb, TrendingUp, AlertTriangle, ArrowRight, ArrowLeft, CheckCircle2, BarChart2, Facebook, Video, Megaphone, Zap, Loader2, RefreshCw } from 'lucide-react';
@@ -76,6 +77,7 @@ const platformColors = {
 
 export function AIRecommendations() {
   const { t, dir } = useLanguage();
+  const { format: formatCurrency } = useCurrency();
   const { connections } = useConnections();
   const [recs, setRecs] = useState<Recommendation[]>(mockRecommendations);
   const [isLoading, setIsLoading] = useState(false);
@@ -205,7 +207,7 @@ export function AIRecommendations() {
                 </div>
                 <div className={dir === 'rtl' ? 'text-left' : 'text-right'}>
                   <p className="text-xs text-indigo-200">CPA</p>
-                  <p className="text-lg font-semibold" dir="ltr">₪45</p>
+                  <p className="text-lg font-semibold" dir="ltr">{formatCurrency(45)}</p>
                 </div>
               </div>
             </div>
@@ -222,7 +224,7 @@ export function AIRecommendations() {
                 </div>
                 <div className={dir === 'rtl' ? 'text-left' : 'text-right'}>
                   <p className="text-xs text-indigo-200">CPA</p>
-                  <p className="text-lg font-semibold" dir="ltr">₪62</p>
+                  <p className="text-lg font-semibold" dir="ltr">{formatCurrency(62)}</p>
                 </div>
               </div>
             </div>
@@ -239,7 +241,7 @@ export function AIRecommendations() {
                 </div>
                 <div className={dir === 'rtl' ? 'text-left' : 'text-right'}>
                   <p className="text-xs text-indigo-200">CPA</p>
-                  <p className="text-lg font-semibold" dir="ltr">₪85</p>
+                  <p className="text-lg font-semibold" dir="ltr">{formatCurrency(85)}</p>
                 </div>
               </div>
             </div>

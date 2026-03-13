@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { useLanguage } from '../contexts/LanguageContext';
 import { ShieldAlert, CheckCircle2, XCircle, Clock, Zap, Settings, Play, Pause, AlertTriangle, ListTodo, Search, Download, User, Calendar, RefreshCw } from 'lucide-react';
 import { cn } from '../lib/utils';
@@ -6,21 +6,22 @@ import { auth } from '../lib/firebase';
 import { getAutoAdsSchedule, setAutoAdsSchedule, type AutoAdsSchedule } from '../lib/firebase';
 import { runAutoAdsIfNeeded } from '../lib/autoAdsRunner';
 import { useConnections } from '../contexts/ConnectionsContext';
+import { useCurrency } from '../contexts/CurrencyContext';
 
-const pendingApprovals = [
-  { id: 1, type: 'הקצאת תקציב מחדש', description: 'העבר ₪500 מ-"חיפוש מותג" ל-"Performance Max" עקב ROAS גבוה יותר.', platform: 'Google Ads', impact: 'גבוה', time: 'לפני שעתיים' },
+const buildPendingApprovals = (money: string) => [
+  { id: 1, type: 'הקצאת תקציב מחדש', description: `העבר ${money} מ-"חיפוש מותג" ל-"Performance Max" עקב ROAS גבוה יותר.`, platform: 'Google Ads', impact: 'גבוה', time: 'לפני שעתיים' },
   { id: 2, type: 'עדכון קופירייטינג', description: 'עדכן את טקסט המודעה ב-Meta כך שיכלול "משלוח חינם" על סמך ניתוח מתחרים.', platform: 'Meta', impact: 'בינוני', time: 'לפני 5 שעות' },
   { id: 3, type: 'החרגת מילות מפתח', description: 'הוסף "חינם" ו-"זול" כמילות מפתח שליליות כדי להפחית הוצאות מבוזבזות.', platform: 'Google Ads', impact: 'גבוה', time: 'לפני יום' },
 ];
 
-const automations = [
-  { id: 1, name: 'השהיה אוטומטית של ביצועים נמוכים', description: 'השהה מודעות עם ROAS < 1.0 לאחר 3 ימים והוצאה של ₪100.', status: 'פעיל', platform: 'כל הפלטפורמות' },
+const buildAutomations = (money: string) => [
+  { id: 1, name: 'השהיה אוטומטית של ביצועים נמוכים', description: `השהה מודעות עם ROAS < 1.0 לאחר 3 ימים והוצאה של ${money}.`, status: 'פעיל', platform: 'כל הפלטפורמות' },
   { id: 2, name: 'הגדלת תקציב', description: 'הגדל תקציב ב-10% עבור קמפיינים ששומרים על ROAS > 3.0 במשך 7 ימים.', status: 'מושהה', platform: 'Meta' },
   { id: 3, name: 'התאמות הצעות מחיר', description: 'הגדל הצעות מחיר ב-15% בשעות שיא של המרות (18:00 - 22:00).', status: 'פעיל', platform: 'Google Ads' },
 ];
 
-const activities = [
-  { id: 1, user: 'Asher B.', action: 'אישר המלצת AI', details: 'הקצאת תקציב מחדש: הועברו ₪500 ל-Performance Max', time: 'לפני 10 דקות', type: 'approval', icon: CheckCircle2, color: 'text-emerald-500', bg: 'bg-emerald-50' },
+const buildActivities = (money: string) => [
+  { id: 1, user: 'Asher B.', action: 'אישר המלצת AI', details: `הקצאת תקציב מחדש: הועברו ${money} ל-Performance Max`, time: 'לפני 10 דקות', type: 'approval', icon: CheckCircle2, color: 'text-emerald-500', bg: 'bg-emerald-50' },
   { id: 2, user: 'System AI', action: 'יצר קופירייטינג חדש', details: 'נוצרו 3 וריאציות לקמפיין "מבצע קיץ"', time: 'לפני שעה', type: 'ai', icon: Zap, color: 'text-indigo-500', bg: 'bg-indigo-50' },
   { id: 3, user: 'Asher B.', action: 'עדכן הגדרות', target: 'חיוב', details: 'שונה אמצעי תשלום ראשי', time: 'לפני 3 שעות', type: 'settings', icon: Settings, color: 'text-gray-500', bg: 'bg-gray-50' },
   { id: 4, user: 'System', action: 'שגיאת חיבור', target: 'Shopify', details: 'נכשל סנכרון נתוני מלאי. מנסה שוב...', time: 'לפני 5 שעות', type: 'error', icon: AlertTriangle, color: 'text-red-500', bg: 'bg-red-50' },
@@ -30,6 +31,7 @@ const activities = [
 
 export function Automations() {
   const { t, dir } = useLanguage();
+  const { format: formatCurrency } = useCurrency();
   const { dataOwnerUid, isWorkspaceReadOnly } = useConnections();
   const [activeTab, setActiveTab] = useState<'approvals' | 'rules' | 'log' | 'auto-ads'>('approvals');
   const [searchTerm, setSearchTerm] = useState('');
@@ -44,6 +46,9 @@ export function Automations() {
   const [lastRunResult, setLastRunResult] = useState<{ ran: boolean; created?: number } | null>(null);
 
   const uid = dataOwnerUid || auth.currentUser?.uid;
+  const pendingApprovals = useMemo(() => buildPendingApprovals(formatCurrency(500)), [formatCurrency]);
+  const automations = useMemo(() => buildAutomations(formatCurrency(100)), [formatCurrency]);
+  const activities = useMemo(() => buildActivities(formatCurrency(500)), [formatCurrency]);
 
   useEffect(() => {
     if (!uid) return;
