@@ -247,6 +247,25 @@ export function Orders() {
     ].filter((line) => line && line.trim().length > 0);
   };
 
+  const formatOrderDate = (dateValue?: string | null) => {
+    if (!dateValue) return '—';
+    return new Date(dateValue).toLocaleString();
+  };
+
+  const getStatusBadgeClass = (status: string) =>
+    cn(
+      'inline-flex px-2 py-0.5 rounded-full text-[11px] font-bold capitalize',
+      status === 'completed'
+        ? 'bg-emerald-100 text-emerald-700'
+        : status === 'processing'
+        ? 'bg-sky-100 text-sky-700'
+        : status === 'pending'
+        ? 'bg-amber-100 text-amber-700'
+        : status === 'cancelled' || status === 'refunded' || status === 'failed'
+        ? 'bg-red-100 text-red-700'
+        : 'bg-gray-100 text-gray-700'
+    );
+
   if (!isConnected) {
     return (
       <div className="flex flex-col items-center justify-center h-[600px] bg-white rounded-2xl border border-dashed border-gray-300 p-12 text-center">
@@ -397,7 +416,163 @@ export function Orders() {
           </div>
         </div>
 
-        <div className="overflow-x-auto">
+        <div className="space-y-3 lg:hidden">
+          {isLoading && !orders.length ? (
+            <div className="px-3 py-8 text-center text-gray-400 text-sm">
+              <Loader2 className="w-6 h-6 animate-spin mx-auto mb-2" />
+              טוען הזמנות מ‑WooCommerce...
+            </div>
+          ) : !filtered.length ? (
+            <div className="px-3 py-8 text-center text-gray-400 text-sm">
+              לא נמצאו הזמנות לטווח תאריכים זה או לפי הפילטרים הנוכחיים.
+            </div>
+          ) : (
+            filtered.map((o) => {
+              const customerName = `${o.billing.first_name || ''} ${o.billing.last_name || ''}`.trim() || '—';
+              const itemLines = o.line_items.map((li) => {
+                const sku = li.sku ? ` | SKU: ${li.sku}` : '';
+                const itemTotal = li.total ? ` | סה"כ: ${li.total} ${o.currency}` : '';
+                return `${li.name}${sku} | כמות: ${li.quantity}${itemTotal}`;
+              });
+              const customerNote = (o.customer_note || '').trim();
+              const isUpdatingStatus = updatingOrderId === o.id;
+              const statusValue = ORDER_STATUSES.includes(o.status as OrderStatus) ? (o.status as OrderStatus) : '';
+              const isExpanded = expandedOrderId === o.id;
+              const billingLines = buildAddressLines({
+                ...o.billing,
+                email: o.billing.email,
+                phone: o.billing.phone,
+              });
+              const shippingLines = buildAddressLines(o.shipping);
+
+              return (
+                <div key={`mobile-${o.id}`} className="rounded-2xl border border-gray-200 bg-white p-3.5 shadow-sm">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="font-mono text-[11px] text-gray-500">#{o.number}</p>
+                      <p className="text-sm font-bold text-gray-900 truncate">{customerName}</p>
+                      <p className="text-[11px] text-gray-500">{formatOrderDate(o.date_created)}</p>
+                    </div>
+                    <button
+                      onClick={() => setExpandedOrderId((prev) => (prev === o.id ? null : o.id))}
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-bold border border-gray-200 text-gray-700 hover:bg-gray-50 shrink-0"
+                    >
+                      {isExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                      {isExpanded ? 'הסתר' : 'פרטים'}
+                    </button>
+                  </div>
+
+                  <div className="mt-3 space-y-2">
+                    <div className="flex items-center justify-between gap-3 text-xs">
+                      <span className="text-gray-500">סה"כ</span>
+                      <span className="font-extrabold text-gray-900">{formatCurrency(o.total)}</span>
+                    </div>
+                    <div className="flex items-center justify-between gap-3 text-xs">
+                      <span className="text-gray-500">תשלום</span>
+                      <span className="text-gray-800 text-end break-words">{o.payment_method_title || o.payment_method || '—'}</span>
+                    </div>
+                    <div className="flex items-start justify-between gap-3 text-xs">
+                      <span className="text-gray-500 mt-0.5">אימייל</span>
+                      <span className="text-gray-800 text-end break-all">{o.billing.email || '—'}</span>
+                    </div>
+                    <div className="space-y-1.5 pt-1">
+                      <span className={getStatusBadgeClass(o.status)}>{o.status}</span>
+                      <select
+                        value={statusValue}
+                        onChange={(e) => handleOrderStatusChange(o.id, e.target.value as OrderStatus)}
+                        disabled={isUpdatingStatus || isWorkspaceReadOnly}
+                        className="w-full border border-gray-200 bg-white rounded-lg px-2 py-1.5 text-xs text-gray-700 font-semibold disabled:opacity-60"
+                        aria-label={`עדכון סטטוס הזמנה ${o.number}`}
+                      >
+                        {!statusValue && (
+                          <option value="" disabled>
+                            {o.status || 'unknown'}
+                          </option>
+                        )}
+                        {ORDER_STATUSES.map((statusOption) => (
+                          <option key={statusOption} value={statusOption}>
+                            {statusOption}
+                          </option>
+                        ))}
+                      </select>
+                      {isUpdatingStatus && (
+                        <div className="flex items-center gap-1 text-[10px] text-gray-500">
+                          <Loader2 className="w-3 h-3 animate-spin" />
+                          מעדכן...
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {isExpanded && (
+                    <div className="mt-3 space-y-3 border-t border-gray-100 pt-3">
+                      <div className="rounded-xl border border-gray-200 bg-gray-50 p-3 space-y-1 text-xs">
+                        <p className="font-bold text-gray-900">פרטי הזמנה</p>
+                        <p className="text-gray-700">מזהה פנימי: {o.id}</p>
+                        <p className="text-gray-700">נוצר בתאריך: {formatOrderDate(o.date_created)}</p>
+                        <p className="text-gray-700">עודכן בתאריך: {formatOrderDate(o.date_modified)}</p>
+                        <p className="text-gray-700">הושלם בתאריך: {formatOrderDate(o.date_completed)}</p>
+                        <p className="text-gray-700">מטבע: {o.currency || '—'}</p>
+                        <p className="text-gray-700">סה"כ משלוח: {formatCurrency(o.shipping_total)}</p>
+                        <p className="text-gray-700">סה"כ מס: {formatCurrency(o.total_tax)}</p>
+                      </div>
+
+                      <div className="rounded-xl border border-gray-200 bg-gray-50 p-3 space-y-1 text-xs">
+                        <p className="font-bold text-gray-900">כתובת חיוב</p>
+                        {billingLines.length ? (
+                          billingLines.map((line, idx) => (
+                            <p key={`mobile-billing-${o.id}-${idx}`} className="text-gray-700 break-words">
+                              {line}
+                            </p>
+                          ))
+                        ) : (
+                          <p className="text-gray-400">אין נתוני כתובת חיוב</p>
+                        )}
+                      </div>
+
+                      <div className="rounded-xl border border-gray-200 bg-gray-50 p-3 space-y-1 text-xs">
+                        <p className="font-bold text-gray-900">כתובת משלוח</p>
+                        {shippingLines.length ? (
+                          shippingLines.map((line, idx) => (
+                            <p key={`mobile-shipping-${o.id}-${idx}`} className="text-gray-700 break-words">
+                              {line}
+                            </p>
+                          ))
+                        ) : (
+                          <p className="text-gray-400">אין נתוני כתובת משלוח</p>
+                        )}
+                      </div>
+
+                      <div className="rounded-xl border border-gray-200 bg-gray-50 p-3 space-y-1 text-xs">
+                        <p className="font-bold text-gray-900">מוצרים</p>
+                        {itemLines.length ? (
+                          <div className="space-y-1">
+                            {itemLines.map((itemLine, idx) => (
+                              <p key={`mobile-item-${o.id}-${idx}`} className="text-gray-700 break-words">
+                                {itemLine}
+                              </p>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="text-gray-400">אין מוצרים בהזמנה זו</p>
+                        )}
+                      </div>
+
+                      <div className="rounded-xl border border-gray-200 bg-gray-50 p-3 space-y-1 text-xs">
+                        <p className="font-bold text-gray-900">הערת לקוח</p>
+                        <p className={customerNote ? 'text-gray-700 break-words' : 'text-gray-400'}>
+                          {customerNote || '—'}
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })
+          )}
+        </div>
+
+        <div className="hidden lg:block overflow-x-auto">
           <table className="min-w-full text-xs sm:text-sm">
             <thead>
               <tr className="bg-gray-50 text-gray-500 border-b border-gray-200">
@@ -449,29 +624,12 @@ export function Orders() {
                     <React.Fragment key={o.id}>
                       <tr className="border-b border-gray-100 hover:bg-gray-50/50">
                         <td className="px-3 py-2 font-mono text-[11px] text-gray-600">#{o.number}</td>
-                        <td className="px-3 py-2 text-gray-700">
-                          {o.date_created ? new Date(o.date_created).toLocaleString() : '—'}
-                        </td>
+                        <td className="px-3 py-2 text-gray-700">{formatOrderDate(o.date_created)}</td>
                         <td className="px-3 py-2 text-gray-900 font-medium">{customerName}</td>
                         <td className="px-3 py-2 text-gray-600">{o.billing.email || '—'}</td>
                         <td className="px-3 py-2">
                           <div className="space-y-1.5 min-w-[150px]">
-                            <span
-                              className={cn(
-                                'inline-flex px-2 py-0.5 rounded-full text-[11px] font-bold capitalize',
-                                o.status === 'completed'
-                                  ? 'bg-emerald-100 text-emerald-700'
-                                  : o.status === 'processing'
-                                  ? 'bg-sky-100 text-sky-700'
-                                  : o.status === 'pending'
-                                  ? 'bg-amber-100 text-amber-700'
-                                  : o.status === 'cancelled' || o.status === 'refunded' || o.status === 'failed'
-                                  ? 'bg-red-100 text-red-700'
-                                  : 'bg-gray-100 text-gray-700'
-                              )}
-                            >
-                              {o.status}
-                            </span>
+                            <span className={getStatusBadgeClass(o.status)}>{o.status}</span>
                             <select
                               value={statusValue}
                               onChange={(e) => handleOrderStatusChange(o.id, e.target.value as OrderStatus)}
@@ -536,9 +694,9 @@ export function Orders() {
                                 <p className="font-bold text-gray-900">פרטי הזמנה</p>
                                 <p className="text-gray-700">מספר הזמנה: #{o.number}</p>
                                 <p className="text-gray-700">מזהה פנימי: {o.id}</p>
-                                <p className="text-gray-700">נוצר בתאריך: {o.date_created ? new Date(o.date_created).toLocaleString() : '—'}</p>
-                                <p className="text-gray-700">עודכן בתאריך: {o.date_modified ? new Date(o.date_modified).toLocaleString() : '—'}</p>
-                                <p className="text-gray-700">הושלם בתאריך: {o.date_completed ? new Date(o.date_completed).toLocaleString() : '—'}</p>
+                                <p className="text-gray-700">נוצר בתאריך: {formatOrderDate(o.date_created)}</p>
+                                <p className="text-gray-700">עודכן בתאריך: {formatOrderDate(o.date_modified)}</p>
+                                <p className="text-gray-700">הושלם בתאריך: {formatOrderDate(o.date_completed)}</p>
                                 <p className="text-gray-700">מטבע: {o.currency || '—'}</p>
                                 <p className="text-gray-700">סה"כ הזמנה: {formatCurrency(o.total)}</p>
                                 <p className="text-gray-700">סה"כ משלוח: {formatCurrency(o.shipping_total)}</p>
