@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useLanguage } from '../contexts/LanguageContext';
-import { Users, Target, TrendingUp, Zap, Plus, ArrowLeft, BarChart2, Pencil, Trash2, Send, Loader2, X, Sparkles } from 'lucide-react';
+import { Users, Target, Zap, Plus, ArrowLeft, BarChart2, Pencil, Trash2, Send, Loader2, X, Sparkles, Globe2 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { auth } from '../lib/firebase';
 import {
@@ -24,6 +24,8 @@ const platformLabels: Record<AudiencePlatform, string> = {
   tiktok: 'TikTok',
 };
 
+const ALL_AUDIENCE_PLATFORMS: AudiencePlatform[] = ['google', 'meta', 'tiktok'];
+
 const statusLabels: Record<Audience['status'], string> = {
   draft: 'טיוטה',
   active: 'פעיל',
@@ -46,7 +48,8 @@ function buildPlatformDataSummary(connections: { id: string; status: string; set
 }
 
 export function Audiences() {
-  const { t, dir } = useLanguage();
+  const { t, dir, language } = useLanguage();
+  const isHebrew = language === 'he';
   const { connections, dataOwnerUid, isWorkspaceReadOnly } = useConnections();
   const [audiences, setAudiences] = useState<Audience[]>([]);
   const [loading, setLoading] = useState(true);
@@ -65,9 +68,19 @@ export function Audiences() {
   const [recommendationsLoading, setRecommendationsLoading] = useState(false);
   const [platformDataCache, setPlatformDataCache] = useState<string>('');
   const [syncingId, setSyncingId] = useState<string | null>(null);
+  const [syncAllOnSave, setSyncAllOnSave] = useState(true);
+  const [bulkSyncLoading, setBulkSyncLoading] = useState(false);
 
   const uid = dataOwnerUid || auth.currentUser?.uid;
   const aiKeys = getAIKeysFromConnections(connections);
+  const connectedPlatforms = useMemo(() => {
+    const connectedIds = new Set(
+      connections
+        .filter((c) => c.status === 'connected' && ALL_AUDIENCE_PLATFORMS.includes(c.id as AudiencePlatform))
+        .map((c) => c.id as AudiencePlatform)
+    );
+    return ALL_AUDIENCE_PLATFORMS.filter((p) => connectedIds.has(p));
+  }, [connections]);
 
   useEffect(() => {
     if (!uid) return;
@@ -79,6 +92,52 @@ export function Audiences() {
   const showToast = (msg: string) => {
     setToast(msg);
     window.setTimeout(() => setToast(null), 3000);
+  };
+
+  const resolveSyncTargets = (audience: Audience, includeAllConnected: boolean): AudiencePlatform[] => {
+    if (includeAllConnected) {
+      return connectedPlatforms.length ? connectedPlatforms : [audience.platform];
+    }
+    return [audience.platform];
+  };
+
+  const syncAudiencePlatforms = async (
+    audience: Audience,
+    includeAllConnected: boolean
+  ): Promise<{
+    syncedPlatforms: AudiencePlatform[];
+    syncStatusByPlatform: NonNullable<Audience['syncStatusByPlatform']>;
+    externalIdsByPlatform: NonNullable<Audience['externalIdsByPlatform']>;
+    externalId?: string;
+  }> => {
+    const targets = resolveSyncTargets(audience, includeAllConnected);
+    const syncStatusByPlatform: NonNullable<Audience['syncStatusByPlatform']> = {
+      ...(audience.syncStatusByPlatform || {}),
+    };
+    const externalIdsByPlatform: NonNullable<Audience['externalIdsByPlatform']> = {
+      ...(audience.externalIdsByPlatform || {}),
+    };
+    const synced = new Set<AudiencePlatform>(audience.syncedPlatforms || []);
+
+    for (const platform of targets) {
+      try {
+        syncStatusByPlatform[platform] = 'pending';
+        await new Promise((r) => setTimeout(r, 450));
+        const externalId = `ext-${platform}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+        externalIdsByPlatform[platform] = externalId;
+        synced.add(platform);
+        syncStatusByPlatform[platform] = 'synced';
+      } catch (err) {
+        syncStatusByPlatform[platform] = 'failed';
+      }
+    }
+
+    return {
+      syncedPlatforms: Array.from(synced),
+      syncStatusByPlatform,
+      externalIdsByPlatform,
+      externalId: externalIdsByPlatform[audience.platform] || audience.externalId,
+    };
   };
 
   const fetchPlatformData = async (): Promise<string> => {
@@ -131,6 +190,7 @@ export function Audiences() {
 
   const openCreate = (prefill?: Partial<typeof form> | AudienceRecommendation) => {
     if (isWorkspaceReadOnly) return;
+    setSyncAllOnSave(true);
     if (prefill && 'suggestedName' in prefill) {
       const r = prefill as AudienceRecommendation;
       const platformMap = { Google: 'google' as const, Meta: 'meta' as const, TikTok: 'tiktok' as const, cross: 'meta' as const };
@@ -160,6 +220,7 @@ export function Audiences() {
 
   const openEdit = (a: Audience) => {
     if (isWorkspaceReadOnly) return;
+    setSyncAllOnSave(false);
     setForm({
       name: a.name,
       platform: a.platform,
@@ -182,6 +243,7 @@ export function Audiences() {
       return;
     }
     try {
+      const existingAudience = editingId ? audiences.find((a) => a.id === editingId) : undefined;
       const payload = {
         name: form.name.trim(),
         platform: form.platform,
@@ -189,20 +251,67 @@ export function Audiences() {
         rules: form.rules,
         estimatedSize: form.estimatedSize,
         status: form.status,
-        syncedToPlatform: false,
+        syncedToPlatform: existingAudience?.syncedToPlatform ?? false,
+        syncedPlatforms: (existingAudience?.syncedPlatforms || []) as AudiencePlatform[],
+        syncStatusByPlatform: (existingAudience?.syncStatusByPlatform || {}) as Audience['syncStatusByPlatform'],
+        externalIdsByPlatform: (existingAudience?.externalIdsByPlatform || {}) as Audience['externalIdsByPlatform'],
+        externalId: existingAudience?.externalId,
       };
+      let savedAudience: Audience;
       if (editingId) {
         await updateAudience(uid, editingId, payload);
-        setAudiences((prev) => prev.map((a) => (a.id === editingId ? { ...a, ...payload, updatedAt: new Date().toISOString() } : a)));
+        savedAudience = {
+          id: editingId,
+          createdAt: existingAudience?.createdAt || new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          ...payload,
+        };
+        setAudiences((prev) => prev.map((a) => (a.id === editingId ? { ...a, ...savedAudience } : a)));
         showToast('הקהל עודכן.');
       } else {
         const id = await saveAudience(uid, payload);
-        setAudiences((prev) => [...prev, { id, ...payload, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }]);
+        savedAudience = { id, ...payload, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
+        setAudiences((prev) => [...prev, savedAudience]);
         showToast('הקהל נוצר.');
+      }
+
+      if (syncAllOnSave) {
+        setSyncingId(savedAudience.id);
+        const syncedResult = await syncAudiencePlatforms(savedAudience, true);
+        await updateAudience(uid, savedAudience.id, {
+          syncedToPlatform: syncedResult.syncedPlatforms.length > 0,
+          syncedPlatforms: syncedResult.syncedPlatforms,
+          syncStatusByPlatform: syncedResult.syncStatusByPlatform,
+          externalIdsByPlatform: syncedResult.externalIdsByPlatform,
+          externalId: syncedResult.externalId,
+          status: syncedResult.syncedPlatforms.length > 0 ? 'active' : savedAudience.status,
+        });
+        setAudiences((prev) =>
+          prev.map((a) =>
+            a.id === savedAudience.id
+              ? {
+                  ...a,
+                  syncedToPlatform: syncedResult.syncedPlatforms.length > 0,
+                  syncedPlatforms: syncedResult.syncedPlatforms,
+                  syncStatusByPlatform: syncedResult.syncStatusByPlatform,
+                  externalIdsByPlatform: syncedResult.externalIdsByPlatform,
+                  externalId: syncedResult.externalId,
+                  status: syncedResult.syncedPlatforms.length > 0 ? 'active' : a.status,
+                }
+              : a
+          )
+        );
+        showToast(
+          isHebrew
+            ? `הקהל סונכרן לכל הפלטפורמות המחוברות: ${syncedResult.syncedPlatforms.map((p) => platformLabels[p]).join(', ')}`
+            : `Audience synced to connected platforms: ${syncedResult.syncedPlatforms.map((p) => platformLabels[p]).join(', ')}`
+        );
       }
       setModalOpen(false);
     } catch (e) {
       showToast('שמירה נכשלה.');
+    } finally {
+      setSyncingId(null);
     }
   };
 
@@ -230,18 +339,133 @@ export function Audiences() {
     if (!uid) return;
     setSyncingId(a.id);
     try {
-      await new Promise((r) => setTimeout(r, 800));
+      const result = await syncAudiencePlatforms(a, false);
       await updateAudience(uid, a.id, {
-        syncedToPlatform: true,
-        externalId: `ext-${a.platform}-${Date.now()}`,
-        status: 'active',
+        syncedToPlatform: result.syncedPlatforms.length > 0,
+        syncedPlatforms: result.syncedPlatforms,
+        syncStatusByPlatform: result.syncStatusByPlatform,
+        externalIdsByPlatform: result.externalIdsByPlatform,
+        externalId: result.externalId,
+        status: result.syncedPlatforms.length > 0 ? 'active' : a.status,
       });
-      setAudiences((prev) => prev.map((x) => (x.id === a.id ? { ...x, syncedToPlatform: true, externalId: `ext-${a.platform}-${Date.now()}`, status: 'active' as const } : x)));
-      showToast(`הקהל נשלח ל-${platformLabels[a.platform]}.`);
+      setAudiences((prev) =>
+        prev.map((x) =>
+          x.id === a.id
+            ? {
+                ...x,
+                syncedToPlatform: result.syncedPlatforms.length > 0,
+                syncedPlatforms: result.syncedPlatforms,
+                syncStatusByPlatform: result.syncStatusByPlatform,
+                externalIdsByPlatform: result.externalIdsByPlatform,
+                externalId: result.externalId,
+                status: result.syncedPlatforms.length > 0 ? 'active' : x.status,
+              }
+            : x
+        )
+      );
+      showToast(
+        isHebrew
+          ? `הקהל נשלח ל-${platformLabels[a.platform]}.`
+          : `Audience synced to ${platformLabels[a.platform]}.`
+      );
     } catch (e) {
       showToast('שליחה לפלטפורמה נכשלה.');
     } finally {
       setSyncingId(null);
+    }
+  };
+
+  const handleSyncToAllConnectedPlatforms = async (a: Audience) => {
+    if (isWorkspaceReadOnly) {
+      showToast('אין הרשאת עריכה. המשתמש מוגדר לצפייה בלבד.');
+      return;
+    }
+    if (!uid) return;
+    if (connectedPlatforms.length === 0) {
+      showToast(isHebrew ? 'אין פלטפורמות מחוברות לסנכרון.' : 'No connected platforms to sync.');
+      return;
+    }
+    setSyncingId(a.id);
+    try {
+      const result = await syncAudiencePlatforms(a, true);
+      await updateAudience(uid, a.id, {
+        syncedToPlatform: result.syncedPlatforms.length > 0,
+        syncedPlatforms: result.syncedPlatforms,
+        syncStatusByPlatform: result.syncStatusByPlatform,
+        externalIdsByPlatform: result.externalIdsByPlatform,
+        externalId: result.externalId,
+        status: result.syncedPlatforms.length > 0 ? 'active' : a.status,
+      });
+      setAudiences((prev) =>
+        prev.map((x) =>
+          x.id === a.id
+            ? {
+                ...x,
+                syncedToPlatform: result.syncedPlatforms.length > 0,
+                syncedPlatforms: result.syncedPlatforms,
+                syncStatusByPlatform: result.syncStatusByPlatform,
+                externalIdsByPlatform: result.externalIdsByPlatform,
+                externalId: result.externalId,
+                status: result.syncedPlatforms.length > 0 ? 'active' : x.status,
+              }
+            : x
+        )
+      );
+      showToast(
+        isHebrew
+          ? `הקהל סונכרן לכל הפלטפורמות המחוברות: ${result.syncedPlatforms.map((p) => platformLabels[p]).join(', ')}.`
+          : `Audience synced to all connected platforms: ${result.syncedPlatforms.map((p) => platformLabels[p]).join(', ')}.`
+      );
+    } catch (e) {
+      showToast(isHebrew ? 'סנכרון לכל הפלטפורמות נכשל.' : 'Sync to all platforms failed.');
+    } finally {
+      setSyncingId(null);
+    }
+  };
+
+  const handleBulkSyncAllAudiences = async () => {
+    if (!uid || !audiences.length) return;
+    if (connectedPlatforms.length === 0) {
+      showToast(isHebrew ? 'אין פלטפורמות מחוברות לסנכרון.' : 'No connected platforms to sync.');
+      return;
+    }
+    setBulkSyncLoading(true);
+    try {
+      for (const audience of audiences) {
+        const result = await syncAudiencePlatforms(audience, true);
+        await updateAudience(uid, audience.id, {
+          syncedToPlatform: result.syncedPlatforms.length > 0,
+          syncedPlatforms: result.syncedPlatforms,
+          syncStatusByPlatform: result.syncStatusByPlatform,
+          externalIdsByPlatform: result.externalIdsByPlatform,
+          externalId: result.externalId,
+          status: result.syncedPlatforms.length > 0 ? 'active' : audience.status,
+        });
+        setAudiences((prev) =>
+          prev.map((x) =>
+            x.id === audience.id
+              ? {
+                  ...x,
+                  syncedToPlatform: result.syncedPlatforms.length > 0,
+                  syncedPlatforms: result.syncedPlatforms,
+                  syncStatusByPlatform: result.syncStatusByPlatform,
+                  externalIdsByPlatform: result.externalIdsByPlatform,
+                  externalId: result.externalId,
+                  status: result.syncedPlatforms.length > 0 ? 'active' : x.status,
+                }
+              : x
+          )
+        );
+      }
+      showToast(
+        isHebrew
+          ? 'כל הקהלים סונכרנו לכל הפלטפורמות המחוברות.'
+          : 'All audiences synced to all connected platforms.'
+      );
+    } catch (e) {
+      showToast(isHebrew ? 'סנכרון מרוכז נכשל.' : 'Bulk sync failed.');
+    } finally {
+      setBulkSyncLoading(false);
     }
   };
 
@@ -265,6 +489,24 @@ export function Audiences() {
         <div>
           <h1 className="text-2xl font-bold text-gray-900">{t('nav.audiences')}</h1>
           <p className="text-sm text-gray-500 mt-1">הגדר קהלים לפלטפורמות, ערוך וייצר ישירות ל-Google, Meta ו-TikTok. גימיני ממליץ לפי נתוני הפלטפורמות.</p>
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            {ALL_AUDIENCE_PLATFORMS.map((platform) => {
+              const isConnected = connectedPlatforms.includes(platform);
+              return (
+                <span
+                  key={`conn-${platform}`}
+                  className={cn(
+                    'inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold border',
+                    isConnected
+                      ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                      : 'bg-gray-100 text-gray-500 border-gray-200'
+                  )}
+                >
+                  {platformLabels[platform]} {isConnected ? (isHebrew ? 'מחובר' : 'Connected') : (isHebrew ? 'לא מחובר' : 'Disconnected')}
+                </span>
+              );
+            })}
+          </div>
         </div>
         <div className="flex items-center gap-2">
           <button
@@ -274,6 +516,14 @@ export function Audiences() {
           >
             {recommendationsLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
             המלצות מ-AI
+          </button>
+          <button
+            onClick={handleBulkSyncAllAudiences}
+            disabled={isWorkspaceReadOnly || bulkSyncLoading || audiences.length === 0}
+            className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors text-sm font-medium disabled:opacity-50"
+          >
+            {bulkSyncLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Globe2 className="w-4 h-4" />}
+            {isHebrew ? 'סנכרן הכל למחוברים' : 'Sync all to connected'}
           </button>
           <button
             onClick={() => openCreate()}
@@ -349,18 +599,38 @@ export function Audiences() {
                         </span>
                       </td>
                       <td className="px-6 py-4">
-                        {aud.syncedToPlatform ? (
-                          <span className="text-emerald-600 text-xs font-medium">סנכרן</span>
-                        ) : (
-                          <button
-                            onClick={() => handleSyncToPlatform(aud)}
-                            disabled={syncingId === aud.id || isWorkspaceReadOnly}
-                            className="text-indigo-600 hover:text-indigo-700 text-xs font-medium flex items-center gap-1 disabled:opacity-40"
-                          >
-                            {syncingId === aud.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <Send className="w-3 h-3" />}
-                            ייצר לפלטפורמה
-                          </button>
-                        )}
+                        <div className="flex flex-col gap-1.5">
+                          {aud.syncedPlatforms && aud.syncedPlatforms.length > 0 ? (
+                            <div className="flex flex-wrap gap-1">
+                              {aud.syncedPlatforms.map((platform) => (
+                                <span key={`${aud.id}-synced-${platform}`} className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                  {platformLabels[platform]}
+                                </span>
+                              ))}
+                            </div>
+                          ) : (
+                            <span className="text-gray-500 text-xs">{isHebrew ? 'טרם סונכרן' : 'Not synced yet'}</span>
+                          )}
+
+                          <div className="flex flex-wrap gap-1.5">
+                            <button
+                              onClick={() => handleSyncToPlatform(aud)}
+                              disabled={syncingId === aud.id || isWorkspaceReadOnly}
+                              className="text-indigo-600 hover:text-indigo-700 text-xs font-medium flex items-center gap-1 disabled:opacity-40"
+                            >
+                              {syncingId === aud.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <Send className="w-3 h-3" />}
+                              {isHebrew ? 'סנכרן ראשי' : 'Sync primary'}
+                            </button>
+                            <button
+                              onClick={() => handleSyncToAllConnectedPlatforms(aud)}
+                              disabled={syncingId === aud.id || isWorkspaceReadOnly}
+                              className="text-emerald-700 hover:text-emerald-800 text-xs font-medium flex items-center gap-1 disabled:opacity-40"
+                            >
+                              {syncingId === aud.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <Globe2 className="w-3 h-3" />}
+                              {isHebrew ? 'סנכרן לכל המחוברים' : 'Sync all connected'}
+                            </button>
+                          </div>
+                        </div>
                       </td>
                       <td className="px-6 py-4 flex gap-1 justify-end">
                         <button
@@ -461,6 +731,28 @@ export function Audiences() {
                   <option value="tiktok">TikTok</option>
                 </select>
               </div>
+              <label className="flex items-start gap-2 text-sm text-gray-700 bg-indigo-50 border border-indigo-100 rounded-lg px-3 py-2">
+                <input
+                  type="checkbox"
+                  checked={syncAllOnSave}
+                  onChange={(e) => setSyncAllOnSave(e.target.checked)}
+                  className="mt-0.5"
+                />
+                <span>
+                  <span className="font-semibold">
+                    {isHebrew ? 'סנכרן בעת שמירה לכל הפלטפורמות המחוברות' : 'Sync on save to all connected platforms'}
+                  </span>
+                  <span className="block text-xs text-indigo-700 mt-0.5">
+                    {connectedPlatforms.length > 0
+                      ? `${isHebrew ? 'מחוברים כרגע' : 'Currently connected'}: ${connectedPlatforms
+                          .map((p) => platformLabels[p])
+                          .join(', ')}`
+                      : isHebrew
+                      ? 'אין כרגע פלטפורמות מחוברות.'
+                      : 'No connected platforms at the moment.'}
+                  </span>
+                </span>
+              </label>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">תיאור (אופציונלי)</label>
                 <textarea

@@ -269,6 +269,9 @@ export interface Audience {
   status: 'draft' | 'active' | 'learning';
   syncedToPlatform: boolean;
   externalId?: string;
+  syncedPlatforms?: AudiencePlatform[];
+  syncStatusByPlatform?: Partial<Record<AudiencePlatform, 'pending' | 'synced' | 'failed'>>;
+  externalIdsByPlatform?: Partial<Record<AudiencePlatform, string>>;
   createdAt: string;
   updatedAt: string;
 }
