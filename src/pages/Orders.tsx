@@ -18,7 +18,9 @@ import {
   Search,
   Receipt,
   CreditCard,
-  CalendarDays
+  CalendarDays,
+  ChevronDown,
+  ChevronUp
 } from 'lucide-react';
 
 const ORDER_STATUSES = ['pending', 'processing', 'on-hold', 'completed', 'cancelled', 'refunded', 'failed'] as const;
@@ -36,6 +38,7 @@ export function Orders() {
   const [searchTerm, setSearchTerm] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [updatingOrderId, setUpdatingOrderId] = useState<number | null>(null);
+  const [expandedOrderId, setExpandedOrderId] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [lastSyncedAt, setLastSyncedAt] = useState<Date | null>(null);
   const [syncTick, setSyncTick] = useState(0);
@@ -217,6 +220,33 @@ export function Orders() {
     URL.revokeObjectURL(url);
   };
 
+  const buildAddressLines = (address: {
+    first_name?: string;
+    last_name?: string;
+    company?: string;
+    address_1?: string;
+    address_2?: string;
+    city?: string;
+    state?: string;
+    postcode?: string;
+    country?: string;
+    email?: string;
+    phone?: string;
+  }) => {
+    const fullName = `${address.first_name || ''} ${address.last_name || ''}`.trim();
+    const cityLine = [address.city, address.state, address.postcode].filter(Boolean).join(', ');
+    return [
+      fullName,
+      address.company || '',
+      address.address_1 || '',
+      address.address_2 || '',
+      cityLine,
+      address.country || '',
+      address.email || '',
+      address.phone || '',
+    ].filter((line) => line && line.trim().length > 0);
+  };
+
   if (!isConnected) {
     return (
       <div className="flex flex-col items-center justify-center h-[600px] bg-white rounded-2xl border border-dashed border-gray-300 p-12 text-center">
@@ -380,19 +410,20 @@ export function Orders() {
                 <th className="px-3 py-2 text-start font-semibold">שיטת תשלום</th>
                 <th className="px-3 py-2 text-start font-semibold">מוצרים</th>
                 <th className="px-3 py-2 text-start font-semibold">הערות</th>
+                <th className="px-3 py-2 text-start font-semibold">פרטים</th>
               </tr>
             </thead>
             <tbody>
               {isLoading && !orders.length ? (
                 <tr>
-                  <td colSpan={9} className="px-3 py-8 text-center text-gray-400">
+                  <td colSpan={10} className="px-3 py-8 text-center text-gray-400">
                     <Loader2 className="w-6 h-6 animate-spin mx-auto mb-2" />
                     טוען הזמנות מ‑WooCommerce...
                   </td>
                 </tr>
               ) : !filtered.length ? (
                 <tr>
-                  <td colSpan={9} className="px-3 py-8 text-center text-gray-400">
+                  <td colSpan={10} className="px-3 py-8 text-center text-gray-400">
                     לא נמצאו הזמנות לטווח תאריכים זה או לפי הפילטרים הנוכחיים.
                   </td>
                 </tr>
@@ -407,79 +438,142 @@ export function Orders() {
                   const customerNote = (o.customer_note || '').trim();
                   const isUpdatingStatus = updatingOrderId === o.id;
                   const statusValue = ORDER_STATUSES.includes(o.status as OrderStatus) ? (o.status as OrderStatus) : '';
+                  const isExpanded = expandedOrderId === o.id;
+                  const billingLines = buildAddressLines({
+                    ...o.billing,
+                    email: o.billing.email,
+                    phone: o.billing.phone,
+                  });
+                  const shippingLines = buildAddressLines(o.shipping);
                   return (
-                    <tr key={o.id} className="border-b border-gray-100 hover:bg-gray-50/50">
-                      <td className="px-3 py-2 font-mono text-[11px] text-gray-600">#{o.number}</td>
-                      <td className="px-3 py-2 text-gray-700">
-                        {o.date_created ? new Date(o.date_created).toLocaleString() : '—'}
-                      </td>
-                      <td className="px-3 py-2 text-gray-900 font-medium">{customerName}</td>
-                      <td className="px-3 py-2 text-gray-600">{o.billing.email || '—'}</td>
-                      <td className="px-3 py-2">
-                        <div className="space-y-1.5 min-w-[150px]">
-                          <span
-                            className={cn(
-                              'inline-flex px-2 py-0.5 rounded-full text-[11px] font-bold capitalize',
-                              o.status === 'completed'
-                                ? 'bg-emerald-100 text-emerald-700'
-                                : o.status === 'processing'
-                                ? 'bg-sky-100 text-sky-700'
-                                : o.status === 'pending'
-                                ? 'bg-amber-100 text-amber-700'
-                                : o.status === 'cancelled' || o.status === 'refunded' || o.status === 'failed'
-                                ? 'bg-red-100 text-red-700'
-                                : 'bg-gray-100 text-gray-700'
+                    <React.Fragment key={o.id}>
+                      <tr className="border-b border-gray-100 hover:bg-gray-50/50">
+                        <td className="px-3 py-2 font-mono text-[11px] text-gray-600">#{o.number}</td>
+                        <td className="px-3 py-2 text-gray-700">
+                          {o.date_created ? new Date(o.date_created).toLocaleString() : '—'}
+                        </td>
+                        <td className="px-3 py-2 text-gray-900 font-medium">{customerName}</td>
+                        <td className="px-3 py-2 text-gray-600">{o.billing.email || '—'}</td>
+                        <td className="px-3 py-2">
+                          <div className="space-y-1.5 min-w-[150px]">
+                            <span
+                              className={cn(
+                                'inline-flex px-2 py-0.5 rounded-full text-[11px] font-bold capitalize',
+                                o.status === 'completed'
+                                  ? 'bg-emerald-100 text-emerald-700'
+                                  : o.status === 'processing'
+                                  ? 'bg-sky-100 text-sky-700'
+                                  : o.status === 'pending'
+                                  ? 'bg-amber-100 text-amber-700'
+                                  : o.status === 'cancelled' || o.status === 'refunded' || o.status === 'failed'
+                                  ? 'bg-red-100 text-red-700'
+                                  : 'bg-gray-100 text-gray-700'
+                              )}
+                            >
+                              {o.status}
+                            </span>
+                            <select
+                              value={statusValue}
+                              onChange={(e) => handleOrderStatusChange(o.id, e.target.value as OrderStatus)}
+                              disabled={isUpdatingStatus || isWorkspaceReadOnly}
+                              className="w-full border border-gray-200 bg-white rounded-lg px-2 py-1 text-[11px] text-gray-700 font-semibold disabled:opacity-60"
+                              aria-label={`עדכון סטטוס הזמנה ${o.number}`}
+                            >
+                              {!statusValue && (
+                                <option value="" disabled>
+                                  {o.status || 'unknown'}
+                                </option>
+                              )}
+                              {ORDER_STATUSES.map((statusOption) => (
+                                <option key={statusOption} value={statusOption}>
+                                  {statusOption}
+                                </option>
+                              ))}
+                            </select>
+                            {isUpdatingStatus && (
+                              <div className="flex items-center gap-1 text-[10px] text-gray-500">
+                                <Loader2 className="w-3 h-3 animate-spin" />
+                                מעדכן...
+                              </div>
                             )}
-                          >
-                            {o.status}
-                          </span>
-                          <select
-                            value={statusValue}
-                            onChange={(e) => handleOrderStatusChange(o.id, e.target.value as OrderStatus)}
-                            disabled={isUpdatingStatus || isWorkspaceReadOnly}
-                            className="w-full border border-gray-200 bg-white rounded-lg px-2 py-1 text-[11px] text-gray-700 font-semibold disabled:opacity-60"
-                            aria-label={`עדכון סטטוס הזמנה ${o.number}`}
-                          >
-                            {!statusValue && (
-                              <option value="" disabled>
-                                {o.status || 'unknown'}
-                              </option>
-                            )}
-                            {ORDER_STATUSES.map((statusOption) => (
-                              <option key={statusOption} value={statusOption}>
-                                {statusOption}
-                              </option>
-                            ))}
-                          </select>
-                          {isUpdatingStatus && (
-                            <div className="flex items-center gap-1 text-[10px] text-gray-500">
-                              <Loader2 className="w-3 h-3 animate-spin" />
-                              מעדכן...
-                            </div>
-                          )}
-                        </div>
-                      </td>
-                      <td className="px-3 py-2 font-bold text-gray-900 whitespace-nowrap">
-                        {formatCurrency(o.total)}
-                      </td>
-                      <td className="px-3 py-2 text-gray-700">
-                        {o.payment_method_title || o.payment_method || '—'}
-                      </td>
-                      <td className="px-3 py-2 text-gray-700 min-w-[280px] max-w-[420px]">
-                        {itemLines.length ? (
-                          <div className="space-y-1 whitespace-normal break-words leading-relaxed">
-                            {itemLines.map((itemLine, idx) => (
-                              <div key={`${o.id}-item-${idx}`}>{itemLine}</div>
-                            ))}
                           </div>
-                        ) : (
-                          '—'
-                        )}
-                      </td>
-                      <td className="px-3 py-2 text-gray-700 max-w-xs whitespace-normal break-words">
-                        {customerNote}
-                      </td>
-                    </tr>
+                        </td>
+                        <td className="px-3 py-2 font-bold text-gray-900 whitespace-nowrap">
+                          {formatCurrency(o.total)}
+                        </td>
+                        <td className="px-3 py-2 text-gray-700">
+                          {o.payment_method_title || o.payment_method || '—'}
+                        </td>
+                        <td className="px-3 py-2 text-gray-700 min-w-[280px] max-w-[420px]">
+                          {itemLines.length ? (
+                            <div className="space-y-1 whitespace-normal break-words leading-relaxed">
+                              {itemLines.map((itemLine, idx) => (
+                                <div key={`${o.id}-item-${idx}`}>{itemLine}</div>
+                              ))}
+                            </div>
+                          ) : (
+                            '—'
+                          )}
+                        </td>
+                        <td className="px-3 py-2 text-gray-700 max-w-xs whitespace-normal break-words">
+                          {customerNote}
+                        </td>
+                        <td className="px-3 py-2">
+                          <button
+                            onClick={() => setExpandedOrderId((prev) => (prev === o.id ? null : o.id))}
+                            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-bold border border-gray-200 text-gray-700 hover:bg-gray-50"
+                          >
+                            {isExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                            {isExpanded ? 'הסתר' : 'פתח'}
+                          </button>
+                        </td>
+                      </tr>
+                      {isExpanded && (
+                        <tr className="bg-gray-50/80 border-b border-gray-100">
+                          <td colSpan={10} className="px-3 py-4">
+                            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 text-xs sm:text-sm">
+                              <div className="rounded-xl border border-gray-200 bg-white p-3 space-y-1">
+                                <p className="font-bold text-gray-900">פרטי הזמנה</p>
+                                <p className="text-gray-700">מספר הזמנה: #{o.number}</p>
+                                <p className="text-gray-700">מזהה פנימי: {o.id}</p>
+                                <p className="text-gray-700">נוצר בתאריך: {o.date_created ? new Date(o.date_created).toLocaleString() : '—'}</p>
+                                <p className="text-gray-700">עודכן בתאריך: {o.date_modified ? new Date(o.date_modified).toLocaleString() : '—'}</p>
+                                <p className="text-gray-700">הושלם בתאריך: {o.date_completed ? new Date(o.date_completed).toLocaleString() : '—'}</p>
+                                <p className="text-gray-700">מטבע: {o.currency || '—'}</p>
+                                <p className="text-gray-700">סה"כ הזמנה: {formatCurrency(o.total)}</p>
+                                <p className="text-gray-700">סה"כ משלוח: {formatCurrency(o.shipping_total)}</p>
+                                <p className="text-gray-700">סה"כ מס: {formatCurrency(o.total_tax)}</p>
+                                <p className="text-gray-700">תשלום: {o.payment_method_title || o.payment_method || '—'}</p>
+                              </div>
+                              <div className="rounded-xl border border-gray-200 bg-white p-3 space-y-1">
+                                <p className="font-bold text-gray-900">כתובת חיוב</p>
+                                {billingLines.length ? (
+                                  billingLines.map((line, idx) => (
+                                    <p key={`billing-${o.id}-${idx}`} className="text-gray-700 break-words">
+                                      {line}
+                                    </p>
+                                  ))
+                                ) : (
+                                  <p className="text-gray-400">אין נתוני כתובת חיוב</p>
+                                )}
+                              </div>
+                              <div className="rounded-xl border border-gray-200 bg-white p-3 space-y-1">
+                                <p className="font-bold text-gray-900">כתובת משלוח</p>
+                                {shippingLines.length ? (
+                                  shippingLines.map((line, idx) => (
+                                    <p key={`shipping-${o.id}-${idx}`} className="text-gray-700 break-words">
+                                      {line}
+                                    </p>
+                                  ))
+                                ) : (
+                                  <p className="text-gray-400">אין נתוני כתובת משלוח</p>
+                                )}
+                              </div>
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </React.Fragment>
                   );
                 })
               )}
