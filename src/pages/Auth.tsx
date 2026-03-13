@@ -9,7 +9,7 @@ interface AuthProps {
 }
 
 export function Auth({ onLogin, initialMode = 'login' }: AuthProps) {
-  const { t, dir } = useLanguage();
+  const { t, dir, language } = useLanguage();
   const [isLogin, setIsLogin] = useState(initialMode !== 'register');
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -26,7 +26,7 @@ export function Auth({ onLogin, initialMode = 'login' }: AuthProps) {
       // App.tsx will handle the redirect/state change via onAuthStateChanged
     } catch (err: any) {
       console.error("Google Login Error:", err);
-      setError(err.message || "אירעה שגיאה בהתחברות עם גוגל.");
+      setError(err.message || (language === 'he' ? 'אירעה שגיאה בהתחברות עם גוגל.' : 'Google sign-in failed. Please try again.'));
     } finally {
       setIsLoading(false);
     }

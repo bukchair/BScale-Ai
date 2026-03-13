@@ -25,7 +25,8 @@ const topKeywords = [
 ];
 
 export function SEOReports() {
-  const { t, dir } = useLanguage();
+  const { t, dir, language } = useLanguage();
+  const isHebrew = language === 'he';
   const { connections } = useConnections();
   const aiKeys = getAIKeysFromConnections(connections);
   const [activeTab, setActiveTab] = useState<'overview' | 'keywords' | 'pages' | 'products'>('overview');
@@ -54,12 +55,16 @@ export function SEOReports() {
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">{t('nav.seoCenter')}</h1>
-          <p className="text-sm text-gray-500 mt-1">ביצועים אורגניים, דירוג מילות מפתח ואופטימיזציית מוצרים מבוססת AI.</p>
+          <p className="text-sm text-gray-500 mt-1">
+            {isHebrew
+              ? 'ביצועים אורגניים, דירוג מילות מפתח ואופטימיזציית מוצרים מבוססת AI.'
+              : 'Organic performance, keyword rankings, and AI-powered product optimization.'}
+          </p>
         </div>
         <div className="flex items-center gap-2">
           <button className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors text-sm font-medium">
             <Globe className="w-4 h-4" />
-            חבר GSC
+            {isHebrew ? 'חבר GSC' : 'Connect GSC'}
           </button>
         </div>
       </div>
@@ -68,7 +73,7 @@ export function SEOReports() {
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-sm">
           <div className="flex items-center justify-between mb-2">
-            <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wider">סה"כ קליקים</h3>
+            <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wider">{isHebrew ? 'סה"כ קליקים' : 'Total clicks'}</h3>
             <div className="w-8 h-8 bg-blue-50 rounded-lg flex items-center justify-center text-blue-600">
               <Search className="w-4 h-4" />
             </div>
@@ -81,7 +86,7 @@ export function SEOReports() {
 
         <div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-sm">
           <div className="flex items-center justify-between mb-2">
-            <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wider">סה"כ חשיפות</h3>
+            <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wider">{isHebrew ? 'סה"כ חשיפות' : 'Total impressions'}</h3>
             <div className="w-8 h-8 bg-indigo-50 rounded-lg flex items-center justify-center text-indigo-600">
               <Globe className="w-4 h-4" />
             </div>
@@ -94,7 +99,7 @@ export function SEOReports() {
 
         <div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-sm">
           <div className="flex items-center justify-between mb-2">
-            <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wider">CTR ממוצע</h3>
+            <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wider">{isHebrew ? 'CTR ממוצע' : 'Average CTR'}</h3>
             <div className="w-8 h-8 bg-purple-50 rounded-lg flex items-center justify-center text-purple-600">
               <BarChart2 className="w-4 h-4" />
             </div>
@@ -107,7 +112,7 @@ export function SEOReports() {
 
         <div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-sm">
           <div className="flex items-center justify-between mb-2">
-            <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wider">מיקום ממוצע</h3>
+            <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wider">{isHebrew ? 'מיקום ממוצע' : 'Average position'}</h3>
             <div className="w-8 h-8 bg-emerald-50 rounded-lg flex items-center justify-center text-emerald-600">
               <ArrowUpRight className="w-4 h-4" />
             </div>
@@ -127,35 +132,45 @@ export function SEOReports() {
             <div className="w-10 h-10 bg-amber-400/20 rounded-lg flex items-center justify-center text-amber-300">
               <Zap className="w-5 h-5" />
             </div>
-            <h2 className="text-xl font-bold text-white">הזדמנויות SEO מבוססות AI</h2>
+            <h2 className="text-xl font-bold text-white">{isHebrew ? 'הזדמנויות SEO מבוססות AI' : 'AI-powered SEO opportunities'}</h2>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="space-y-4">
               <p className="text-indigo-100 text-sm leading-relaxed">
-                ניתחנו את נתוני ה-Search Console שלך וזיהינו 3 הזדמנויות בעלות השפעה גבוהה להגדלת התנועה האורגנית.
+                {isHebrew
+                  ? 'ניתחנו את נתוני ה-Search Console שלך וזיהינו 3 הזדמנויות בעלות השפעה גבוהה להגדלת התנועה האורגנית.'
+                  : 'We analyzed your Search Console data and identified 3 high-impact opportunities to increase organic traffic.'}
               </p>
               <ul className="space-y-3">
                 <li className="flex items-start gap-3 bg-white/5 p-3 rounded-lg border border-white/10">
                   <TrendingUp className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />
                   <div>
-                    <span className="text-sm font-bold text-white block mb-1">מילות מפתח בטווח פגיעה</span>
-                    <span className="text-xs text-indigo-200">"ציוד ריצה זול" מדורג במיקום 11.4. הוספת 2 קישורים פנימיים ועדכון ה-H1 יכולים לדחוף אותו לעמוד 1, ולהכפיל את הקליקים.</span>
+                    <span className="text-sm font-bold text-white block mb-1">{isHebrew ? 'מילות מפתח בטווח פגיעה' : 'Near-win keywords'}</span>
+                    <span className="text-xs text-indigo-200">
+                      {isHebrew
+                        ? '"ציוד ריצה זול" מדורג במיקום 11.4. הוספת 2 קישורים פנימיים ועדכון ה-H1 יכולים לדחוף אותו לעמוד 1, ולהכפיל את הקליקים.'
+                        : '"Affordable running gear" ranks at 11.4. Adding 2 internal links and improving the H1 can push it to page 1 and double clicks.'}
+                    </span>
                   </div>
                 </li>
                 <li className="flex items-start gap-3 bg-white/5 p-3 rounded-lg border border-white/10">
                   <AlertTriangle className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
                   <div>
-                    <span className="text-sm font-bold text-white block mb-1">CTR נמוך בדפים עם חשיפות גבוהות</span>
-                    <span className="text-xs text-indigo-200">למדריך "איך להתחיל לרוץ" יש 15k חשיפות אבל רק 0.9% CTR. שכתוב תיאור המטא יכול לשפר את שיעור ההקלקה.</span>
+                    <span className="text-sm font-bold text-white block mb-1">{isHebrew ? 'CTR נמוך בדפים עם חשיפות גבוהות' : 'Low CTR on high-impression pages'}</span>
+                    <span className="text-xs text-indigo-200">
+                      {isHebrew
+                        ? 'למדריך "איך להתחיל לרוץ" יש 15k חשיפות אבל רק 0.9% CTR. שכתוב תיאור המטא יכול לשפר את שיעור ההקלקה.'
+                        : 'The guide "How to start running" has 15k impressions but only 0.9% CTR. Rewriting the meta description can improve click-through rate.'}
+                    </span>
                   </div>
                 </li>
               </ul>
             </div>
             <div className="bg-black/20 rounded-xl p-6 border border-white/10 flex flex-col justify-center items-center text-center">
-              <p className="text-sm text-indigo-200 mb-2">עלייה משוערת בתנועה</p>
-              <p className="text-4xl font-black text-emerald-400">+450 קליקים/חודש</p>
+              <p className="text-sm text-indigo-200 mb-2">{isHebrew ? 'עלייה משוערת בתנועה' : 'Estimated traffic lift'}</p>
+              <p className="text-4xl font-black text-emerald-400">{isHebrew ? '+450 קליקים/חודש' : '+450 clicks/month'}</p>
               <button className="mt-6 px-6 py-2.5 bg-white text-indigo-900 font-bold rounded-lg hover:bg-indigo-50 transition-colors text-sm w-full shadow-lg">
-                צור תיאורי מטא
+                {isHebrew ? 'צור תיאורי מטא' : 'Generate meta descriptions'}
               </button>
             </div>
           </div>
@@ -165,31 +180,31 @@ export function SEOReports() {
       {/* Performance Chart */}
       <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
         <div className="p-6 border-b border-gray-200 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-          <h2 className="text-lg font-bold text-gray-900">ביצועים אורגניים</h2>
+          <h2 className="text-lg font-bold text-gray-900">{isHebrew ? 'ביצועים אורגניים' : 'Organic performance'}</h2>
           <div className="flex bg-gray-100 p-1 rounded-lg">
             <button 
               onClick={() => setActiveTab('overview')}
               className={cn("px-4 py-1.5 text-sm font-medium rounded-md transition-colors", activeTab === 'overview' ? "bg-white text-gray-900 shadow-sm" : "text-gray-600 hover:text-gray-900")}
             >
-              סקירה כללית
+              {isHebrew ? 'סקירה כללית' : 'Overview'}
             </button>
             <button 
               onClick={() => setActiveTab('keywords')}
               className={cn("px-4 py-1.5 text-sm font-medium rounded-md transition-colors", activeTab === 'keywords' ? "bg-white text-gray-900 shadow-sm" : "text-gray-600 hover:text-gray-900")}
             >
-              מילות מפתח
+              {isHebrew ? 'מילות מפתח' : 'Keywords'}
             </button>
             <button 
               onClick={() => setActiveTab('pages')}
               className={cn("px-4 py-1.5 text-sm font-medium rounded-md transition-colors", activeTab === 'pages' ? "bg-white text-gray-900 shadow-sm" : "text-gray-600 hover:text-gray-900")}
             >
-              דפים
+              {isHebrew ? 'דפים' : 'Pages'}
             </button>
             <button 
               onClick={() => setActiveTab('products')}
               className={cn("px-4 py-1.5 text-sm font-medium rounded-md transition-colors", activeTab === 'products' ? "bg-white text-gray-900 shadow-sm" : "text-gray-600 hover:text-gray-900")}
             >
-              מוצרים
+              {isHebrew ? 'מוצרים' : 'Products'}
             </button>
           </div>
         </div>
@@ -205,8 +220,8 @@ export function SEOReports() {
                   <YAxis yAxisId="right" orientation="right" reversed axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#9CA3AF', fontWeight: 500 }} />
                   <Tooltip contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
                   <Legend iconType="circle" wrapperStyle={{ paddingTop: '20px', fontSize: '14px', fontWeight: 500 }} />
-                  <Line yAxisId="left" type="monotone" dataKey="clicks" name="קליקים" stroke="#3B82F6" strokeWidth={3} dot={{ r: 4, strokeWidth: 2 }} activeDot={{ r: 6 }} />
-                  <Line yAxisId="right" type="monotone" dataKey="position" name="מיקום ממוצע" stroke="#8B5CF6" strokeWidth={3} dot={{ r: 4, strokeWidth: 2 }} activeDot={{ r: 6 }} />
+                  <Line yAxisId="left" type="monotone" dataKey="clicks" name={isHebrew ? 'קליקים' : 'Clicks'} stroke="#3B82F6" strokeWidth={3} dot={{ r: 4, strokeWidth: 2 }} activeDot={{ r: 6 }} />
+                  <Line yAxisId="right" type="monotone" dataKey="position" name={isHebrew ? 'מיקום ממוצע' : 'Average position'} stroke="#8B5CF6" strokeWidth={3} dot={{ r: 4, strokeWidth: 2 }} activeDot={{ r: 6 }} />
                 </LineChart>
               </ResponsiveContainer>
             </div>
@@ -217,11 +232,11 @@ export function SEOReports() {
               <table className="w-full text-sm text-right">
                 <thead className="text-xs text-gray-500 uppercase bg-gray-50 border-b border-gray-200">
                   <tr>
-                    <th className="px-6 py-4 font-semibold">מילת מפתח</th>
-                    <th className="px-6 py-4 font-semibold">קליקים</th>
-                    <th className="px-6 py-4 font-semibold">חשיפות</th>
+                    <th className="px-6 py-4 font-semibold">{isHebrew ? 'מילת מפתח' : 'Keyword'}</th>
+                    <th className="px-6 py-4 font-semibold">{isHebrew ? 'קליקים' : 'Clicks'}</th>
+                    <th className="px-6 py-4 font-semibold">{isHebrew ? 'חשיפות' : 'Impressions'}</th>
                     <th className="px-6 py-4 font-semibold">CTR</th>
-                    <th className="px-6 py-4 font-semibold">מיקום</th>
+                    <th className="px-6 py-4 font-semibold">{isHebrew ? 'מיקום' : 'Position'}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200">

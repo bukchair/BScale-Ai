@@ -8,29 +8,148 @@ import { runAutoAdsIfNeeded } from '../lib/autoAdsRunner';
 import { useConnections } from '../contexts/ConnectionsContext';
 import { useCurrency } from '../contexts/CurrencyContext';
 
-const buildPendingApprovals = (money: string) => [
-  { id: 1, type: 'הקצאת תקציב מחדש', description: `העבר ${money} מ-"חיפוש מותג" ל-"Performance Max" עקב ROAS גבוה יותר.`, platform: 'Google Ads', impact: 'גבוה', time: 'לפני שעתיים' },
-  { id: 2, type: 'עדכון קופירייטינג', description: 'עדכן את טקסט המודעה ב-Meta כך שיכלול "משלוח חינם" על סמך ניתוח מתחרים.', platform: 'Meta', impact: 'בינוני', time: 'לפני 5 שעות' },
-  { id: 3, type: 'החרגת מילות מפתח', description: 'הוסף "חינם" ו-"זול" כמילות מפתח שליליות כדי להפחית הוצאות מבוזבזות.', platform: 'Google Ads', impact: 'גבוה', time: 'לפני יום' },
+const buildPendingApprovals = (money: string, isHebrew: boolean) => [
+  {
+    id: 1,
+    type: isHebrew ? 'הקצאת תקציב מחדש' : 'Budget reallocation',
+    description: isHebrew
+      ? `העבר ${money} מ-"חיפוש מותג" ל-"Performance Max" עקב ROAS גבוה יותר.`
+      : `Move ${money} from "Brand Search" to "Performance Max" due to higher ROAS.`,
+    platform: 'Google Ads',
+    impact: isHebrew ? 'גבוה' : 'High',
+    time: isHebrew ? 'לפני שעתיים' : '2 hours ago',
+  },
+  {
+    id: 2,
+    type: isHebrew ? 'עדכון קופירייטינג' : 'Copy update',
+    description: isHebrew
+      ? 'עדכן את טקסט המודעה ב-Meta כך שיכלול "משלוח חינם" על סמך ניתוח מתחרים.'
+      : 'Update Meta ad copy to include "Free shipping" based on competitor analysis.',
+    platform: 'Meta',
+    impact: isHebrew ? 'בינוני' : 'Medium',
+    time: isHebrew ? 'לפני 5 שעות' : '5 hours ago',
+  },
+  {
+    id: 3,
+    type: isHebrew ? 'החרגת מילות מפתח' : 'Negative keyword update',
+    description: isHebrew
+      ? 'הוסף "חינם" ו-"זול" כמילות מפתח שליליות כדי להפחית הוצאות מבוזבזות.'
+      : 'Add "free" and "cheap" as negative keywords to reduce wasted spend.',
+    platform: 'Google Ads',
+    impact: isHebrew ? 'גבוה' : 'High',
+    time: isHebrew ? 'לפני יום' : '1 day ago',
+  },
 ];
 
-const buildAutomations = (money: string) => [
-  { id: 1, name: 'השהיה אוטומטית של ביצועים נמוכים', description: `השהה מודעות עם ROAS < 1.0 לאחר 3 ימים והוצאה של ${money}.`, status: 'פעיל', platform: 'כל הפלטפורמות' },
-  { id: 2, name: 'הגדלת תקציב', description: 'הגדל תקציב ב-10% עבור קמפיינים ששומרים על ROAS > 3.0 במשך 7 ימים.', status: 'מושהה', platform: 'Meta' },
-  { id: 3, name: 'התאמות הצעות מחיר', description: 'הגדל הצעות מחיר ב-15% בשעות שיא של המרות (18:00 - 22:00).', status: 'פעיל', platform: 'Google Ads' },
+const buildAutomations = (money: string, isHebrew: boolean) => [
+  {
+    id: 1,
+    name: isHebrew ? 'השהיה אוטומטית של ביצועים נמוכים' : 'Auto pause low performance',
+    description: isHebrew
+      ? `השהה מודעות עם ROAS < 1.0 לאחר 3 ימים והוצאה של ${money}.`
+      : `Pause ads with ROAS < 1.0 after 3 days and spend of ${money}.`,
+    status: isHebrew ? 'פעיל' : 'Active',
+    platform: isHebrew ? 'כל הפלטפורמות' : 'All platforms',
+  },
+  {
+    id: 2,
+    name: isHebrew ? 'הגדלת תקציב' : 'Budget increase',
+    description: isHebrew
+      ? 'הגדל תקציב ב-10% עבור קמפיינים ששומרים על ROAS > 3.0 במשך 7 ימים.'
+      : 'Increase budget by 10% for campaigns with ROAS > 3.0 over 7 days.',
+    status: isHebrew ? 'מושהה' : 'Paused',
+    platform: 'Meta',
+  },
+  {
+    id: 3,
+    name: isHebrew ? 'התאמות הצעות מחיר' : 'Bid adjustments',
+    description: isHebrew
+      ? 'הגדל הצעות מחיר ב-15% בשעות שיא של המרות (18:00 - 22:00).'
+      : 'Increase bids by 15% during conversion peak hours (18:00 - 22:00).',
+    status: isHebrew ? 'פעיל' : 'Active',
+    platform: 'Google Ads',
+  },
 ];
 
-const buildActivities = (money: string) => [
-  { id: 1, user: 'Asher B.', action: 'אישר המלצת AI', details: `הקצאת תקציב מחדש: הועברו ${money} ל-Performance Max`, time: 'לפני 10 דקות', type: 'approval', icon: CheckCircle2, color: 'text-emerald-500', bg: 'bg-emerald-50' },
-  { id: 2, user: 'System AI', action: 'יצר קופירייטינג חדש', details: 'נוצרו 3 וריאציות לקמפיין "מבצע קיץ"', time: 'לפני שעה', type: 'ai', icon: Zap, color: 'text-indigo-500', bg: 'bg-indigo-50' },
-  { id: 3, user: 'Asher B.', action: 'עדכן הגדרות', target: 'חיוב', details: 'שונה אמצעי תשלום ראשי', time: 'לפני 3 שעות', type: 'settings', icon: Settings, color: 'text-gray-500', bg: 'bg-gray-50' },
-  { id: 4, user: 'System', action: 'שגיאת חיבור', target: 'Shopify', details: 'נכשל סנכרון נתוני מלאי. מנסה שוב...', time: 'לפני 5 שעות', type: 'error', icon: AlertTriangle, color: 'text-red-500', bg: 'bg-red-50' },
-  { id: 5, user: 'Asher B.', action: 'יצר קהל', target: 'Meta', details: 'Lookalike 1% - לקוחות LTV גבוה', time: 'לפני יום', type: 'action', icon: User, color: 'text-blue-500', bg: 'bg-blue-50' },
-  { id: 6, user: 'System AI', action: 'השהה קמפיין', target: 'Google Ads', details: 'כלל אוטומטי: "השהיית ביצועים נמוכים אוטומטית" הופעל עבור "רשת המדיה - ריטרגטינג"', time: 'לפני יום', type: 'automation', icon: Zap, color: 'text-amber-500', bg: 'bg-amber-50' },
+const buildActivities = (money: string, isHebrew: boolean) => [
+  {
+    id: 1,
+    user: 'Asher B.',
+    action: isHebrew ? 'אישר המלצת AI' : 'Approved AI recommendation',
+    details: isHebrew
+      ? `הקצאת תקציב מחדש: הועברו ${money} ל-Performance Max`
+      : `Budget reallocation: moved ${money} to Performance Max`,
+    time: isHebrew ? 'לפני 10 דקות' : '10 minutes ago',
+    type: 'approval',
+    icon: CheckCircle2,
+    color: 'text-emerald-500',
+    bg: 'bg-emerald-50',
+  },
+  {
+    id: 2,
+    user: 'System AI',
+    action: isHebrew ? 'יצר קופירייטינג חדש' : 'Generated new copy',
+    details: isHebrew ? 'נוצרו 3 וריאציות לקמפיין "מבצע קיץ"' : 'Created 3 variants for "Summer Sale" campaign',
+    time: isHebrew ? 'לפני שעה' : '1 hour ago',
+    type: 'ai',
+    icon: Zap,
+    color: 'text-indigo-500',
+    bg: 'bg-indigo-50',
+  },
+  {
+    id: 3,
+    user: 'Asher B.',
+    action: isHebrew ? 'עדכן הגדרות' : 'Updated settings',
+    target: isHebrew ? 'חיוב' : 'Billing',
+    details: isHebrew ? 'שונה אמצעי תשלום ראשי' : 'Primary payment method updated',
+    time: isHebrew ? 'לפני 3 שעות' : '3 hours ago',
+    type: 'settings',
+    icon: Settings,
+    color: 'text-gray-500',
+    bg: 'bg-gray-50',
+  },
+  {
+    id: 4,
+    user: 'System',
+    action: isHebrew ? 'שגיאת חיבור' : 'Connection error',
+    target: 'Shopify',
+    details: isHebrew ? 'נכשל סנכרון נתוני מלאי. מנסה שוב...' : 'Inventory data sync failed. Retrying...',
+    time: isHebrew ? 'לפני 5 שעות' : '5 hours ago',
+    type: 'error',
+    icon: AlertTriangle,
+    color: 'text-red-500',
+    bg: 'bg-red-50',
+  },
+  {
+    id: 5,
+    user: 'Asher B.',
+    action: isHebrew ? 'יצר קהל' : 'Created audience',
+    target: 'Meta',
+    details: isHebrew ? 'Lookalike 1% - לקוחות LTV גבוה' : 'Lookalike 1% - high LTV customers',
+    time: isHebrew ? 'לפני יום' : '1 day ago',
+    type: 'action',
+    icon: User,
+    color: 'text-blue-500',
+    bg: 'bg-blue-50',
+  },
+  {
+    id: 6,
+    user: 'System AI',
+    action: isHebrew ? 'השהה קמפיין' : 'Paused campaign',
+    target: 'Google Ads',
+    details: isHebrew
+      ? 'כלל אוטומטי: "השהיית ביצועים נמוכים אוטומטית" הופעל עבור "רשת המדיה - ריטרגטינג"'
+      : 'Automation rule "Auto pause low performance" was triggered for "Display Network - Retargeting"',
+    time: isHebrew ? 'לפני יום' : '1 day ago',
+    type: 'automation',
+    icon: Zap,
+    color: 'text-amber-500',
+    bg: 'bg-amber-50',
+  },
 ];
 
 export function Automations() {
-  const { t, dir } = useLanguage();
+  const { t, dir, language } = useLanguage();
   const { format: formatCurrency } = useCurrency();
   const { dataOwnerUid, isWorkspaceReadOnly } = useConnections();
   const [activeTab, setActiveTab] = useState<'approvals' | 'rules' | 'log' | 'auto-ads'>('approvals');
@@ -46,9 +165,10 @@ export function Automations() {
   const [lastRunResult, setLastRunResult] = useState<{ ran: boolean; created?: number } | null>(null);
 
   const uid = dataOwnerUid || auth.currentUser?.uid;
-  const pendingApprovals = useMemo(() => buildPendingApprovals(formatCurrency(500)), [formatCurrency]);
-  const automations = useMemo(() => buildAutomations(formatCurrency(100)), [formatCurrency]);
-  const activities = useMemo(() => buildActivities(formatCurrency(500)), [formatCurrency]);
+  const isHebrew = language === 'he';
+  const pendingApprovals = useMemo(() => buildPendingApprovals(formatCurrency(500), isHebrew), [formatCurrency, isHebrew]);
+  const automations = useMemo(() => buildAutomations(formatCurrency(100), isHebrew), [formatCurrency, isHebrew]);
+  const activities = useMemo(() => buildActivities(formatCurrency(500), isHebrew), [formatCurrency, isHebrew]);
 
   useEffect(() => {
     if (!uid) return;
@@ -102,18 +222,18 @@ export function Automations() {
     <div className="space-y-6 max-w-7xl mx-auto">
       {isWorkspaceReadOnly && (
         <div className="bg-amber-50 border border-amber-200 text-amber-800 px-4 py-3 rounded-xl text-sm font-bold">
-          מצב צפייה בלבד פעיל. לא ניתן לערוך אוטומציות בחשבון זה.
+          {isHebrew ? 'מצב צפייה בלבד פעיל. לא ניתן לערוך אוטומציות בחשבון זה.' : 'View-only mode is active. Automations cannot be edited in this account.'}
         </div>
       )}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">{t('nav.approvalsAutomations') || 'אישורים / אוטומציות'}</h1>
-          <p className="text-sm text-gray-500 mt-1">סקור המלצות AI ונהל חוקים אוטומטיים.</p>
+          <h1 className="text-2xl font-bold text-gray-900">{t('nav.approvalsAutomations') || (isHebrew ? 'אישורים / אוטומציות' : 'Approvals / Automations')}</h1>
+          <p className="text-sm text-gray-500 mt-1">{isHebrew ? 'סקור המלצות AI ונהל חוקים אוטומטיים.' : 'Review AI recommendations and manage automation rules.'}</p>
         </div>
         <div className="flex items-center gap-2">
           <button className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors text-sm font-bold shadow-sm">
             <Zap className="w-4 h-4" />
-            צור חוק חדש
+            {isHebrew ? 'צור חוק חדש' : 'Create new rule'}
           </button>
         </div>
       </div>
@@ -126,7 +246,7 @@ export function Automations() {
               className={cn("flex items-center gap-2 px-4 py-1.5 text-sm font-bold rounded-md transition-colors", activeTab === 'approvals' ? "bg-white text-gray-900 shadow-sm" : "text-gray-600 hover:text-gray-900")}
             >
               <ShieldAlert className="w-4 h-4" />
-              אישורים ממתינים
+              {isHebrew ? 'אישורים ממתינים' : 'Pending approvals'}
               <span className={cn("bg-red-100 text-red-600 px-2 py-0.5 rounded-full text-xs", dir === 'rtl' ? "mr-1" : "ml-1")}>3</span>
             </button>
             <button 
@@ -134,21 +254,21 @@ export function Automations() {
               className={cn("flex items-center gap-2 px-4 py-1.5 text-sm font-bold rounded-md transition-colors", activeTab === 'rules' ? "bg-white text-gray-900 shadow-sm" : "text-gray-600 hover:text-gray-900")}
             >
               <Settings className="w-4 h-4" />
-              חוקים אוטומטיים
+              {isHebrew ? 'חוקים אוטומטיים' : 'Automation rules'}
             </button>
             <button 
               onClick={() => setActiveTab('log')}
               className={cn("flex items-center gap-2 px-4 py-1.5 text-sm font-bold rounded-md transition-colors", activeTab === 'log' ? "bg-white text-gray-900 shadow-sm" : "text-gray-600 hover:text-gray-900")}
             >
               <ListTodo className="w-4 h-4" />
-              יומן פעילות
+              {isHebrew ? 'יומן פעילות' : 'Activity log'}
             </button>
             <button 
               onClick={() => setActiveTab('auto-ads')}
               className={cn("flex items-center gap-2 px-4 py-1.5 text-sm font-bold rounded-md transition-colors", activeTab === 'auto-ads' ? "bg-white text-gray-900 shadow-sm" : "text-gray-600 hover:text-gray-900")}
             >
               <Calendar className="w-4 h-4" />
-              יצירת מודעות אוטומטית
+              {isHebrew ? 'יצירת מודעות אוטומטית' : 'Auto ad creation'}
             </button>
           </div>
           
@@ -158,7 +278,7 @@ export function Automations() {
                 <Search className={cn("absolute top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400", dir === 'rtl' ? "right-3" : "left-3")} />
                 <input 
                   type="text" 
-                  placeholder="חיפוש פעילויות..." 
+                  placeholder={isHebrew ? 'חיפוש פעילויות...' : 'Search activities...'}
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className={cn(
@@ -186,17 +306,17 @@ export function Automations() {
                     </div>
                     <p className="text-sm font-medium text-gray-900 mb-1">{approval.description}</p>
                     <div className="flex items-center gap-3 text-xs">
-                      <span className="text-gray-600">פלטפורמה: <span className="font-bold text-gray-900" dir="ltr">{approval.platform}</span></span>
+                      <span className="text-gray-600">{isHebrew ? 'פלטפורמה:' : 'Platform:'} <span className="font-bold text-gray-900" dir="ltr">{approval.platform}</span></span>
                       <span className="text-gray-300">|</span>
-                      <span className="flex items-center gap-1 text-amber-600"><AlertTriangle className="w-3 h-3" /> השפעה: {approval.impact}</span>
+                      <span className="flex items-center gap-1 text-amber-600"><AlertTriangle className="w-3 h-3" /> {isHebrew ? 'השפעה' : 'Impact'}: {approval.impact}</span>
                     </div>
                   </div>
                   <div className="flex items-center gap-2 w-full sm:w-auto">
                     <button className="flex-1 sm:flex-none flex items-center justify-center gap-1 px-3 py-2 bg-white border border-red-200 text-red-600 rounded-lg hover:bg-red-50 transition-colors text-sm font-bold">
-                      <XCircle className="w-4 h-4" /> דחה
+                      <XCircle className="w-4 h-4" /> {isHebrew ? 'דחה' : 'Reject'}
                     </button>
                     <button className="flex-1 sm:flex-none flex items-center justify-center gap-1 px-3 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors text-sm font-bold">
-                      <CheckCircle2 className="w-4 h-4" /> אשר
+                      <CheckCircle2 className="w-4 h-4" /> {isHebrew ? 'אשר' : 'Approve'}
                     </button>
                   </div>
                 </div>
@@ -213,26 +333,26 @@ export function Automations() {
                       <h3 className="text-sm font-bold text-gray-900">{rule.name}</h3>
                       <span className={cn(
                         "px-2 py-0.5 rounded-full text-xs font-bold",
-                        rule.status === 'פעיל' ? "bg-emerald-100 text-emerald-700" : "bg-gray-100 text-gray-600"
+                        (rule.status === 'פעיל' || rule.status === 'Active') ? "bg-emerald-100 text-emerald-700" : "bg-gray-100 text-gray-600"
                       )}>
                         {rule.status}
                       </span>
                     </div>
                     <p className="text-sm text-gray-600 mb-2">{rule.description}</p>
-                    <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded" dir="ltr">פלטפורמה: {rule.platform}</span>
+                    <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded" dir="ltr">{isHebrew ? 'פלטפורמה' : 'Platform'}: {rule.platform}</span>
                   </div>
                   <div className="flex items-center gap-2 w-full sm:w-auto">
-                    {rule.status === 'פעיל' ? (
+                    {(rule.status === 'פעיל' || rule.status === 'Active') ? (
                       <button className="flex-1 sm:flex-none flex items-center justify-center gap-1 px-3 py-2 bg-white border border-amber-200 text-amber-600 rounded-lg hover:bg-amber-50 transition-colors text-sm font-bold">
-                        <Pause className="w-4 h-4" /> השהה
+                        <Pause className="w-4 h-4" /> {isHebrew ? 'השהה' : 'Pause'}
                       </button>
                     ) : (
                       <button className="flex-1 sm:flex-none flex items-center justify-center gap-1 px-3 py-2 bg-white border border-emerald-200 text-emerald-600 rounded-lg hover:bg-emerald-50 transition-colors text-sm font-bold">
-                        <Play className="w-4 h-4" /> הפעל
+                        <Play className="w-4 h-4" /> {isHebrew ? 'הפעל' : 'Activate'}
                       </button>
                     )}
                     <button className="flex-1 sm:flex-none flex items-center justify-center gap-1 px-3 py-2 bg-white border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors text-sm font-bold">
-                      <Settings className="w-4 h-4" /> ערוך
+                      <Settings className="w-4 h-4" /> {isHebrew ? 'ערוך' : 'Edit'}
                     </button>
                   </div>
                 </div>
@@ -274,8 +394,12 @@ export function Automations() {
           {activeTab === 'auto-ads' && (
             <div className="max-w-2xl space-y-6">
               <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-4">
-                <h3 className="text-sm font-bold text-indigo-900 mb-1">יצירת מודעות אוטומטית</h3>
-                <p className="text-xs text-indigo-700">בהתבסס על מוצרים מ-WooCommerce, המערכת תיצור קופירייטינג למודעות בתדירות שבחרת ותשמור אותן כטיוטות במעבדת היצירה.</p>
+                <h3 className="text-sm font-bold text-indigo-900 mb-1">{isHebrew ? 'יצירת מודעות אוטומטית' : 'Auto ad creation'}</h3>
+                <p className="text-xs text-indigo-700">
+                  {isHebrew
+                    ? 'בהתבסס על מוצרים מ-WooCommerce, המערכת תיצור קופירייטינג למודעות בתדירות שבחרת ותשמור אותן כטיוטות במעבדת היצירה.'
+                    : 'Based on WooCommerce products, the system will generate ad copy at your chosen frequency and save drafts in Creative Lab.'}
+                </p>
               </div>
               <div className="space-y-4">
                 <label className="flex items-center gap-2 cursor-pointer">
@@ -285,22 +409,22 @@ export function Automations() {
                     onChange={(e) => setAutoScheduleForm((f) => ({ ...f, enabled: e.target.checked }))}
                     className="rounded border-gray-300"
                   />
-                  <span className="font-medium text-gray-900">הפעל יצירת מודעות אוטומטית</span>
+                  <span className="font-medium text-gray-900">{isHebrew ? 'הפעל יצירת מודעות אוטומטית' : 'Enable automatic ad creation'}</span>
                 </label>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">תדירות</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">{isHebrew ? 'תדירות' : 'Frequency'}</label>
                   <select
                     value={autoScheduleForm.frequency}
                     onChange={(e) => setAutoScheduleForm((f) => ({ ...f, frequency: e.target.value as AutoAdsSchedule['frequency'] }))}
                     className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm"
                   >
-                    <option value="daily">יומי</option>
-                    <option value="every_3_days">כל 3 ימים</option>
-                    <option value="weekly">שבועי</option>
+                    <option value="daily">{isHebrew ? 'יומי' : 'Daily'}</option>
+                    <option value="every_3_days">{isHebrew ? 'כל 3 ימים' : 'Every 3 days'}</option>
+                    <option value="weekly">{isHebrew ? 'שבועי' : 'Weekly'}</option>
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">פלטפורמות לפרסום (להצגה)</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">{isHebrew ? 'פלטפורמות לפרסום (להצגה)' : 'Ad platforms (for preview)'}</label>
                   <div className="flex flex-wrap gap-3">
                     {(['google', 'meta', 'tiktok'] as const).map((p) => (
                       <label key={p} className="flex items-center gap-2 cursor-pointer">
@@ -321,7 +445,7 @@ export function Automations() {
                   </div>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">מספר מוצרים מקסימלי ליצירה בכל הרצה</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">{isHebrew ? 'מספר מוצרים מקסימלי ליצירה בכל הרצה' : 'Maximum products per run'}</label>
                   <input
                     type="number"
                     min={1}
@@ -337,26 +461,38 @@ export function Automations() {
                     disabled={autoScheduleSaving || isWorkspaceReadOnly}
                     className="px-4 py-2 bg-indigo-600 text-white rounded-lg font-medium hover:bg-indigo-700 disabled:opacity-50 text-sm"
                   >
-                    {autoScheduleSaving ? 'שומר...' : 'שמור הגדרות'}
+                    {autoScheduleSaving ? (isHebrew ? 'שומר...' : 'Saving...') : (isHebrew ? 'שמור הגדרות' : 'Save settings')}
                   </button>
                   <button
                     onClick={handleRunNow}
                     disabled={isWorkspaceReadOnly}
                     className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg font-medium hover:bg-gray-200 text-sm flex items-center gap-2 disabled:opacity-50"
                   >
-                    <RefreshCw className="w-4 h-4" /> הרץ עכשיו
+                    <RefreshCw className="w-4 h-4" /> {isHebrew ? 'הרץ עכשיו' : 'Run now'}
                   </button>
                 </div>
               </div>
               {autoSchedule?.lastRunAt && (
-                <p className="text-xs text-gray-500">הרצה אחרונה: {new Date(autoSchedule.lastRunAt).toLocaleString('he-IL')}</p>
+                <p className="text-xs text-gray-500">
+                  {isHebrew ? 'הרצה אחרונה:' : 'Last run:'}{' '}
+                  {new Date(autoSchedule.lastRunAt).toLocaleString(isHebrew ? 'he-IL' : 'en-US')}
+                </p>
               )}
               {autoSchedule?.nextRunAt && autoScheduleForm.enabled && (
-                <p className="text-xs text-gray-500">הרצה הבאה: {new Date(autoSchedule.nextRunAt).toLocaleString('he-IL')}</p>
+                <p className="text-xs text-gray-500">
+                  {isHebrew ? 'הרצה הבאה:' : 'Next run:'}{' '}
+                  {new Date(autoSchedule.nextRunAt).toLocaleString(isHebrew ? 'he-IL' : 'en-US')}
+                </p>
               )}
               {lastRunResult && (
                 <p className="text-sm text-emerald-600">
-                  {lastRunResult.ran ? `נוצרו ${lastRunResult.created ?? 0} מודעות אוטומטית.` : 'לא בוצעה הרצה (תזמון או חיבור WooCommerce).'}
+                  {lastRunResult.ran
+                    ? (isHebrew
+                        ? `נוצרו ${lastRunResult.created ?? 0} מודעות אוטומטית.`
+                        : `Created ${lastRunResult.created ?? 0} ads automatically.`)
+                    : (isHebrew
+                        ? 'לא בוצעה הרצה (תזמון או חיבור WooCommerce).'
+                        : 'No run was executed (schedule or WooCommerce connection missing).')}
                 </p>
               )}
             </div>

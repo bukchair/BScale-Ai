@@ -76,7 +76,7 @@ const platformColors = {
 };
 
 export function AIRecommendations() {
-  const { t, dir } = useLanguage();
+  const { t, dir, language } = useLanguage();
   const { format: formatCurrency } = useCurrency();
   const { connections } = useConnections();
   const [recs, setRecs] = useState<Recommendation[]>(mockRecommendations);
@@ -88,7 +88,12 @@ export function AIRecommendations() {
 
   const fetchRealRecommendations = async () => {
     if (!hasAI) {
-      setError(t('ai.errorLoading') || 'נכשלה טעינת המלצות AI. חבר את Gemini, OpenAI או Claude בהתחברויות.');
+      setError(
+        t('ai.errorLoading') ||
+          (language === 'he'
+            ? 'נכשלה טעינת המלצות AI. חבר את Gemini, OpenAI או Claude בהתחברויות.'
+            : 'Failed to load AI recommendations. Connect Gemini, OpenAI, or Claude in Integrations.')
+      );
       return;
     }
     
@@ -104,7 +109,11 @@ export function AIRecommendations() {
       setRecs(Array.isArray(newRecs) ? newRecs.map((r: any) => ({ ...r, status: 'pending' })) : mockRecommendations);
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      setError((t('ai.errorLoading') || 'נכשלה טעינת המלצות AI. נסה שוב.') + (message ? ` (${message.slice(0, 80)})` : ''));
+      setError(
+        (t('ai.errorLoading') ||
+          (language === 'he' ? 'נכשלה טעינת המלצות AI. נסה שוב.' : 'Failed to load AI recommendations. Please try again.')) +
+          (message ? ` (${message.slice(0, 80)})` : '')
+      );
       console.error(err);
     } finally {
       setIsLoading(false);
@@ -124,7 +133,11 @@ export function AIRecommendations() {
   const handleApplyAll = () => {
     if (!pendingRecs.length) return;
     setRecs(recs.map(r => r.status === 'pending' ? { ...r, status: 'applied' } : r));
-    alert('כל ההמלצות סומנו כמייושמות (דמו). בחיבור מלא ניתן יהיה להחיל שינויים אמיתיים בקמפיינים.');
+    alert(
+      language === 'he'
+        ? 'כל ההמלצות סומנו כמייושמות (דמו). בחיבור מלא ניתן יהיה להחיל שינויים אמיתיים בקמפיינים.'
+        : 'All recommendations were marked as applied (demo). With full integrations, real campaign changes can be applied.'
+    );
   };
 
   const pendingRecs = recs.filter(r => r.status === 'pending');
@@ -149,7 +162,9 @@ export function AIRecommendations() {
             </button>
           ) : (
             <span className="text-sm text-amber-700 bg-amber-50 px-3 py-2 rounded-xl border border-amber-200">
-              חבר את Gemini בהתחברויות והזן API Key לקבלת המלצות
+              {language === 'he'
+                ? 'חבר את Gemini בהתחברויות והזן API Key לקבלת המלצות'
+                : 'Connect Gemini in Integrations and add an API key to receive recommendations'}
             </span>
           )}
           <button
@@ -174,8 +189,14 @@ export function AIRecommendations() {
         <div className="bg-amber-50 border border-amber-200 p-4 rounded-xl flex items-start gap-3 text-amber-800 text-sm">
           <AlertTriangle className="w-5 h-5 shrink-0 mt-0.5" />
           <div>
-            <p className="font-bold mb-1">מנוע ה-AI (Gemini) לא מחובר</p>
-            <p>עבור להתחברויות, בחר Gemini, OpenAI או Claude והזן API Key. לאחר החיבור ייטענו כאן המלצות אוטומטית.</p>
+            <p className="font-bold mb-1">
+              {language === 'he' ? 'מנוע ה-AI (Gemini) לא מחובר' : 'AI engine (Gemini) is not connected'}
+            </p>
+            <p>
+              {language === 'he'
+                ? 'עבור להתחברויות, בחר Gemini, OpenAI או Claude והזן API Key. לאחר החיבור ייטענו כאן המלצות אוטומטית.'
+                : 'Go to Integrations, choose Gemini, OpenAI, or Claude, and provide an API key. Recommendations will load automatically after connection.'}
+            </p>
           </div>
         </div>
       )}

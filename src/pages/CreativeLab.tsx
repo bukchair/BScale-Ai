@@ -36,7 +36,8 @@ function stripHtmlToText(html: string | undefined | null): string {
 }
 
 export function CreativeLab() {
-  const { t, dir } = useLanguage();
+  const { t, dir, language } = useLanguage();
+  const isHebrew = language === 'he';
   const { connections, dataOwnerUid, isWorkspaceReadOnly } = useConnections();
   const [prompt, setPrompt] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
@@ -115,25 +116,29 @@ export function CreativeLab() {
 
   const handleCopyText = async (text: string) => {
     await navigator.clipboard.writeText(text);
-    showToast('הועתק ללוח');
+    showToast(isHebrew ? 'הועתק ללוח' : 'Copied to clipboard');
   };
 
   const handlePublishTo = (platform: 'google' | 'meta' | 'tiktok') => {
     const conn = connections.find((c) => c.id === platform);
     if (conn?.status !== 'connected') {
-      showToast(`חבר את ${platform === 'google' ? 'Google' : platform === 'meta' ? 'Meta' : 'TikTok'} Ads בהתחברויות כדי לפרסם.`);
+      showToast(
+        isHebrew
+          ? `חבר את ${platform === 'google' ? 'Google' : platform === 'meta' ? 'Meta' : 'TikTok'} Ads בהתחברויות כדי לפרסם.`
+          : `Connect ${platform === 'google' ? 'Google' : platform === 'meta' ? 'Meta' : 'TikTok'} Ads in Integrations to publish.`
+      );
       return;
     }
-    showToast('הקריאייטיב מוכן לפרסום. עבור לאישורים ואוטומציות לשליחה.');
+    showToast(isHebrew ? 'הקריאייטיב מוכן לפרסום. עבור לאישורים ואוטומציות לשליחה.' : 'Creative is ready to publish. Open Approvals & Automations to continue.');
   };
 
   const handleSaveAdCopy = async (option: { headline: string; primaryText: string; description: string }) => {
     if (isWorkspaceReadOnly) {
-      showToast('מצב צפייה בלבד פעיל. לא ניתן לשמור נתונים.');
+      showToast(isHebrew ? 'מצב צפייה בלבד פעיל. לא ניתן לשמור נתונים.' : 'View-only mode is active. Saving is disabled.');
       return;
     }
     if (!scopedUid) {
-      showToast('יש להתחבר כדי לשמור מודעה.');
+      showToast(isHebrew ? 'יש להתחבר כדי לשמור מודעה.' : 'Sign in to save ads.');
       return;
     }
     try {
@@ -144,19 +149,19 @@ export function CreativeLab() {
         payload: { headline: option.headline, primaryText: option.primaryText, description: option.description },
       });
       setSavedAds((prev) => [...prev, { id, type: 'copy', createdAt: new Date().toISOString(), productName: selectedProduct?.name, payload: option }]);
-      showToast('המודעה נשמרה בהצלחה.');
+      showToast(isHebrew ? 'המודעה נשמרה בהצלחה.' : 'Ad saved successfully.');
     } catch (e) {
-      showToast('שמירה נכשלה.');
+      showToast(isHebrew ? 'שמירה נכשלה.' : 'Save failed.');
     }
   };
 
   const handleSaveAdImage = async (imageDataUrl: string) => {
     if (isWorkspaceReadOnly) {
-      showToast('מצב צפייה בלבד פעיל. לא ניתן לשמור נתונים.');
+      showToast(isHebrew ? 'מצב צפייה בלבד פעיל. לא ניתן לשמור נתונים.' : 'View-only mode is active. Saving is disabled.');
       return;
     }
     if (!scopedUid) {
-      showToast('יש להתחבר כדי לשמור מודעה.');
+      showToast(isHebrew ? 'יש להתחבר כדי לשמור מודעה.' : 'Sign in to save ads.');
       return;
     }
     try {
@@ -167,10 +172,10 @@ export function CreativeLab() {
         payload: { imageDataUrl, overlayHeadline, overlayCta },
       });
     } catch (e) {
-      showToast('שמירה נכשלה.');
+      showToast(isHebrew ? 'שמירה נכשלה.' : 'Save failed.');
       return;
     }
-    showToast('המודעה נשמרה בהצלחה.');
+    showToast(isHebrew ? 'המודעה נשמרה בהצלחה.' : 'Ad saved successfully.');
   };
 
   const updateCopyOption = (idx: number, field: 'headline' | 'primaryText' | 'description', value: string) => {
@@ -253,32 +258,36 @@ export function CreativeLab() {
 
   const handleSuggestOverlayFromAI = async () => {
     if (!aiKeys || (!selectedProduct && !prompt)) {
-      showToast('כדי לקבל הצעה מה‑AI, חבר מנועי AI בהתחברויות והגדר מוצר או תיאור.');
+      showToast(
+        isHebrew
+          ? 'כדי לקבל הצעה מה‑AI, חבר מנועי AI בהתחברויות והגדר מוצר או תיאור.'
+          : 'To get an AI suggestion, connect AI providers in Integrations and choose a product or prompt.'
+      );
       return;
     }
     setIsGenerating(true);
     setGenerationStartedAt(Date.now());
     setElapsedMs(0);
     try {
-      const baseName = selectedProduct?.name || 'מוצר';
+      const baseName = selectedProduct?.name || (isHebrew ? 'מוצר' : 'Product');
       const baseDesc = selectedProduct?.longDesc || prompt || '';
       const res = await generateCreativeCopy(
         baseName,
         baseDesc,
-        (prompt || '') + '\nהתמקד בהצעת כותרת קצרה ו‑CTA חזק בעברית.',
+        (prompt || '') + (isHebrew ? '\nהתמקד בהצעת כותרת קצרה ו‑CTA חזק בעברית.' : '\nFocus on a short headline and a strong CTA in English.'),
         aiKeys
       );
       const first = Array.isArray(res.options) && res.options[0] ? res.options[0] : null;
       if (first) {
         setOverlayHeadline(first.headline || baseName);
-        setOverlayCta(first.description || 'קנה עכשיו');
-        showToast('ה‑AI הציע כותרת ו‑CTA למודעה.');
+        setOverlayCta(first.description || (isHebrew ? 'קנה עכשיו' : 'Buy now'));
+        showToast(isHebrew ? 'ה‑AI הציע כותרת ו‑CTA למודעה.' : 'AI suggested an ad headline and CTA.');
       } else {
-        showToast('לא התקבלה הצעה מה‑AI, נסה ניסוח שונה.');
+        showToast(isHebrew ? 'לא התקבלה הצעה מה‑AI, נסה ניסוח שונה.' : 'No AI suggestion was returned. Try a different prompt.');
       }
     } catch (e) {
       console.error('Failed to suggest overlay from AI', e);
-      showToast('קריאת ה‑AI נכשלה. נסה שוב מאוחר יותר.');
+      showToast(isHebrew ? 'קריאת ה‑AI נכשלה. נסה שוב מאוחר יותר.' : 'AI request failed. Please try again later.');
     } finally {
       setIsGenerating(false);
       setGenerationStartedAt(null);
@@ -360,13 +369,19 @@ export function CreativeLab() {
       )}
       {isWorkspaceReadOnly && (
         <div className="bg-amber-50 border border-amber-200 text-amber-800 px-4 py-3 rounded-xl text-sm font-bold">
-          מצב צפייה בלבד פעיל. ניתן לצפות במערכת אך לא לשמור או לפרסם נתונים.
+          {isHebrew
+            ? 'מצב צפייה בלבד פעיל. ניתן לצפות במערכת אך לא לשמור או לפרסם נתונים.'
+            : 'View-only mode is active. You can view data but cannot save or publish.'}
         </div>
       )}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">{t('nav.creativeLab')}</h1>
-          <p className="text-sm text-gray-500 mt-1">צור קריאייטיבים וקופירייטינג למודעות באמצעות בינה מלאכותית.</p>
+          <p className="text-sm text-gray-500 mt-1">
+            {isHebrew
+              ? 'צור קריאייטיבים וקופירייטינג למודעות באמצעות בינה מלאכותית.'
+              : 'Generate ad creatives and copy with AI.'}
+          </p>
         </div>
       </div>
 
@@ -380,21 +395,21 @@ export function CreativeLab() {
                 className={cn("flex-1 flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium rounded-md transition-colors", activeTab === 'image' ? "bg-white text-gray-900 shadow-sm" : "text-gray-600 hover:text-gray-900")}
               >
                 <ImageIcon className="w-4 h-4" />
-                יצירת תמונות
+                {isHebrew ? 'יצירת תמונות' : 'Image generation'}
               </button>
               <button 
                 onClick={() => { setActiveTab('copy'); setGeneratedContent(null); }}
                 className={cn("flex-1 flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium rounded-md transition-colors", activeTab === 'copy' ? "bg-white text-gray-900 shadow-sm" : "text-gray-600 hover:text-gray-900")}
               >
                 <Type className="w-4 h-4" />
-                קופירייטינג
+                {isHebrew ? 'קופירייטינג' : 'Copywriting'}
               </button>
               <button 
                 onClick={() => { setActiveTab('video'); setGeneratedContent(null); }}
                 className={cn("flex-1 flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium rounded-md transition-colors", activeTab === 'video' ? "bg-white text-gray-900 shadow-sm" : "text-gray-600 hover:text-gray-900")}
               >
                 <Layout className="w-4 h-4" />
-                תסריט וידאו
+                {isHebrew ? 'תסריט וידאו' : 'Video script'}
               </button>
             </div>
 
@@ -402,7 +417,7 @@ export function CreativeLab() {
               {/* Product Selection */}
               <div className="relative">
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  בחר מוצר מ-WooCommerce (אופציונלי)
+                  {isHebrew ? 'בחר מוצר מ-WooCommerce (אופציונלי)' : 'Select WooCommerce product (optional)'}
                 </label>
                 <button
                   type="button"
@@ -411,7 +426,7 @@ export function CreativeLab() {
                 >
                   <div className="flex items-center gap-2">
                     <ShoppingCart className="w-4 h-4 text-gray-400" />
-                    {selectedProduct ? selectedProduct.name : 'בחר מוצר...'}
+                    {selectedProduct ? selectedProduct.name : (isHebrew ? 'בחר מוצר...' : 'Select product...')}
                   </div>
                   <ChevronDown className={cn("w-4 h-4 text-gray-400 transition-transform", isProductDropdownOpen && "rotate-180")} />
                 </button>
@@ -425,11 +440,11 @@ export function CreativeLab() {
                         setIsProductDropdownOpen(false);
                       }}
                     >
-                      ללא מוצר ספציפי
+                      {isHebrew ? 'ללא מוצר ספציפי' : 'No specific product'}
                     </button>
                     {productsLoading ? (
                       <div className="px-4 py-3 text-sm text-gray-500 flex items-center gap-2">
-                        <Loader2 className="w-4 h-4 animate-spin" /> טוען מוצרים...
+                        <Loader2 className="w-4 h-4 animate-spin" /> {isHebrew ? 'טוען מוצרים...' : 'Loading products...'}
                       </div>
                     ) : (
                       products.map((product) => (
@@ -440,7 +455,11 @@ export function CreativeLab() {
                             setSelectedProduct(product);
                             setIsProductDropdownOpen(false);
                             if (!prompt) {
-                              setPrompt(`צור קריאייטיב עבור ${product.name}. תיאור: ${product.shortDesc}`);
+                              setPrompt(
+                                isHebrew
+                                  ? `צור קריאייטיב עבור ${product.name}. תיאור: ${product.shortDesc}`
+                                  : `Create creative for ${product.name}. Description: ${product.shortDesc}`
+                              );
                             }
                           }}
                         >
@@ -455,37 +474,47 @@ export function CreativeLab() {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  {activeTab === 'image' ? 'תאר את התמונה שברצונך ליצור' : 'מהו המוצר וקהל היעד?'}
+                  {activeTab === 'image'
+                    ? (isHebrew ? 'תאר את התמונה שברצונך ליצור' : 'Describe the image you want to create')
+                    : (isHebrew ? 'מהו המוצר וקהל היעד?' : 'What is the product and target audience?')}
                 </label>
                 <textarea
                   value={prompt}
                   onChange={(e) => setPrompt(e.target.value)}
-                  placeholder={activeTab === 'image' ? "לדוגמה: צילום מקצועי של נעלי ריצה אדומות על רחוב עירוני רטוב בלילה, אורות ניאון משתקפים..." : "לדוגמה: ליין חדש של נעלי ריצה לרצי מרתון, מתמקד בנוחות ועמידות..."}
+                  placeholder={
+                    activeTab === 'image'
+                      ? (isHebrew
+                        ? 'לדוגמה: צילום מקצועי של נעלי ריצה אדומות על רחוב עירוני רטוב בלילה, אורות ניאון משתקפים...'
+                        : 'Example: professional photo of red running shoes on a wet city street at night with reflected neon lights...')
+                      : (isHebrew
+                        ? 'לדוגמה: ליין חדש של נעלי ריצה לרצי מרתון, מתמקד בנוחות ועמידות...'
+                        : 'Example: new running shoe line for marathon runners, focused on comfort and durability...')
+                  }
                   className="w-full h-32 px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all resize-none text-sm"
                 />
               </div>
 
               {activeTab === 'image' && (
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">יחס גובה-רוחב</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">{isHebrew ? 'יחס גובה-רוחב' : 'Aspect ratio'}</label>
                   <div className="grid grid-cols-3 gap-2">
                     <button
                       onClick={() => setAspectRatio('1:1')}
                       className={cn("px-3 py-2 border border-gray-200 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50", aspectRatio === '1:1' ? "bg-white ring-2 ring-indigo-500/30" : "")}
                     >
-                      1:1 (ריבוע)
+                      {isHebrew ? '1:1 (ריבוע)' : '1:1 (Square)'}
                     </button>
                     <button
                       onClick={() => setAspectRatio('9:16')}
                       className={cn("px-3 py-2 border border-gray-200 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50", aspectRatio === '9:16' ? "bg-white ring-2 ring-indigo-500/30" : "")}
                     >
-                      9:16 (סטורי)
+                      {isHebrew ? '9:16 (סטורי)' : '9:16 (Story)'}
                     </button>
                     <button
                       onClick={() => setAspectRatio('16:9')}
                       className={cn("px-3 py-2 border border-gray-200 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50", aspectRatio === '16:9' ? "bg-white ring-2 ring-indigo-500/30" : "")}
                     >
-                      16:9 (לרוחב)
+                      {isHebrew ? '16:9 (לרוחב)' : '16:9 (Landscape)'}
                     </button>
                   </div>
                 </div>
@@ -499,12 +528,12 @@ export function CreativeLab() {
                 {isGenerating ? (
                   <>
                     <Loader2 className="w-5 h-5 animate-spin" />
-                    מייצר...
+                    {isHebrew ? 'מייצר...' : 'Generating...'}
                   </>
                 ) : (
                   <>
                     <Wand2 className="w-5 h-5" />
-                    ייצר {activeTab === 'image' ? 'תמונות' : 'טקסט'}
+                    {isHebrew ? 'ייצר' : 'Generate'} {activeTab === 'image' ? (isHebrew ? 'תמונות' : 'images') : (isHebrew ? 'טקסט' : 'text')}
                   </>
                 )}
               </button>
@@ -517,7 +546,7 @@ export function CreativeLab() {
           <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 h-full min-h-[500px] flex flex-col">
             <h2 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
               <Sparkles className="w-5 h-5 text-amber-500" />
-              תוצאות
+              {isHebrew ? 'תוצאות' : 'Results'}
             </h2>
 
             {!generatedContent && !isGenerating && (
@@ -525,8 +554,12 @@ export function CreativeLab() {
                 <div className="w-16 h-16 bg-indigo-50 rounded-full flex items-center justify-center mb-4">
                   <Wand2 className="w-8 h-8 text-indigo-400" />
                 </div>
-                <h3 className="text-gray-900 font-medium mb-1">מוכן ליצירה</h3>
-                <p className="text-sm text-gray-500 max-w-sm">בחר מוצר מ-WooCommerce או הזן תיאור בצד ימין כדי ליצור קריאייטיבים או קופירייטינג ממירים באמצעות בינה מלאכותית.</p>
+                <h3 className="text-gray-900 font-medium mb-1">{isHebrew ? 'מוכן ליצירה' : 'Ready to create'}</h3>
+                <p className="text-sm text-gray-500 max-w-sm">
+                  {isHebrew
+                    ? 'בחר מוצר מ-WooCommerce או הזן תיאור בצד ימין כדי ליצור קריאייטיבים או קופירייטינג ממירים באמצעות בינה מלאכותית.'
+                    : 'Pick a WooCommerce product or enter a prompt to generate AI creatives and conversion-focused ad copy.'}
+                </p>
               </div>
             )}
 
@@ -534,9 +567,9 @@ export function CreativeLab() {
               <div className="flex-1 flex flex-col items-center justify-center text-center p-8 space-y-3">
                 <Loader2 className="w-12 h-12 text-indigo-600 animate-spin mx-auto" />
                 <div>
-                  <h3 className="text-gray-900 font-medium mb-1">הבינה המלאכותית עובדת...</h3>
+                  <h3 className="text-gray-900 font-medium mb-1">{isHebrew ? 'הבינה המלאכותית עובדת...' : 'AI is working...'}</h3>
                   <p className="text-sm text-gray-500">
-                    זמן ריצה: {(elapsedMs / 1000).toFixed(1)} שניות
+                    {isHebrew ? 'זמן ריצה' : 'Runtime'}: {(elapsedMs / 1000).toFixed(1)} {isHebrew ? 'שניות' : 'seconds'}
                   </p>
                 </div>
                 <div className="w-full max-w-md mx-auto text-start space-y-1">

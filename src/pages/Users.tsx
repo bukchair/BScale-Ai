@@ -277,7 +277,7 @@ export function Users() {
                           )}
                         >
                           <option value="active">{t('users.accessActive')}</option>
-                          <option value="free">ללא תשלום</option>
+                          <option value="free">{t('users.accessFree') || 'Free'}</option>
                           <option value="demo">{t('users.accessDemo')}</option>
                         </select>
                           );

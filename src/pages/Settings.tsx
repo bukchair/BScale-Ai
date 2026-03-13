@@ -17,7 +17,8 @@ import { useConnections } from '../contexts/ConnectionsContext';
 import { useCurrency } from '../contexts/CurrencyContext';
 
 export function Settings({ userProfile }: { userProfile?: { role?: string } | null }) {
-  const { t, dir } = useLanguage();
+  const { t, dir, language } = useLanguage();
+  const isHebrew = language === 'he';
   const { currency, setCurrency, availableCurrencies, format: formatCurrency } = useCurrency();
   const {
     dataAccessMode,
@@ -112,10 +113,10 @@ export function Settings({ userProfile }: { userProfile?: { role?: string } | nu
     try {
       const ref = doc(db, 'appSettings', 'payment');
       await setDoc(ref, { providerToken: paymentToken || null }, { merge: true });
-      setPaymentMessage('טוקן הסליקה נשמר בהצלחה.');
+      setPaymentMessage(isHebrew ? 'טוקן הסליקה נשמר בהצלחה.' : 'Payment provider token saved successfully.');
     } catch (e) {
       console.error('Failed to save payment token', e);
-      setPaymentMessage('שמירת טוקן הסליקה נכשלה. נסה שוב מאוחר יותר.');
+      setPaymentMessage(isHebrew ? 'שמירת טוקן הסליקה נכשלה. נסה שוב מאוחר יותר.' : 'Failed to save payment provider token. Please try again later.');
     } finally {
       setIsSavingPayment(false);
       setTimeout(() => setPaymentMessage(null), 4000);
@@ -123,7 +124,11 @@ export function Settings({ userProfile }: { userProfile?: { role?: string } | nu
   };
 
   const handleDemoAction = (label: string) => {
-    alert(`בגרסת הדמו הפעולה "${label}" מסומנת כהצלחה. בחיבור לשרת מלא נחבר אותה לעדכון אמיתי.`);
+    alert(
+      isHebrew
+        ? `בגרסת הדמו הפעולה "${label}" מסומנת כהצלחה. בחיבור לשרת מלא נחבר אותה לעדכון אמיתי.`
+        : `In demo mode, "${label}" is marked as successful. In a full backend connection, this will execute a real update.`
+    );
   };
 
   const handleSaveEmailSettings = async () => {
@@ -141,10 +146,10 @@ export function Settings({ userProfile }: { userProfile?: { role?: string } | nu
         },
         { merge: true }
       );
-      setEmailSettingsMessage('הגדרות ה‑IMAP נשמרו בהצלחה.');
+      setEmailSettingsMessage(isHebrew ? 'הגדרות ה‑IMAP נשמרו בהצלחה.' : 'IMAP settings saved successfully.');
     } catch (e) {
       console.error('Failed to save email settings', e);
-      setEmailSettingsMessage('שמירת הגדרות ה‑IMAP נכשלה. נסה שוב מאוחר יותר.');
+      setEmailSettingsMessage(isHebrew ? 'שמירת הגדרות ה‑IMAP נכשלה. נסה שוב מאוחר יותר.' : 'Failed to save IMAP settings. Please try again later.');
     } finally {
       setIsSavingEmailSettings(false);
       setTimeout(() => setEmailSettingsMessage(null), 4000);
@@ -166,10 +171,10 @@ export function Settings({ userProfile }: { userProfile?: { role?: string } | nu
       });
       setSharedAccessList(next);
       setShareEmail('');
-      showSharingMessage('הרשאת השיתוף נשמרה בהצלחה.');
+      showSharingMessage(isHebrew ? 'הרשאת השיתוף נשמרה בהצלחה.' : 'Sharing permission saved successfully.');
     } catch (err) {
       console.error('Failed to add shared access:', err);
-      showSharingMessage('לא הצלחנו לשמור הרשאת שיתוף. בדוק את האימייל ונסה שוב.');
+      showSharingMessage(isHebrew ? 'לא הצלחנו לשמור הרשאת שיתוף. בדוק את האימייל ונסה שוב.' : 'Could not save sharing permission. Check the email and try again.');
     } finally {
       setIsSavingSharing(false);
     }
@@ -181,10 +186,10 @@ export function Settings({ userProfile }: { userProfile?: { role?: string } | nu
     try {
       const next = await removeUserSharedAccess(uid, email);
       setSharedAccessList(next);
-      showSharingMessage('הרשאת השיתוף הוסרה.');
+      showSharingMessage(isHebrew ? 'הרשאת השיתוף הוסרה.' : 'Sharing permission removed.');
     } catch (err) {
       console.error('Failed to remove shared access:', err);
-      showSharingMessage('מחיקת הרשאת השיתוף נכשלה. נסה שוב.');
+      showSharingMessage(isHebrew ? 'מחיקת הרשאת השיתוף נכשלה. נסה שוב.' : 'Failed to remove sharing permission. Please try again.');
     } finally {
       setIsSavingSharing(false);
     }
@@ -193,8 +198,8 @@ export function Settings({ userProfile }: { userProfile?: { role?: string } | nu
   return (
     <div className="space-y-6 max-w-5xl mx-auto">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">{t('nav.settings') || 'הגדרות'}</h1>
-        <p className="text-sm text-gray-500 mt-1">נהל את הגדרות החשבון, הסוכנות וההתראות שלך.</p>
+        <h1 className="text-2xl font-bold text-gray-900">{t('nav.settings') || (isHebrew ? 'הגדרות' : 'Settings')}</h1>
+        <p className="text-sm text-gray-500 mt-1">{t('settings.subtitle') || (isHebrew ? 'נהל את הגדרות החשבון, הסוכנות וההתראות שלך.' : 'Manage your account, agency, and notifications settings.')}</p>
       </div>
 
       <div className="flex flex-col md:flex-row gap-8">
@@ -208,7 +213,7 @@ export function Settings({ userProfile }: { userProfile?: { role?: string } | nu
             )}
           >
             <User className={cn("w-5 h-5", activeTab === 'profile' ? "text-indigo-600" : "text-gray-400")} />
-            פרופיל אישי
+            {t('settings.personalProfile') || (isHebrew ? 'פרופיל אישי' : 'Personal Profile')}
           </button>
           <button
             onClick={() => setActiveTab('agency')}
@@ -218,7 +223,7 @@ export function Settings({ userProfile }: { userProfile?: { role?: string } | nu
             )}
           >
             <Building className={cn("w-5 h-5", activeTab === 'agency' ? "text-indigo-600" : "text-gray-400")} />
-            פרטי סוכנות
+            {t('settings.agencyDetails') || (isHebrew ? 'פרטי סוכנות' : 'Agency Details')}
           </button>
           <button
             onClick={() => setActiveTab('billing')}
@@ -228,7 +233,7 @@ export function Settings({ userProfile }: { userProfile?: { role?: string } | nu
             )}
           >
             <CreditCard className={cn("w-5 h-5", activeTab === 'billing' ? "text-indigo-600" : "text-gray-400")} />
-            חיוב ותוכניות
+            {t('settings.billingPlans') || (isHebrew ? 'חיוב ותוכניות' : 'Billing & Plans')}
           </button>
           <button
             onClick={() => setActiveTab('notifications')}
@@ -238,7 +243,7 @@ export function Settings({ userProfile }: { userProfile?: { role?: string } | nu
             )}
           >
             <Bell className={cn("w-5 h-5", activeTab === 'notifications' ? "text-indigo-600" : "text-gray-400")} />
-            התראות
+            {t('settings.notifications') || (isHebrew ? 'התראות' : 'Notifications')}
           </button>
           <button
             onClick={() => setActiveTab('security')}
@@ -248,7 +253,7 @@ export function Settings({ userProfile }: { userProfile?: { role?: string } | nu
             )}
           >
             <Shield className={cn("w-5 h-5", activeTab === 'security' ? "text-indigo-600" : "text-gray-400")} />
-            אבטחה ופרטיות
+            {t('settings.securityPrivacy') || (isHebrew ? 'אבטחה ופרטיות' : 'Security & Privacy')}
           </button>
           <button
             onClick={() => setActiveTab('sharing')}
@@ -258,7 +263,7 @@ export function Settings({ userProfile }: { userProfile?: { role?: string } | nu
             )}
           >
             <Share2 className={cn("w-5 h-5", activeTab === 'sharing' ? "text-indigo-600" : "text-gray-400")} />
-            שיתוף גישה
+            {isHebrew ? 'שיתוף גישה' : 'Shared Access'}
           </button>
         </div>
 
@@ -266,17 +271,17 @@ export function Settings({ userProfile }: { userProfile?: { role?: string } | nu
         <div className="flex-1">
           {dataAccessMode === 'shared' && (
             <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
-              <p className="text-xs font-bold text-amber-800">אתה עובד כרגע על סביבת נתונים משותפת.</p>
+              <p className="text-xs font-bold text-amber-800">{isHebrew ? 'אתה עובד כרגע על סביבת נתונים משותפת.' : 'You are currently working in a shared workspace.'}</p>
               <p className="text-xs text-amber-700 mt-1">
-                בעל החשבון: {workspaceOwnerName || '—'} {workspaceOwnerEmail ? `(${workspaceOwnerEmail})` : ''}
+                {isHebrew ? 'בעל החשבון:' : 'Workspace owner:'} {workspaceOwnerName || '—'} {workspaceOwnerEmail ? `(${workspaceOwnerEmail})` : ''}
               </p>
             </div>
           )}
           {activeTab === 'profile' && (
             <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
               <div className="p-6 border-b border-gray-200">
-                <h2 className="text-lg font-bold text-gray-900">פרופיל אישי</h2>
-                <p className="text-sm text-gray-500 mt-1">עדכן את פרטי הקשר והתמונה שלך.</p>
+                <h2 className="text-lg font-bold text-gray-900">{t('settings.personalProfile') || (isHebrew ? 'פרופיל אישי' : 'Personal Profile')}</h2>
+                <p className="text-sm text-gray-500 mt-1">{t('settings.updateProfileDesc') || (isHebrew ? 'עדכן את פרטי הקשר והתמונה שלך.' : 'Update your contact details and profile image.')}</p>
               </div>
               <div className="p-6 space-y-6">
                 <div className="flex items-center gap-6">
@@ -285,27 +290,27 @@ export function Settings({ userProfile }: { userProfile?: { role?: string } | nu
                   </div>
                   <div>
                     <button className="px-4 py-2 bg-white border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors">
-                      שנה תמונה
+                      {t('settings.changePhoto') || (isHebrew ? 'שנה תמונה' : 'Change photo')}
                     </button>
-                    <p className="text-xs text-gray-500 mt-2">JPG, GIF או PNG. מקסימום 2MB.</p>
+                    <p className="text-xs text-gray-500 mt-2">{t('settings.photoRequirements') || (isHebrew ? 'JPG, GIF או PNG. מקסימום 2MB.' : 'JPG, GIF, or PNG. Max 2MB.')}</p>
                   </div>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-2">
-                    <label className="text-sm font-medium text-gray-700">שם פרטי</label>
+                    <label className="text-sm font-medium text-gray-700">{t('settings.firstName') || (isHebrew ? 'שם פרטי' : 'First name')}</label>
                     <input type="text" defaultValue="אשר" className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all" />
                   </div>
                   <div className="space-y-2">
-                    <label className="text-sm font-medium text-gray-700">שם משפחה</label>
+                    <label className="text-sm font-medium text-gray-700">{t('settings.lastName') || (isHebrew ? 'שם משפחה' : 'Last name')}</label>
                     <input type="text" defaultValue="בוקשפן" className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all" />
                   </div>
                   <div className="space-y-2 md:col-span-2">
-                    <label className="text-sm font-medium text-gray-700">כתובת אימייל</label>
+                    <label className="text-sm font-medium text-gray-700">{t('settings.emailAddress') || (isHebrew ? 'כתובת אימייל' : 'Email address')}</label>
                     <input type="email" defaultValue="asher205@gmail.com" className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all" dir="ltr" />
                   </div>
                   <div className="space-y-2 md:col-span-2">
-                    <label className="text-sm font-medium text-gray-700">מטבע תצוגה במערכת</label>
+                    <label className="text-sm font-medium text-gray-700">{isHebrew ? 'מטבע תצוגה במערכת' : 'Display currency'}</label>
                     <div className="relative">
                       <Globe className={cn("absolute top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400", dir === 'rtl' ? 'right-3' : 'left-3')} />
                       <select
@@ -324,18 +329,20 @@ export function Settings({ userProfile }: { userProfile?: { role?: string } | nu
                       </select>
                     </div>
                     <p className="text-xs text-gray-500">
-                      ניתן לבחור כל מטבע נתמך. הבחירה משפיעה על כל הסכומים במערכת.
+                      {isHebrew
+                        ? 'ניתן לבחור כל מטבע נתמך. הבחירה משפיעה על כל הסכומים במערכת.'
+                        : 'You can choose any supported currency. This affects amounts across the system.'}
                     </p>
                   </div>
                 </div>
               </div>
               <div className="p-6 bg-gray-50 border-t border-gray-200 flex justify-end">
                 <button
-                  onClick={() => handleDemoAction('שמירת פרופיל אישי')}
+                  onClick={() => handleDemoAction(isHebrew ? 'שמירת פרופיל אישי' : 'Save personal profile')}
                   className="flex items-center gap-2 px-6 py-2.5 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 transition-colors shadow-sm"
                 >
                   <Save className="w-4 h-4" />
-                  שמור שינויים
+                  {t('settings.saveChanges') || (isHebrew ? 'שמור שינויים' : 'Save changes')}
                 </button>
               </div>
             </div>
@@ -344,30 +351,30 @@ export function Settings({ userProfile }: { userProfile?: { role?: string } | nu
           {activeTab === 'agency' && (
             <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
               <div className="p-6 border-b border-gray-200">
-                <h2 className="text-lg font-bold text-gray-900">פרטי סוכנות</h2>
-                <p className="text-sm text-gray-500 mt-1">נהל את פרטי העסק והמותג של הסוכנות שלך.</p>
+                <h2 className="text-lg font-bold text-gray-900">{t('settings.agencyDetails') || (isHebrew ? 'פרטי סוכנות' : 'Agency details')}</h2>
+                <p className="text-sm text-gray-500 mt-1">{t('settings.agencyDetailsDesc') || (isHebrew ? 'נהל את פרטי העסק והמותג של הסוכנות שלך.' : 'Manage your agency business and brand details.')}</p>
               </div>
               <div className="p-6 space-y-6">
                 <div className="space-y-2">
-                  <label className="text-sm font-medium text-gray-700">שם הסוכנות</label>
+                  <label className="text-sm font-medium text-gray-700">{t('settings.agencyName') || (isHebrew ? 'שם הסוכנות' : 'Agency name')}</label>
                   <input type="text" defaultValue="בוקשפן דיגיטל" className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all" />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-sm font-medium text-gray-700">אתר אינטרנט</label>
+                  <label className="text-sm font-medium text-gray-700">{t('settings.website') || (isHebrew ? 'אתר אינטרנט' : 'Website')}</label>
                   <input type="url" defaultValue="https://example.com" className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all" dir="ltr" />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-sm font-medium text-gray-700">תיאור קצר</label>
+                  <label className="text-sm font-medium text-gray-700">{t('settings.shortDescription') || (isHebrew ? 'תיאור קצר' : 'Short description')}</label>
                   <textarea rows={3} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all resize-none" defaultValue="סוכנות שיווק דיגיטלי המתמחה ב-E-commerce ולידים." />
                 </div>
               </div>
               <div className="p-6 bg-gray-50 border-t border-gray-200 flex justify-end">
                 <button
-                  onClick={() => handleDemoAction('שמירת פרטי סוכנות')}
+                  onClick={() => handleDemoAction(isHebrew ? 'שמירת פרטי סוכנות' : 'Save agency details')}
                   className="flex items-center gap-2 px-6 py-2.5 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 transition-colors shadow-sm"
                 >
                   <Save className="w-4 h-4" />
-                  שמור שינויים
+                  {t('settings.saveChanges') || (isHebrew ? 'שמור שינויים' : 'Save changes')}
                 </button>
               </div>
             </div>
@@ -379,14 +386,16 @@ export function Settings({ userProfile }: { userProfile?: { role?: string } | nu
               <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 space-y-6">
                 <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                   <div>
-                    <h2 className="text-lg font-bold text-gray-900">הצטרפות לשירות בתשלום</h2>
+                    <h2 className="text-lg font-bold text-gray-900">{isHebrew ? 'הצטרפות לשירות בתשלום' : 'Join paid plan'}</h2>
                     <p className="text-sm text-gray-500 mt-1">
-                      בחר תוכנית, מטבע ותקופת חיוב - והתאם את המנוי שלך ללקוחות מכל העולם.
+                      {isHebrew
+                        ? 'בחר תוכנית, מטבע ותקופת חיוב - והתאם את המנוי שלך ללקוחות מכל העולם.'
+                        : 'Choose a plan, currency, and billing cycle to fit your global customers.'}
                     </p>
                   </div>
                   <div className="flex flex-col sm:flex-row gap-3">
                     <div className="flex items-center gap-2">
-                      <span className="text-xs font-bold text-gray-600 uppercase tracking-wider">מטבע</span>
+                      <span className="text-xs font-bold text-gray-600 uppercase tracking-wider">{isHebrew ? 'מטבע' : 'Currency'}</span>
                       <select
                         value={currency}
                         onChange={(e) => setCurrency(e.target.value)}
@@ -400,13 +409,13 @@ export function Settings({ userProfile }: { userProfile?: { role?: string } | nu
                       </select>
                     </div>
                     <div className="flex items-center gap-2">
-                      <span className="text-xs font-bold text-gray-600 uppercase tracking-wider">חיוב</span>
+                      <span className="text-xs font-bold text-gray-600 uppercase tracking-wider">{isHebrew ? 'חיוב' : 'Billing'}</span>
                       <div className="inline-flex rounded-full bg-gray-100 p-1">
                         <button className="px-3 py-1 text-xs font-bold rounded-full bg-white shadow-sm">
-                          חודשי
+                          {isHebrew ? 'חודשי' : 'Monthly'}
                         </button>
                         <button className="px-3 py-1 text-xs font-bold rounded-full text-gray-600">
-                          שנתי (‎15%‑)
+                          {isHebrew ? 'שנתי (‎15%‑)' : 'Yearly (15%-)'}
                         </button>
                       </div>
                     </div>
@@ -621,11 +630,11 @@ export function Settings({ userProfile }: { userProfile?: { role?: string } | nu
                       className="flex items-center gap-2 px-5 py-2 rounded-xl bg-indigo-600 text-white text-sm font-bold hover:bg-indigo-700 disabled:opacity-60"
                     >
                       {isSavingPayment ? (
-                        'שומר...'
+                        isHebrew ? 'שומר...' : 'Saving...'
                       ) : (
                         <>
                           <Save className="w-4 h-4" />
-                          שמור טוקן סליקה
+                          {isHebrew ? 'שמור טוקן סליקה' : 'Save payment token'}
                         </>
                       )}
                     </button>
@@ -643,17 +652,17 @@ export function Settings({ userProfile }: { userProfile?: { role?: string } | nu
           {activeTab === 'notifications' && (
             <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
               <div className="p-6 border-b border-gray-200">
-                <h2 className="text-lg font-bold text-gray-900">התראות</h2>
-                <p className="text-sm text-gray-500 mt-1">בחר אילו התראות תרצה לקבל ובאיזה ערוץ.</p>
+                <h2 className="text-lg font-bold text-gray-900">{t('settings.notifications') || (isHebrew ? 'התראות' : 'Notifications')}</h2>
+                <p className="text-sm text-gray-500 mt-1">{t('settings.notificationsDesc') || (isHebrew ? 'בחר אילו התראות תרצה לקבל ובאיזה ערוץ.' : 'Choose which notifications to receive and through which channel.')}</p>
               </div>
               <div className="p-6 space-y-6">
                 <div className="space-y-4">
-                  <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wider">התראות מערכת</h3>
+                  <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wider">{t('settings.systemNotifications') || (isHebrew ? 'התראות מערכת' : 'System notifications')}</h3>
                   
                   <div className="flex items-center justify-between py-3 border-b border-gray-100">
                     <div>
-                      <p className="text-sm font-medium text-gray-900">המלצות AI חדשות</p>
-                      <p className="text-xs text-gray-500">קבל התראה כאשר המערכת מזהה הזדמנויות אופטימיזציה.</p>
+                      <p className="text-sm font-medium text-gray-900">{t('settings.newAiRecs') || (isHebrew ? 'המלצות AI חדשות' : 'New AI recommendations')}</p>
+                      <p className="text-xs text-gray-500">{t('settings.newAiRecsDesc') || (isHebrew ? 'קבל התראה כאשר המערכת מזהה הזדמנויות אופטימיזציה.' : 'Get alerted when the system identifies optimization opportunities.')}</p>
                     </div>
                     <label className="relative inline-flex items-center cursor-pointer">
                       <input type="checkbox" className="sr-only peer" defaultChecked />
@@ -663,8 +672,8 @@ export function Settings({ userProfile }: { userProfile?: { role?: string } | nu
 
                   <div className="flex items-center justify-between py-3 border-b border-gray-100">
                     <div>
-                      <p className="text-sm font-medium text-gray-900">חריגות תקציב</p>
-                      <p className="text-xs text-gray-500">התראות מיידיות כאשר קמפיין חורג מהתקציב היומי.</p>
+                      <p className="text-sm font-medium text-gray-900">{t('settings.budgetExceeding') || (isHebrew ? 'חריגות תקציב' : 'Budget exceeding')}</p>
+                      <p className="text-xs text-gray-500">{t('settings.budgetExceedingDesc') || (isHebrew ? 'התראות מיידיות כאשר קמפיין חורג מהתקציב היומי.' : 'Immediate alerts when a campaign exceeds daily budget.')}</p>
                     </div>
                     <label className="relative inline-flex items-center cursor-pointer">
                       <input type="checkbox" className="sr-only peer" defaultChecked />
@@ -674,8 +683,8 @@ export function Settings({ userProfile }: { userProfile?: { role?: string } | nu
 
                   <div className="flex items-center justify-between py-3">
                     <div>
-                      <p className="text-sm font-medium text-gray-900">דוחות שבועיים</p>
-                      <p className="text-xs text-gray-500">קבל סיכום ביצועים שבועי למייל.</p>
+                      <p className="text-sm font-medium text-gray-900">{t('settings.weeklyReports') || (isHebrew ? 'דוחות שבועיים' : 'Weekly reports')}</p>
+                      <p className="text-xs text-gray-500">{t('settings.weeklyReportsDesc') || (isHebrew ? 'קבל סיכום ביצועים שבועי למייל.' : 'Receive a weekly performance summary by email.')}</p>
                     </div>
                     <label className="relative inline-flex items-center cursor-pointer">
                       <input type="checkbox" className="sr-only peer" />
@@ -690,16 +699,18 @@ export function Settings({ userProfile }: { userProfile?: { role?: string } | nu
                       <div>
                         <h3 className="text-sm font-bold text-gray-900 flex items-center gap-2">
                           <Mail className="w-4 h-4 text-indigo-500" />
-                          הגדרות דוא״ל (Gmail IMAP / חיבור התראות)
+                          {isHebrew ? 'הגדרות דוא״ל (Gmail IMAP / חיבור התראות)' : 'Email settings (Gmail IMAP / notifications)'}
                         </h3>
                         <p className="text-xs text-gray-500 mt-1">
-                          הגדר תיבת Gmail ייעודית לשליחת התראות והודעות מהמערכת. אפשר להזין פרטי IMAP ידנית או להתחבר בהמשך דרך Google OAuth.
+                          {isHebrew
+                            ? 'הגדר תיבת Gmail ייעודית לשליחת התראות והודעות מהמערכת. אפשר להזין פרטי IMAP ידנית או להתחבר בהמשך דרך Google OAuth.'
+                            : 'Set a dedicated Gmail inbox for system alerts and notifications. You can enter IMAP details manually or connect later via Google OAuth.'}
                         </p>
                       </div>
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                       <div className="space-y-1">
-                        <label className="text-xs font-medium text-gray-700">משתמש Gmail (כתובת מלאה)</label>
+                        <label className="text-xs font-medium text-gray-700">{isHebrew ? 'משתמש Gmail (כתובת מלאה)' : 'Gmail user (full address)'}</label>
                         <input
                           type="email"
                           dir="ltr"
@@ -710,7 +721,7 @@ export function Settings({ userProfile }: { userProfile?: { role?: string } | nu
                         />
                       </div>
                       <div className="space-y-1">
-                        <label className="text-xs font-medium text-gray-700">שרת IMAP</label>
+                        <label className="text-xs font-medium text-gray-700">{isHebrew ? 'שרת IMAP' : 'IMAP host'}</label>
                         <input
                           type="text"
                           dir="ltr"
@@ -720,7 +731,7 @@ export function Settings({ userProfile }: { userProfile?: { role?: string } | nu
                         />
                       </div>
                       <div className="space-y-1">
-                        <label className="text-xs font-medium text-gray-700">פורט</label>
+                        <label className="text-xs font-medium text-gray-700">{isHebrew ? 'פורט' : 'Port'}</label>
                         <input
                           type="text"
                           dir="ltr"
@@ -732,17 +743,19 @@ export function Settings({ userProfile }: { userProfile?: { role?: string } | nu
                     </div>
                     <div className="flex flex-wrap items-center justify-between gap-3">
                       <div className="flex items-center gap-2 text-xs text-gray-500">
-                        <span className="font-semibold">התחברות עם Google (דמו):</span>
+                        <span className="font-semibold">{isHebrew ? 'התחברות עם Google (דמו):' : 'Connect with Google (demo):'}</span>
                         <button
                           type="button"
                           onClick={() =>
                             alert(
-                              'בגרסת הדמו הכפתור רק מסמן התחברות. בחיבור מלא נפתח כאן OAuth מול Google לחשבון הדוא״ל.'
+                              isHebrew
+                                ? 'בגרסת הדמו הכפתור רק מסמן התחברות. בחיבור מלא נפתח כאן OAuth מול Google לחשבון הדוא״ל.'
+                                : 'In demo mode, this button only simulates a connection. In full mode, Google OAuth for the mailbox will open here.'
                             )
                           }
                           className="px-3 py-1.5 rounded-lg border border-gray-300 text-xs font-bold text-gray-700 hover:bg-gray-100 transition-colors"
                         >
-                          התחברות לחשבון Google
+                          {isHebrew ? 'התחברות לחשבון Google' : 'Connect Google account'}
                         </button>
                       </div>
                       <button
@@ -751,8 +764,8 @@ export function Settings({ userProfile }: { userProfile?: { role?: string } | nu
                         disabled={isSavingEmailSettings || isLoadingEmailSettings}
                         className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-600 text-white text-xs font-bold hover:bg-indigo-700 disabled:opacity-60"
                       >
-                        {isSavingEmailSettings ? 'שומר...' : <Save className="w-4 h-4" />}
-                        {isSavingEmailSettings ? 'שומר הגדרות דוא״ל' : 'שמור הגדרות דוא״ל'}
+                        {isSavingEmailSettings ? (isHebrew ? 'שומר...' : 'Saving...') : <Save className="w-4 h-4" />}
+                        {isSavingEmailSettings ? (isHebrew ? 'שומר הגדרות דוא״ל' : 'Saving email settings') : (isHebrew ? 'שמור הגדרות דוא״ל' : 'Save email settings')}
                       </button>
                     </div>
                     {emailSettingsMessage && (
@@ -765,11 +778,11 @@ export function Settings({ userProfile }: { userProfile?: { role?: string } | nu
               </div>
               <div className="p-6 bg-gray-50 border-t border-gray-200 flex justify-end">
                 <button
-                  onClick={() => handleDemoAction('שמירת הגדרות התראות')}
+                  onClick={() => handleDemoAction(isHebrew ? 'שמירת הגדרות התראות' : 'Save notifications settings')}
                   className="flex items-center gap-2 px-6 py-2.5 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 transition-colors shadow-sm"
                 >
                   <Save className="w-4 h-4" />
-                  שמור שינויים
+                  {t('settings.saveChanges') || (isHebrew ? 'שמור שינויים' : 'Save changes')}
                 </button>
               </div>
             </div>
@@ -778,22 +791,26 @@ export function Settings({ userProfile }: { userProfile?: { role?: string } | nu
           {activeTab === 'sharing' && (
             <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
               <div className="p-6 border-b border-gray-200">
-                <h2 className="text-lg font-bold text-gray-900">שיתוף מידע עם משתמשים נוספים</h2>
+                <h2 className="text-lg font-bold text-gray-900">{isHebrew ? 'שיתוף מידע עם משתמשים נוספים' : 'Share workspace access'}</h2>
                 <p className="text-sm text-gray-500 mt-1">
-                  בעל החנות יכול לשתף את נתוני המערכת עם מנהל חנות או עובד נוסף לפי אימייל.
+                  {isHebrew
+                    ? 'בעל החנות יכול לשתף את נתוני המערכת עם מנהל חנות או עובד נוסף לפי אימייל.'
+                    : 'The store owner can share workspace data with managers or team members by email.'}
                 </p>
               </div>
               <div className="p-6 space-y-5">
                 <div className="rounded-xl border border-indigo-100 bg-indigo-50/50 p-4">
-                  <p className="text-xs font-bold text-indigo-900">איך זה עובד</p>
+                  <p className="text-xs font-bold text-indigo-900">{isHebrew ? 'איך זה עובד' : 'How it works'}</p>
                   <p className="text-xs text-indigo-800 mt-1 leading-relaxed">
-                    הזן אימייל של המשתמש שצריך גישה. ברגע שהוא יתחבר עם אותו אימייל, הוא יעבוד על נתוני החנות שלך.
+                    {isHebrew
+                      ? 'הזן אימייל של המשתמש שצריך גישה. ברגע שהוא יתחבר עם אותו אימייל, הוא יעבוד על נתוני החנות שלך.'
+                      : 'Enter the user email that needs access. Once they sign in with that email, they will work on your store data.'}
                   </p>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-3 items-end">
                   <div className="md:col-span-2 space-y-1">
-                    <label className="text-xs font-medium text-gray-700">אימייל משתמש לשיתוף</label>
+                    <label className="text-xs font-medium text-gray-700">{isHebrew ? 'אימייל משתמש לשיתוף' : 'User email to share'}</label>
                     <input
                       type="email"
                       dir="ltr"
@@ -804,14 +821,14 @@ export function Settings({ userProfile }: { userProfile?: { role?: string } | nu
                     />
                   </div>
                   <div className="space-y-1">
-                    <label className="text-xs font-medium text-gray-700">הרשאה</label>
+                    <label className="text-xs font-medium text-gray-700">{isHebrew ? 'הרשאה' : 'Permission'}</label>
                     <select
                       value={shareRole}
                       onChange={(e) => setShareRole(e.target.value as SharedAccessRole)}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white"
                     >
-                      <option value="manager">Manager - יכול לערוך ולנהל</option>
-                      <option value="viewer">Viewer - צפייה בלבד ללא שינוי נתונים</option>
+                      <option value="manager">{isHebrew ? 'Manager - יכול לערוך ולנהל' : 'Manager - can edit and manage'}</option>
+                      <option value="viewer">{isHebrew ? 'Viewer - צפייה בלבד ללא שינוי נתונים' : 'Viewer - view only, no edits'}</option>
                     </select>
                   </div>
                 </div>
@@ -824,7 +841,7 @@ export function Settings({ userProfile }: { userProfile?: { role?: string } | nu
                     className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-600 text-white text-sm font-bold hover:bg-indigo-700 disabled:opacity-60"
                   >
                     <UserPlus className="w-4 h-4" />
-                    {isSavingSharing ? 'שומר...' : 'הוסף משתמש לשיתוף'}
+                    {isSavingSharing ? (isHebrew ? 'שומר...' : 'Saving...') : (isHebrew ? 'הוסף משתמש לשיתוף' : 'Add shared user')}
                   </button>
                 </div>
 
@@ -835,11 +852,11 @@ export function Settings({ userProfile }: { userProfile?: { role?: string } | nu
                 )}
 
                 <div className="border-t border-gray-100 pt-4">
-                  <h3 className="text-sm font-bold text-gray-900 mb-3">משתמשים עם גישה</h3>
+                  <h3 className="text-sm font-bold text-gray-900 mb-3">{isHebrew ? 'משתמשים עם גישה' : 'Users with access'}</h3>
                   {isLoadingSharing ? (
-                    <p className="text-sm text-gray-500">טוען הרשאות שיתוף...</p>
+                    <p className="text-sm text-gray-500">{isHebrew ? 'טוען הרשאות שיתוף...' : 'Loading sharing permissions...'}</p>
                   ) : !sharedAccessList.length ? (
-                    <p className="text-sm text-gray-500">עדיין לא הוגדרו משתמשים לשיתוף.</p>
+                    <p className="text-sm text-gray-500">{isHebrew ? 'עדיין לא הוגדרו משתמשים לשיתוף.' : 'No shared users configured yet.'}</p>
                   ) : (
                     <div className="space-y-2">
                       {sharedAccessList.map((entry) => (
@@ -860,7 +877,7 @@ export function Settings({ userProfile }: { userProfile?: { role?: string } | nu
                             className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-red-200 text-red-600 text-xs font-bold hover:bg-red-50 disabled:opacity-60"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
-                            הסר
+                            {isHebrew ? 'הסר' : 'Remove'}
                           </button>
                         </div>
                       ))}
@@ -874,46 +891,46 @@ export function Settings({ userProfile }: { userProfile?: { role?: string } | nu
           {activeTab === 'security' && (
             <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
               <div className="p-6 border-b border-gray-200">
-                <h2 className="text-lg font-bold text-gray-900">אבטחה ופרטיות</h2>
-                <p className="text-sm text-gray-500 mt-1">נהל את הסיסמה והגדרות האבטחה של החשבון.</p>
+                <h2 className="text-lg font-bold text-gray-900">{t('settings.securityPrivacy') || (isHebrew ? 'אבטחה ופרטיות' : 'Security & privacy')}</h2>
+                <p className="text-sm text-gray-500 mt-1">{t('settings.securityDesc') || (isHebrew ? 'נהל את הסיסמה והגדרות האבטחה של החשבון.' : 'Manage account password and security settings.')}</p>
               </div>
               <div className="p-6 space-y-6">
                 <div className="space-y-4">
-                  <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wider">שינוי סיסמה</h3>
+                  <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wider">{t('settings.changePassword') || (isHebrew ? 'שינוי סיסמה' : 'Change password')}</h3>
                   <div className="space-y-2">
-                    <label className="text-sm font-medium text-gray-700">סיסמה נוכחית</label>
+                    <label className="text-sm font-medium text-gray-700">{t('settings.currentPassword') || (isHebrew ? 'סיסמה נוכחית' : 'Current password')}</label>
                     <input type="password" placeholder="••••••••" className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all" />
                   </div>
                   <div className="space-y-2">
-                    <label className="text-sm font-medium text-gray-700">סיסמה חדשה</label>
+                    <label className="text-sm font-medium text-gray-700">{t('settings.newPassword') || (isHebrew ? 'סיסמה חדשה' : 'New password')}</label>
                     <input type="password" placeholder="••••••••" className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all" />
                   </div>
                   <div className="space-y-2">
-                    <label className="text-sm font-medium text-gray-700">אימות סיסמה חדשה</label>
+                    <label className="text-sm font-medium text-gray-700">{t('settings.confirmNewPassword') || (isHebrew ? 'אימות סיסמה חדשה' : 'Confirm new password')}</label>
                     <input type="password" placeholder="••••••••" className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all" />
                   </div>
                 </div>
                 
                 <div className="pt-6 border-t border-gray-100">
-                  <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wider mb-4">אימות דו-שלבי (2FA)</h3>
+                  <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wider mb-4">{t('settings.twoFactorAuth') || (isHebrew ? 'אימות דו-שלבי (2FA)' : 'Two-factor authentication (2FA)')}</h3>
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-sm font-medium text-gray-900">הגן על החשבון שלך עם שכבת אבטחה נוספת.</p>
-                      <p className="text-xs text-gray-500 mt-1">מומלץ מאוד להפעיל אימות דו-שלבי.</p>
+                      <p className="text-sm font-medium text-gray-900">{t('settings.twoFactorDesc') || (isHebrew ? 'הגן על החשבון שלך עם שכבת אבטחה נוספת.' : 'Protect your account with an extra security layer.')}</p>
+                      <p className="text-xs text-gray-500 mt-1">{isHebrew ? 'מומלץ מאוד להפעיל אימות דו-שלבי.' : 'Highly recommended to enable 2FA.'}</p>
                     </div>
                     <button className="px-4 py-2 bg-white border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors">
-                      הפעל 2FA
+                      {t('settings.enable2fa') || (isHebrew ? 'הפעל 2FA' : 'Enable 2FA')}
                     </button>
                   </div>
                 </div>
               </div>
               <div className="p-6 bg-gray-50 border-t border-gray-200 flex justify-end">
                 <button
-                  onClick={() => handleDemoAction('עדכון סיסמה ואבטחה')}
+                  onClick={() => handleDemoAction(isHebrew ? 'עדכון סיסמה ואבטחה' : 'Update password and security')}
                   className="flex items-center gap-2 px-6 py-2.5 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 transition-colors shadow-sm"
                 >
                   <Save className="w-4 h-4" />
-                  עדכן סיסמה
+                  {t('settings.updatePassword') || (isHebrew ? 'עדכן סיסמה' : 'Update password')}
                 </button>
               </div>
             </div>

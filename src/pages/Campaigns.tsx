@@ -19,7 +19,7 @@ const mockCampaignData = [
 ];
 
 export function Campaigns() {
-  const { t, dir } = useLanguage();
+  const { t, dir, language } = useLanguage();
   const { format: formatCurrency } = useCurrency();
   const { connections } = useConnections();
   const { dateRange } = useDateRange();
@@ -226,7 +226,10 @@ export function Campaigns() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">{t('campaigns.title')}</h1>
-          <p className="text-sm text-gray-500 mt-0.5">נתונים לפי תקופה: <span className="font-bold text-indigo-600">{periodLabel}</span></p>
+          <p className="text-sm text-gray-500 mt-0.5">
+            {(language === 'he' ? 'נתונים לפי תקופה:' : 'Data for period:')}{' '}
+            <span className="font-bold text-indigo-600">{periodLabel}</span>
+          </p>
         </div>
         <button 
           onClick={fetchRecommendations}

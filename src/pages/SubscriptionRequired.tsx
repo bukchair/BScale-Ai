@@ -59,7 +59,11 @@ export function SubscriptionRequired({ onGoToPricing }: SubscriptionRequiredProp
       window.location.reload();
     } catch (err) {
       console.error('Failed to activate demo mode:', err);
-      alert('הפעלת חשבון הדמו נכשלה. נסה שוב מאוחר יותר.');
+      alert(
+        language === 'he'
+          ? 'הפעלת חשבון הדמו נכשלה. נסה שוב מאוחר יותר.'
+          : 'Failed to activate demo account. Please try again later.'
+      );
     }
   };
 
@@ -102,10 +106,10 @@ export function SubscriptionRequired({ onGoToPricing }: SubscriptionRequiredProp
             onClick={handleEnterDemo}
             className="w-full flex items-center justify-center gap-2 py-3 px-6 rounded-xl font-bold border-2 border-dashed border-emerald-300 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 transition-colors text-sm"
           >
-            {t('subscription.ctaDemo') || 'היכנס לחשבון דמו (ללא חיבור פלטפורמות)'}
+            {t('subscription.ctaDemo') || (language === 'he' ? 'היכנס לחשבון דמו (ללא חיבור פלטפורמות)' : 'Enter demo account (without platform connections)')}
           </button>
           <a
-            href="mailto:contact@bscale.ai?subject=בקשת מנוי - BScale AI"
+            href={`mailto:contact@bscale.ai?subject=${encodeURIComponent(language === 'he' ? 'בקשת מנוי - BScale AI' : 'Subscription request - BScale AI')}`}
             className="w-full flex items-center justify-center gap-2 py-4 px-6 rounded-xl font-bold border-2 border-gray-300 dark:border-white/20 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-white/5 transition-colors"
           >
             <Mail className="w-5 h-5" />

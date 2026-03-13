@@ -30,7 +30,7 @@ const brandStyles: Record<string, { bg: string, text: string, border: string, li
 export function Integrations({ userProfile }: { userProfile?: { role?: string; subscriptionStatus?: string } | null }) {
   const isAdmin = userProfile?.role === 'admin';
   const isDemo = userProfile?.subscriptionStatus === 'demo';
-  const { t, dir } = useLanguage();
+  const { t, dir, language } = useLanguage();
   const {
     connections,
     toggleConnection,
@@ -286,10 +286,11 @@ export function Integrations({ userProfile }: { userProfile?: { role?: string; s
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="overflow-hidden">
           <div className="mt-5 pt-5 border-t border-gray-100">
             <div className="rounded-2xl bg-gray-50 border border-dashed border-gray-300 p-4 text-sm text-gray-700">
-              <p className="font-bold mb-1">מצב דמו פעיל</p>
+              <p className="font-bold mb-1">{language === 'he' ? 'מצב דמו פעיל' : 'Demo mode is active'}</p>
               <p className="text-xs text-gray-500">
-                בחשבון דמו לא ניתן לחבר פלטפורמות אמיתיות. כל הנתונים במסכים השונים מוצגים כנתוני דוגמה בלבד כדי שתוכל לראות
-                איך המערכת נראית. להצטרפות לחבילה פעילה וחיבור פלטפורמות — עבור למסך המנויים.
+                {language === 'he'
+                  ? 'בחשבון דמו לא ניתן לחבר פלטפורמות אמיתיות. כל הנתונים במסכים השונים מוצגים כנתוני דוגמה בלבד כדי שתוכל לראות איך המערכת נראית. להצטרפות לחבילה פעילה וחיבור פלטפורמות — עבור למסך המנויים.'
+                  : 'In demo accounts, real platform connections are disabled. Data shown across the app is sample data so you can explore the system. To connect real platforms, upgrade your subscription.'}
               </p>
             </div>
           </div>
@@ -543,17 +544,22 @@ export function Integrations({ userProfile }: { userProfile?: { role?: string; s
                           <button
                             type="button"
                             onClick={async () => {
-                              if (window.confirm(t('integrations.wooResetConfirm') || 'למחוק את החיבור ל-WooCommerce ולהגדיר מחדש?')) {
+                              if (window.confirm(t('integrations.wooResetConfirm') || (language === 'he' ? 'למחוק את החיבור ל-WooCommerce ולהגדיר מחדש?' : 'Delete the WooCommerce connection and reconfigure it?'))) {
                                 await clearConnectionSettings('woocommerce');
                                 setFormValues((prev) => ({ ...prev, storeUrl: '', wooKey: '', wooSecret: '' }));
-                                setToast({ message: t('integrations.wooResetDone') || 'החיבור נוקה. הזן פרטים חדשים למעלה.', type: 'success' });
+                                setToast({
+                                  message:
+                                    t('integrations.wooResetDone') ||
+                                    (language === 'he' ? 'החיבור נוקה. הזן פרטים חדשים למעלה.' : 'Connection cleared. Enter new details above.'),
+                                  type: 'success',
+                                });
                                 setTimeout(() => setToast(null), 3000);
                               }
                             }}
                             className="w-full py-2 rounded-lg text-xs font-bold border border-amber-300 text-amber-700 bg-amber-50 hover:bg-amber-100 transition-colors flex items-center justify-center gap-2"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
-                            {t('integrations.wooResetConnection') || 'מחק חיבור והגדר מחדש'}
+                            {t('integrations.wooResetConnection') || (language === 'he' ? 'מחק חיבור והגדר מחדש' : 'Reset connection and reconfigure')}
                           </button>
                         </div>
                       )}
@@ -871,7 +877,9 @@ export function Integrations({ userProfile }: { userProfile?: { role?: string; s
             <div className="flex flex-wrap items-center gap-3">
               <div className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white/15 backdrop-blur border border-white/20">
                 <span className="text-2xl font-black">{connectedCount}</span>
-                <span className="text-indigo-100 text-sm font-medium">/ {connections.length} מחוברים</span>
+                <span className="text-indigo-100 text-sm font-medium">
+                  / {connections.length} {language === 'he' ? 'מחוברים' : 'connected'}
+                </span>
               </div>
               <button
                 onClick={() => {
@@ -960,7 +968,9 @@ export function Integrations({ userProfile }: { userProfile?: { role?: string; s
       <div className="max-w-7xl mx-auto space-y-10 pb-12">
         {isWorkspaceReadOnly && (
           <div className="bg-amber-50 border-2 border-amber-200 p-4 rounded-2xl text-sm font-bold text-amber-800">
-            מצב צפייה בלבד פעיל. המשתמש יכול לצפות בנתונים אך לא לערוך חיבורים או הגדרות.
+            {language === 'he'
+              ? 'מצב צפייה בלבד פעיל. המשתמש יכול לצפות בנתונים אך לא לערוך חיבורים או הגדרות.'
+              : 'View-only mode is active. This user can view data but cannot edit connections or settings.'}
           </div>
         )}
         {aiConnections.length > 0 && (
@@ -981,7 +991,9 @@ export function Integrations({ userProfile }: { userProfile?: { role?: string; s
                   className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-indigo-600 text-white text-xs sm:text-sm font-bold hover:bg-indigo-700 transition-colors shadow-sm"
                 >
                   <Sparkles className="w-4 h-4" />
-                  סנכרן חיבורי AI מהמשתמש שלי לכל המשתמשים
+                  {language === 'he'
+                    ? 'סנכרן חיבורי AI מהמשתמש שלי לכל המשתמשים'
+                    : 'Sync AI connections from my user to all users'}
                 </button>
               )}
             </div>
