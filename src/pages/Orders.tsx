@@ -144,16 +144,12 @@ export function Orders() {
       'shipping_city',
       'shipping_country',
       'items',
-      'customer_note',
-      'meta_notes'
+      'customer_note'
     ];
     const rows = filtered.map((o) => {
       const customerName = `${o.billing.first_name || ''} ${o.billing.last_name || ''}`.trim();
       const items = o.line_items.map((li) => `${li.name} x${li.quantity} (${li.total})`).join(' | ');
-      const metaNotes = (o.meta_data || [])
-        .filter((m) => typeof m.value === 'string')
-        .map((m) => `${m.key}: ${m.value}`)
-        .join(' | ');
+      const customerNote = (o.customer_note || '').trim();
       return [
         o.id,
         o.number,
@@ -167,8 +163,7 @@ export function Orders() {
         o.shipping.city || '',
         o.shipping.country || '',
         items,
-        (o.customer_note || '').replace(/\s+/g, ' '),
-        metaNotes.replace(/\s+/g, ' ')
+        customerNote.replace(/\s+/g, ' ')
       ];
     });
 
@@ -366,10 +361,7 @@ export function Orders() {
                 filtered.map((o) => {
                   const customerName = `${o.billing.first_name || ''} ${o.billing.last_name || ''}`.trim() || '—';
                   const items = o.line_items.map((li) => `${li.name} x${li.quantity}`).join(' | ');
-                  const metaNotes = (o.meta_data || [])
-                    .filter((m) => typeof m.value === 'string')
-                    .map((m) => `${m.key}: ${m.value}`)
-                    .join(' | ');
+                  const customerNote = (o.customer_note || '').trim();
                   return (
                     <tr key={o.id} className="border-b border-gray-100 hover:bg-gray-50/50">
                       <td className="px-3 py-2 font-mono text-[11px] text-gray-600">#{o.number}</td>
@@ -406,7 +398,7 @@ export function Orders() {
                         {items || '—'}
                       </td>
                       <td className="px-3 py-2 text-gray-700 max-w-xs truncate">
-                        {o.customer_note || metaNotes || '—'}
+                        {customerNote}
                       </td>
                     </tr>
                   );
