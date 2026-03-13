@@ -534,3 +534,128 @@ export async function fetchWooCommerceOrdersByRange(
   }
 }
 
+export async function fetchWooCommerceLatestOrders(
+  url: string,
+  key: string,
+  secret: string,
+  limit = 5
+): Promise<WooCommerceOrder[]> {
+  if (!url || !key || !secret) {
+    return [];
+  }
+
+  if (key === 'mock' || secret === 'mock') {
+    const now = new Date().toISOString();
+    return [
+      {
+        id: 201,
+        number: '201',
+        status: 'completed',
+        currency: 'ILS',
+        total: 980,
+        total_tax: 0,
+        shipping_total: 0,
+        payment_method: 'bscale_gateway',
+        payment_method_title: 'BScale Demo Gateway',
+        date_created: now,
+        date_modified: now,
+        date_completed: now,
+        customer_note: '',
+        billing: {
+          first_name: 'דנה',
+          last_name: 'כהן',
+          email: 'dana@example.com',
+          phone: '+972501234567',
+        },
+        shipping: {
+          first_name: 'דנה',
+          last_name: 'כהן',
+        },
+        line_items: [],
+        meta_data: [],
+      },
+    ];
+  }
+
+  const toNumber = (value: unknown): number => {
+    if (typeof value === 'number') return Number.isFinite(value) ? value : 0;
+    if (typeof value === 'string') {
+      const parsed = parseFloat(value);
+      return Number.isFinite(parsed) ? parsed : 0;
+    }
+    return 0;
+  };
+
+  const parseRows = (payload: unknown): any[] => {
+    if (Array.isArray(payload)) return payload;
+    if (payload && typeof payload === 'object') {
+      const asObj = payload as Record<string, unknown>;
+      if (Array.isArray(asObj.orders)) return asObj.orders as any[];
+      if (Array.isArray(asObj.data)) return asObj.data as any[];
+    }
+    return [];
+  };
+
+  const endpoint = `orders?per_page=${Math.min(Math.max(limit, 1), 50)}&page=1&orderby=date&order=desc`;
+  const response = await fetch(`${API_BASE}/api/proxy/woocommerce`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      url,
+      key,
+      secret,
+      endpoint,
+    }),
+  });
+
+  const text = await response.text();
+  if (!text) {
+    if (!response.ok) {
+      throw new Error(`WooCommerce API returned empty response (${response.status})`);
+    }
+    return [];
+  }
+
+  let parsed: any;
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    throw new Error('WooCommerce returned invalid JSON for latest orders request');
+  }
+
+  if (!response.ok) {
+    const rawMessage =
+      (parsed && typeof parsed.message === 'string' && parsed.message) ||
+      `WooCommerce API error (${response.status})`;
+    throw new Error(sanitizeWooErrorText(rawMessage));
+  }
+
+  return parseRows(parsed).map((row) => ({
+    id: Number(row.id || 0),
+    number: String(row.number ?? row.id ?? ''),
+    status: typeof row.status === 'string' ? row.status : 'pending',
+    currency: typeof row.currency === 'string' ? row.currency : 'ILS',
+    total: toNumber(row.total),
+    total_tax: toNumber(row.total_tax),
+    shipping_total: toNumber(row.shipping_total),
+    payment_method: typeof row.payment_method === 'string' ? row.payment_method : '',
+    payment_method_title: typeof row.payment_method_title === 'string' ? row.payment_method_title : '',
+    date_created: typeof row.date_created === 'string' ? row.date_created : '',
+    date_modified: typeof row.date_modified === 'string' ? row.date_modified : '',
+    date_completed: typeof row.date_completed === 'string' ? row.date_completed : null,
+    customer_note: typeof row.customer_note === 'string' ? row.customer_note : '',
+    billing: row.billing || {
+      first_name: '',
+      last_name: '',
+      email: '',
+      phone: '',
+    },
+    shipping: row.shipping || {
+      first_name: '',
+      last_name: '',
+    },
+    line_items: Array.isArray(row.line_items) ? row.line_items : [],
+    meta_data: Array.isArray(row.meta_data) ? row.meta_data : [],
+  }));
+}
+

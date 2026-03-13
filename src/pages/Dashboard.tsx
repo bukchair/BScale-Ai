@@ -21,7 +21,11 @@ import { generateDashboardData } from '../lib/dataUtils';
 import { fetchGA4Report, fetchGSCData, fetchGoogleCampaigns } from '../services/googleService';
 import { fetchMetaCampaigns } from '../services/metaService';
 import { fetchTikTokCampaigns } from '../services/tiktokService';
-import { fetchWooCommerceOrdersByRange, fetchWooCommerceSalesByRange, type WooCommerceOrder } from '../services/woocommerceService';
+import {
+  fetchWooCommerceLatestOrders,
+  fetchWooCommerceSalesByRange,
+  type WooCommerceOrder,
+} from '../services/woocommerceService';
 import { auth } from '../lib/firebase';
 import { useCurrency } from '../contexts/CurrencyContext';
 
@@ -290,7 +294,6 @@ export function Dashboard() {
       let latestOrdersLive: WooCommerceOrder[] = [];
       const campaignRows: CampaignSnapshot[] = [];
 
-      const startIso = bounds.startDate.toISOString();
       const endIso = bounds.endDate.toISOString();
       const startIsoDateOnly = bounds.startDate.toISOString().slice(0, 10);
       const endIsoDateOnly = bounds.endDate.toISOString().slice(0, 10);
@@ -315,12 +318,11 @@ export function Dashboard() {
         }
 
         try {
-          const orders = await fetchWooCommerceOrdersByRange(
+          const orders = await fetchWooCommerceLatestOrders(
             woo.settings.storeUrl,
             woo.settings.wooKey,
             woo.settings.wooSecret,
-            startIso,
-            endIso
+            5
           );
           if (orders.length > 0) {
             latestOrdersLive = [...orders]
@@ -330,8 +332,8 @@ export function Dashboard() {
               )
               .slice(0, 5);
             hasOrdersLive = true;
-            hasRevenueLive = true;
-            if (liveRevenue <= 0) {
+            if (!hasRevenueLive && liveRevenue <= 0) {
+              hasRevenueLive = true;
               liveRevenue = orders.reduce((sum, order) => sum + toNumber(order.total, 0), 0);
             }
           }
