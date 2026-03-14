@@ -140,5 +140,34 @@ service cloud.firestore {
 
       allow delete: if isAdmin();
     }
+
+    match /supportThreads/{threadId} {
+      allow create: if isAuthenticated() &&
+                    request.resource.data.createdByUid == request.auth.uid &&
+                    request.resource.data.subject is string &&
+                    request.resource.data.subject.size() > 0 &&
+                    request.resource.data.status in ['open', 'waiting-admin', 'waiting-user', 'resolved'];
+
+      allow read: if isAdmin() || (isAuthenticated() && resource.data.createdByUid == request.auth.uid);
+
+      allow update: if isAdmin() || (isAuthenticated() && resource.data.createdByUid == request.auth.uid);
+
+      allow delete: if isAdmin();
+
+      match /messages/{messageId} {
+        allow create: if isAuthenticated() &&
+                      request.resource.data.senderUid == request.auth.uid &&
+                      request.resource.data.senderRole in ['user', 'admin'] &&
+                      request.resource.data.text is string &&
+                      request.resource.data.text.size() > 0 &&
+                      (isAdmin() || get(/databases/$(database)/documents/supportThreads/$(threadId)).data.createdByUid == request.auth.uid);
+
+        allow read: if isAdmin() ||
+                    (isAuthenticated() &&
+                     get(/databases/$(database)/documents/supportThreads/$(threadId)).data.createdByUid == request.auth.uid);
+
+        allow update, delete: if false;
+      }
+    }
   }
 }

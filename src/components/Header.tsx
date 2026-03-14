@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Menu, Bell, Search, User, ChevronDown, CheckCircle, AlertTriangle, Calendar, BrainCircuit } from 'lucide-react';
+import { Menu, Bell, Search, User, ChevronDown, CheckCircle, AlertTriangle, Calendar, BrainCircuit, LifeBuoy } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useDateRange, DateRangeType } from '../contexts/DateRangeContext';
 import { useConnections } from '../contexts/ConnectionsContext';
@@ -38,6 +38,19 @@ type NotificationItem = {
   onAction?: () => void;
 };
 
+type SupportThreadNotification = {
+  id: string;
+  subject: string;
+  createdByName?: string;
+  createdByEmail?: string;
+  status?: string;
+  updatedAt?: string;
+  lastMessageAt?: string;
+  lastMessageFrom?: 'user' | 'admin';
+  lastMessageText?: string;
+  adminSeenAt?: string;
+};
+
 export function Header({ onMenuClick, userProfile }: HeaderProps) {
   const { t, dir } = useLanguage();
   const { dateRange, setDateRange, customRange, setCustomRange } = useDateRange();
@@ -57,14 +70,19 @@ export function Header({ onMenuClick, userProfile }: HeaderProps) {
     readBy?: Record<string, string>;
   }>>([]);
   const [pendingUserApprovals, setPendingUserApprovals] = useState<PendingUserApproval[]>([]);
+  const [supportNotifications, setSupportNotifications] = useState<SupportThreadNotification[]>([]);
   const isDemo = userProfile?.subscriptionStatus === 'demo';
   const canViewLeads = userProfile?.role === 'admin';
   const canApproveUsers = userProfile?.role === 'admin';
+  const canViewSupport = userProfile?.role === 'admin';
   const currentUid = auth.currentUser?.uid;
   const previousNewestLeadRef = useRef<string | null>(null);
   const previousNewestPendingUserRef = useRef<string | null>(null);
+  const previousNewestSupportRef = useRef<string | null>(null);
   const hasInitializedLeadFeed = useRef(false);
   const hasInitializedPendingFeed = useRef(false);
+  const hasInitializedSupportFeed = useRef(false);
+  const [liveSupportToast, setLiveSupportToast] = useState<{ id: string; subject: string; user: string } | null>(null);
 
   const tr = (key: string, fallback: string) => {
     const translated = t(key);
@@ -139,6 +157,34 @@ export function Header({ onMenuClick, userProfile }: HeaderProps) {
     return () => unsubscribe();
   }, [canApproveUsers]);
 
+  useEffect(() => {
+    if (!canViewSupport) {
+      setSupportNotifications([]);
+      return;
+    }
+
+    const supportQuery = query(collection(db, 'supportThreads'), orderBy('updatedAt', 'desc'), limit(25));
+    const unsubscribe = onSnapshot(
+      supportQuery,
+      (snapshot) => {
+        const rows = snapshot.docs.map((threadDoc) => ({
+          id: threadDoc.id,
+          ...(threadDoc.data() as any),
+        })) as SupportThreadNotification[];
+        if (!hasInitializedSupportFeed.current) {
+          hasInitializedSupportFeed.current = true;
+          previousNewestSupportRef.current = rows[0]?.id || null;
+        }
+        setSupportNotifications(rows);
+      },
+      (error) => {
+        console.error('Failed to subscribe to support notifications:', error);
+      }
+    );
+
+    return () => unsubscribe();
+  }, [canViewSupport]);
+
   const playLeadAlertSound = () => {
     try {
       const AudioCtx = (window as any).AudioContext || (window as any).webkitAudioContext;
@@ -193,6 +239,21 @@ export function Header({ onMenuClick, userProfile }: HeaderProps) {
   }, [canApproveUsers, pendingUserApprovals]);
 
   useEffect(() => {
+    if (!canViewSupport || !hasInitializedSupportFeed.current || supportNotifications.length === 0) return;
+    const newestSupport = supportNotifications[0];
+    if (!newestSupport) return;
+    if (previousNewestSupportRef.current !== newestSupport.id && newestSupport.lastMessageFrom === 'user') {
+      setLiveSupportToast({
+        id: newestSupport.id,
+        subject: newestSupport.subject || tr('notifications.newSupportTitle', 'New support request'),
+        user: newestSupport.createdByName || newestSupport.createdByEmail || 'User',
+      });
+      playLeadAlertSound();
+      previousNewestSupportRef.current = newestSupport.id;
+    }
+  }, [canViewSupport, supportNotifications]);
+
+  useEffect(() => {
     if (!liveLeadToast) return;
     const timeout = window.setTimeout(() => setLiveLeadToast(null), 6000);
     return () => window.clearTimeout(timeout);
@@ -203,6 +264,12 @@ export function Header({ onMenuClick, userProfile }: HeaderProps) {
     const timeout = window.setTimeout(() => setLivePendingUserToast(null), 6000);
     return () => window.clearTimeout(timeout);
   }, [livePendingUserToast]);
+
+  useEffect(() => {
+    if (!liveSupportToast) return;
+    const timeout = window.setTimeout(() => setLiveSupportToast(null), 6000);
+    return () => window.clearTimeout(timeout);
+  }, [liveSupportToast]);
 
   const handleApproveUserAsFree = async (userId: string) => {
     if (!currentUid) return;
@@ -227,6 +294,16 @@ export function Header({ onMenuClick, userProfile }: HeaderProps) {
     if (!currentUid) return 0;
     return pendingUserApprovals.filter((user) => !user.approvalReadBy?.[currentUid]).length;
   }, [currentUid, pendingUserApprovals]);
+
+  const unreadSupportCount = useMemo(() => {
+    if (!canViewSupport) return 0;
+    return supportNotifications.filter((thread) => {
+      if (thread.lastMessageFrom !== 'user') return false;
+      const lastAt = thread.lastMessageAt ? new Date(thread.lastMessageAt).getTime() : 0;
+      const seenAt = thread.adminSeenAt ? new Date(thread.adminSeenAt).getTime() : 0;
+      return lastAt > seenAt;
+    }).length;
+  }, [canViewSupport, supportNotifications]);
 
   const leadNotificationItems = useMemo(
     () =>
@@ -262,11 +339,38 @@ export function Header({ onMenuClick, userProfile }: HeaderProps) {
       })),
     [currentUid, dir, pendingUserApprovals]
   );
+  const supportNotificationItems = useMemo(
+    () =>
+      supportNotifications.map((thread) => {
+        const lastAt = thread.lastMessageAt ? new Date(thread.lastMessageAt).getTime() : 0;
+        const seenAt = thread.adminSeenAt ? new Date(thread.adminSeenAt).getTime() : 0;
+        return {
+          id: `support-${thread.id}`,
+          type: 'support',
+          title: tr('notifications.newSupportTitle', 'New support request'),
+          desc: `${thread.createdByName || thread.createdByEmail || 'User'} • ${thread.subject || 'Support'}`,
+          time: thread.lastMessageAt
+            ? new Date(thread.lastMessageAt).toLocaleString(dir === 'rtl' ? 'he-IL' : 'en-US')
+            : '--',
+          icon: LifeBuoy,
+          color: 'text-blue-600',
+          unread: thread.lastMessageFrom === 'user' ? lastAt > seenAt : false,
+          actionLabel: tr('notifications.openSupportInbox', 'Open support inbox'),
+          actionClassName: 'text-blue-700 bg-blue-50 border border-blue-200 hover:bg-blue-100',
+          onAction: () => {
+            window.history.pushState({}, '', '/support');
+            window.dispatchEvent(new PopStateEvent('popstate'));
+            setIsNotificationsOpen(false);
+          },
+        } as NotificationItem;
+      }),
+    [dir, supportNotifications]
+  );
 
   const notifications: NotificationItem[] = canViewLeads
-    ? [...pendingUserNotificationItems, ...leadNotificationItems]
+    ? [...pendingUserNotificationItems, ...supportNotificationItems, ...leadNotificationItems]
     : fallbackNotifications.map((item) => ({ ...item, unread: false }));
-  const unreadNotificationsCount = unreadLeadCount + unreadPendingUserCount;
+  const unreadNotificationsCount = unreadLeadCount + unreadPendingUserCount + unreadSupportCount;
 
   const handleToggleNotifications = async () => {
     const nextState = !isNotificationsOpen;
@@ -296,6 +400,23 @@ export function Header({ onMenuClick, userProfile }: HeaderProps) {
           [`approvalReadBy.${currentUid}`]: new Date().toISOString(),
         }).catch((error) => {
           console.warn('Failed to mark pending user notification as read:', error);
+        })
+      )
+    );
+
+    const unreadSupportThreads = supportNotifications.filter((thread) => {
+      if (thread.lastMessageFrom !== 'user') return false;
+      const lastAt = thread.lastMessageAt ? new Date(thread.lastMessageAt).getTime() : 0;
+      const seenAt = thread.adminSeenAt ? new Date(thread.adminSeenAt).getTime() : 0;
+      return lastAt > seenAt;
+    });
+
+    await Promise.all(
+      unreadSupportThreads.map((thread) =>
+        updateDoc(doc(db, 'supportThreads', thread.id), {
+          adminSeenAt: new Date().toISOString(),
+        }).catch((error) => {
+          console.warn('Failed to mark support notification as read:', error);
         })
       )
     );
@@ -516,6 +637,16 @@ export function Header({ onMenuClick, userProfile }: HeaderProps) {
                     >
                       {tr('notifications.viewLeads', 'ניהול לידים')}
                     </button>
+                    <button
+                      className="text-[10px] font-bold text-indigo-600 dark:text-indigo-400 hover:underline"
+                      onClick={() => {
+                        window.history.pushState({}, '', '/support');
+                        window.dispatchEvent(new PopStateEvent('popstate'));
+                        setIsNotificationsOpen(false);
+                      }}
+                    >
+                      {tr('notifications.openSupportInbox', 'תמיכה טכנית')}
+                    </button>
                   </div>
                 ) : (
                   <button className="text-[10px] font-bold text-indigo-600 dark:text-indigo-400 hover:underline">
@@ -601,6 +732,17 @@ export function Header({ onMenuClick, userProfile }: HeaderProps) {
             <p className="text-xs text-amber-100" dir="ltr">
               {livePendingUserToast.email}
             </p>
+          </div>
+        </div>
+      )}
+      {liveSupportToast && (
+        <div className={cn("fixed top-52 z-[90] w-[calc(100vw-2rem)] sm:w-auto sm:min-w-[320px]", dir === 'rtl' ? 'left-4 sm:left-6' : 'right-4 sm:right-6')}>
+          <div className="bg-blue-600 text-white px-4 py-3 rounded-2xl shadow-2xl border border-blue-500">
+            <p className="text-xs font-black uppercase tracking-wider mb-1">
+              {tr('notifications.newSupportTitle', 'פניית תמיכה חדשה')}
+            </p>
+            <p className="text-sm font-bold">{liveSupportToast.subject}</p>
+            <p className="text-xs text-blue-100">{liveSupportToast.user}</p>
           </div>
         </div>
       )}

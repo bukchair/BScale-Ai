@@ -18,7 +18,8 @@ import {
   ListTodo,
   User,
   LogOut,
-  Mail
+  Mail,
+  LifeBuoy,
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { useLanguage } from '../contexts/LanguageContext';
@@ -34,10 +35,20 @@ interface SidebarProps {
 }
 
 export function Sidebar({ activeTab, setActiveTab, isOpen, setIsOpen, userProfile }: SidebarProps) {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const currentUser = auth.currentUser;
   const isAdmin = userProfile?.role === 'admin';
   const canViewLeads = userProfile?.role === 'admin';
+  const supportLabel =
+    language === 'he'
+      ? 'תמיכה טכנית'
+      : language === 'ru'
+      ? 'Техподдержка'
+      : language === 'pt'
+      ? 'Suporte tecnico'
+      : language === 'fr'
+      ? 'Support technique'
+      : 'Technical Support';
 
   const handleLogout = async (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -80,6 +91,7 @@ export function Sidebar({ activeTab, setActiveTab, isOpen, setIsOpen, userProfil
       items: [
         { id: 'approvals-automations', label: t('nav.approvalsAutomations'), icon: ShieldAlert },
         { id: 'connections', label: t('nav.connections'), icon: Plug },
+        { id: 'support', label: supportLabel, icon: LifeBuoy },
         ...(canViewLeads ? [
           { id: 'leads', label: 'לידים', icon: Mail },
         ] : []),

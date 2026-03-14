@@ -21,6 +21,7 @@ import { Integrations } from './pages/Integrations';
 import { Users } from './pages/Users';
 import { Settings } from './pages/Settings';
 import { Leads } from './pages/Leads';
+import { Support } from './pages/Support';
 import { Landing } from './pages/Landing';
 import { Auth } from './pages/Auth';
 import { SubscriptionRequired } from './pages/SubscriptionRequired';
@@ -82,6 +83,8 @@ export default function App() {
         return 'users';
       case 'settings':
         return 'settings';
+      case 'support':
+        return 'support';
       default:
         return 'dashboard';
     }
@@ -217,6 +220,9 @@ export default function App() {
       case 'settings':
         desiredPath = '/settings';
         break;
+      case 'support':
+        desiredPath = '/support';
+        break;
       default:
         desiredPath = '/app';
     }
@@ -345,6 +351,8 @@ export default function App() {
         return userProfile?.role === 'admin' ? <SystemMail /> : <Dashboard />;
       case 'settings':
         return <Settings userProfile={userProfile} />;
+      case 'support':
+        return <Support userProfile={userProfile} />;
       default:
         return <Dashboard />;
     }
