@@ -1,10 +1,11 @@
-import { jwtVerify } from 'jose';
+import { SignJWT, jwtVerify } from 'jose';
 import { cookies } from 'next/headers';
 import { prisma } from '@/src/lib/db/prisma';
 import { integrationsEnv } from '@/src/lib/env/integrations-env';
 import { IntegrationError } from '@/src/lib/integrations/core/errors';
 
-const SESSION_COOKIE_NAME = 'saas_session';
+export const SESSION_COOKIE_NAME = 'saas_session';
+export const SESSION_MAX_AGE_SECONDS = 60 * 60 * 24 * 7; // 7 days
 
 export type AuthenticatedUser = {
   id: string;
@@ -19,6 +20,18 @@ type SessionPayload = {
 };
 
 const getSessionSecret = () => new TextEncoder().encode(integrationsEnv.SESSION_SIGNING_SECRET);
+
+export const issueSessionToken = async (user: AuthenticatedUser): Promise<string> => {
+  return new SignJWT({
+    email: user.email,
+    name: user.name ?? undefined,
+  })
+    .setProtectedHeader({ alg: 'HS256' })
+    .setSubject(user.id)
+    .setIssuedAt()
+    .setExpirationTime(`${SESSION_MAX_AGE_SECONDS}s`)
+    .sign(getSessionSecret());
+};
 
 export const requireAuthenticatedUser = async (): Promise<AuthenticatedUser> => {
   const cookieStore = await cookies();
