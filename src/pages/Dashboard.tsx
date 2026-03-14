@@ -1165,12 +1165,12 @@ export function Dashboard() {
                 return (
                   <div key={order.id} className="rounded-xl border border-gray-200 p-2.5 bg-gray-50/60">
                     <div className="flex items-center justify-between gap-2">
-                      <div className="flex items-center gap-1.5 min-w-0">
+                    <div className="flex flex-wrap items-center gap-1.5 min-w-0">
                         <p className="text-xs font-bold text-gray-900">#{order.number}</p>
                         <SourceTag live={!isOrdersUsingDemo} />
                         <span
                           className={cn(
-                            'inline-flex px-2 py-0.5 rounded-full text-[10px] font-bold whitespace-nowrap',
+                            'inline-flex px-2 py-0.5 rounded-full text-[10px] font-bold',
                             orderStatusBadgeClass(order.status)
                           )}
                         >
@@ -1181,7 +1181,7 @@ export function Dashboard() {
                     </div>
                     <div className="flex items-center justify-between gap-2 mt-1">
                       <p className="text-xs text-gray-700 truncate">{customerName}</p>
-                      <p className="text-xs font-extrabold text-indigo-700 whitespace-nowrap">
+                      <p className="text-xs font-extrabold text-indigo-700">
                         {formatCurrency(order.total)}
                       </p>
                     </div>

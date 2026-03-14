@@ -208,7 +208,7 @@ export function Users() {
         </div>
 
         <div className="overflow-x-auto">
-          <table className="w-full text-sm text-right">
+          <table className="w-full min-w-[980px] text-sm text-right">
             <thead className="bg-gray-50/50 text-gray-500 border-b border-gray-200">
               <tr>
                 <th className="px-6 py-4 font-medium">{t('users.user')}</th>
@@ -333,7 +333,7 @@ export function Users() {
                       {new Date(user.createdAt).toLocaleDateString(dir === 'rtl' ? 'he-IL' : 'en-US')}
                     </td>
                     <td className="px-6 py-4 text-left">
-                      <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <div className="flex items-center justify-end gap-2 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
                         <button 
                           onClick={() => setDeleteConfirmId(user.uid)}
                           disabled={user.email === 'asher205@gmail.com'}

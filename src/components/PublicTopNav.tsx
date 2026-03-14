@@ -67,7 +67,7 @@ export function PublicTopNav() {
       dir={dir}
     >
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3">
-        <div className="flex items-center justify-between gap-3">
+        <div className="flex flex-wrap md:flex-nowrap items-center justify-between gap-3">
           <a href="/" className="inline-flex items-center gap-2 shrink-0">
             <BrainCircuit className="w-6 h-6 text-indigo-600 dark:text-indigo-500" />
             <span className="text-base sm:text-lg font-black tracking-tight text-gray-900 dark:text-white">
@@ -95,7 +95,7 @@ export function PublicTopNav() {
             })}
           </nav>
 
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex items-center gap-2 shrink-0 ms-auto md:ms-0">
             <ThemeSwitcher />
             <LanguageSwitcher />
             <a
@@ -106,7 +106,7 @@ export function PublicTopNav() {
             </a>
             <a
               href="/auth?mode=register"
-              className="inline-flex px-3 py-1.5 rounded-lg text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700"
+              className="inline-flex px-2.5 sm:px-3 py-1.5 rounded-lg text-xs sm:text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700"
             >
               {labels.register}
             </a>

@@ -373,7 +373,7 @@ export default function App() {
         <div className="flex-1 flex flex-col overflow-hidden">
           <Header onMenuClick={() => setIsSidebarOpen(true)} userProfile={userProfile} />
           
-          <main className="flex-1 overflow-x-hidden overflow-y-auto bg-gray-50 dark:bg-[#050505] p-4 sm:p-6 lg:p-8 transition-colors duration-300">
+          <main className="flex-1 overflow-x-hidden overflow-y-auto bg-gray-50 dark:bg-[#050505] p-3 sm:p-6 lg:p-8 transition-colors duration-300">
             {renderContent()}
           </main>
           <footer className="shrink-0 border-t border-gray-200 dark:border-white/10 bg-white dark:bg-[#0b0b0b] px-4 sm:px-6 py-3">

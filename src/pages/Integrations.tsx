@@ -892,7 +892,7 @@ export function Integrations({ userProfile }: { userProfile?: { role?: string; s
                 <button
                   onClick={() => handleSave(integration.id)}
                   disabled={isConnecting}
-                  className="flex-1 min-w-[140px] bg-indigo-600 text-white px-4 py-3 rounded-xl text-sm font-bold hover:bg-indigo-700 transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-2 disabled:opacity-50"
+                  className="flex-1 min-w-0 sm:min-w-[140px] bg-indigo-600 text-white px-4 py-3 rounded-xl text-sm font-bold hover:bg-indigo-700 transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-2 disabled:opacity-50"
                 >
                   {isConnecting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plug className="w-4 h-4" />}
                   {t('integrations.saveAndConnect')}
@@ -902,7 +902,7 @@ export function Integrations({ userProfile }: { userProfile?: { role?: string; s
                   <button
                     onClick={() => handleSave(integration.id)}
                     disabled={isConnecting}
-                    className="flex-1 min-w-[120px] bg-white border-2 border-gray-200 text-gray-700 px-4 py-3 rounded-xl text-sm font-bold hover:bg-gray-50 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                    className="flex-1 min-w-0 sm:min-w-[120px] bg-white border-2 border-gray-200 text-gray-700 px-4 py-3 rounded-xl text-sm font-bold hover:bg-gray-50 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
                   >
                     {isConnecting ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4 text-emerald-500" />}
                     {t('integrations.updateSettings')}
@@ -910,7 +910,7 @@ export function Integrations({ userProfile }: { userProfile?: { role?: string; s
                   <button
                     onClick={() => handleTest(integration.id)}
                     disabled={testingId === integration.id}
-                    className="flex-1 min-w-[120px] bg-indigo-50 text-indigo-600 px-4 py-3 rounded-xl text-sm font-bold hover:bg-indigo-100 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                    className="flex-1 min-w-0 sm:min-w-[120px] bg-indigo-50 text-indigo-600 px-4 py-3 rounded-xl text-sm font-bold hover:bg-indigo-100 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
                   >
                     {testingId === integration.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
                     {t('integrations.testConnection')}
@@ -1228,7 +1228,7 @@ export function Integrations({ userProfile }: { userProfile?: { role?: string; s
                   }
                   openConnectionWizard('google');
                 }}
-                className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-white/20 border border-white/30 text-white font-bold text-sm hover:bg-white/30 transition-all"
+                className="w-full sm:w-auto flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-white/20 border border-white/30 text-white font-bold text-sm hover:bg-white/30 transition-all"
               >
                 <Settings2 className="w-4 h-4" />
                 {wizardResumeAvailable
@@ -1240,7 +1240,7 @@ export function Integrations({ userProfile }: { userProfile?: { role?: string; s
                   const connected = connections.filter(c => c.status === 'connected');
                   connected.forEach(c => handleTest(c.id));
                 }}
-                className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-white text-indigo-700 font-bold text-sm hover:bg-indigo-50 transition-all shadow-lg hover:shadow-xl"
+                className="w-full sm:w-auto flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-white text-indigo-700 font-bold text-sm hover:bg-indigo-50 transition-all shadow-lg hover:shadow-xl"
               >
                 <CheckCircle2 className="w-4 h-4" />
                 {t('integrations.testAll')}
@@ -1255,7 +1255,7 @@ export function Integrations({ userProfile }: { userProfile?: { role?: string; s
                     setTimeout(() => setToast(null), 3000);
                   }
                 }}
-                className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-white/20 border border-white/30 text-white font-bold text-sm hover:bg-white/30 transition-all"
+                className="w-full sm:w-auto flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-white/20 border border-white/30 text-white font-bold text-sm hover:bg-white/30 transition-all"
               >
                 <RotateCcw className="w-4 h-4" />
                 {t('integrations.resetAll')}
@@ -1273,12 +1273,12 @@ export function Integrations({ userProfile }: { userProfile?: { role?: string; s
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 12 }}
             className={cn(
-              "fixed bottom-8 left-1/2 -translate-x-1/2 z-[100] px-6 py-4 rounded-2xl shadow-2xl flex items-center gap-3 min-w-[320px] border-2",
+              "fixed bottom-6 sm:bottom-8 left-1/2 -translate-x-1/2 z-[100] w-[calc(100vw-1.5rem)] max-w-md sm:w-auto sm:min-w-[320px] px-4 sm:px-6 py-3 sm:py-4 rounded-2xl shadow-2xl flex items-center gap-3 border-2",
               toast.type === 'success' ? "bg-emerald-600 border-emerald-400 text-white" : "bg-red-600 border-red-400 text-white"
             )}
           >
             {toast.type === 'success' ? <CheckCircle2 className="w-5 h-5 shrink-0" /> : <AlertCircle className="w-5 h-5 shrink-0" />}
-            <p className="text-sm font-bold">{toast.message}</p>
+            <p className="text-sm font-bold break-words">{toast.message}</p>
           </motion.div>
         )}
       </AnimatePresence>
@@ -1341,7 +1341,7 @@ export function Integrations({ userProfile }: { userProfile?: { role?: string; s
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: 12, scale: 0.98 }}
               transition={{ duration: 0.2 }}
-              className="w-full max-w-3xl bg-white rounded-2xl border border-gray-200 shadow-2xl overflow-hidden"
+              className="w-full max-w-3xl max-h-[92vh] bg-white rounded-2xl border border-gray-200 shadow-2xl overflow-hidden flex flex-col"
               onClick={(event) => event.stopPropagation()}
             >
               <div className="px-5 py-4 border-b border-gray-100 flex items-start justify-between gap-3">
@@ -1384,7 +1384,7 @@ export function Integrations({ userProfile }: { userProfile?: { role?: string; s
                 ))}
               </div>
 
-              <div className="p-5 max-h-[70vh] overflow-y-auto space-y-4">
+              <div className="p-5 overflow-y-auto flex-1 space-y-4">
                 {wizardStep === 1 && (
                   <div className="space-y-4">
                     <div>

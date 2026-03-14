@@ -418,7 +418,7 @@ export function Orders() {
     <div className="space-y-6 max-w-7xl mx-auto">
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
               <Receipt className="w-6 h-6 text-indigo-600" />
               {text.pageTitle}
@@ -763,7 +763,7 @@ export function Orders() {
                         <td className="px-3 py-2 text-gray-900 font-medium">{customerName}</td>
                         <td className="px-3 py-2 text-gray-600">{o.billing.email || '—'}</td>
                         <td className="px-3 py-2">
-                          <div className="space-y-1.5 min-w-[150px]">
+                          <div className="space-y-1.5 min-w-[130px]">
                             <span className={getStatusBadgeClass(o.status)}>{o.status}</span>
                             <select
                               value={statusValue}
@@ -797,7 +797,7 @@ export function Orders() {
                         <td className="px-3 py-2 text-gray-700">
                           {o.payment_method_title || o.payment_method || '—'}
                         </td>
-                        <td className="px-3 py-2 text-gray-700 min-w-[280px] max-w-[420px]">
+                        <td className="px-3 py-2 text-gray-700 min-w-[220px] max-w-[420px]">
                           {itemLines.length ? (
                             <div className="space-y-1 whitespace-normal break-words leading-relaxed">
                               {itemLines.map((itemLine, idx) => (

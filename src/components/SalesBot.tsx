@@ -282,6 +282,7 @@ export function SalesBot() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isBotTyping, setIsBotTyping] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const botRootRef = useRef<HTMLDivElement | null>(null);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const typingTimeoutsRef = useRef<number[]>([]);
 
@@ -311,6 +312,30 @@ export function SalesBot() {
     if (!isOpen) return;
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
   }, [messages, isBotTyping, isOpen, showAnalysis, submitError]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const handlePointerDown = (event: PointerEvent) => {
+      const target = event.target as Node | null;
+      if (!target) return;
+      if (botRootRef.current?.contains(target)) return;
+      setIsOpen(false);
+    };
+
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setIsOpen(false);
+      }
+    };
+
+    window.addEventListener('pointerdown', handlePointerDown);
+    window.addEventListener('keydown', handleEscape);
+    return () => {
+      window.removeEventListener('pointerdown', handlePointerDown);
+      window.removeEventListener('keydown', handleEscape);
+    };
+  }, [isOpen]);
 
   const appendMessage = (from: 'bot' | 'user', text: string) => {
     setMessages((prev) => [...prev, { id: `${from}-${Date.now()}`, from, text }]);
@@ -466,12 +491,13 @@ export function SalesBot() {
 
   return (
     <div
+      ref={botRootRef}
       data-sales-bot-root="true"
       className={cn('fixed z-[130]', dir === 'rtl' ? 'left-4 sm:left-6' : 'right-4 sm:right-6', 'bottom-4 sm:bottom-6')}
       dir={dir}
     >
       {isOpen && (
-        <div className="mb-3 w-[calc(100vw-2rem)] sm:w-[360px] bg-white dark:bg-[#111] border border-gray-200 dark:border-white/10 rounded-2xl shadow-2xl overflow-hidden">
+        <div className="mb-3 w-[min(360px,calc(100vw-1rem))] bg-white dark:bg-[#111] border border-gray-200 dark:border-white/10 rounded-2xl shadow-2xl overflow-hidden">
           <div className="px-4 py-3 bg-indigo-600 text-white flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Bot className="w-4 h-4" />
@@ -486,7 +512,7 @@ export function SalesBot() {
             </button>
           </div>
 
-          <div className="max-h-[300px] overflow-y-auto p-3 space-y-2 bg-gray-50 dark:bg-[#0b0b0b]">
+          <div className="max-h-[52vh] sm:max-h-[300px] overflow-y-auto p-3 space-y-2 bg-gray-50 dark:bg-[#0b0b0b]">
             {messages.map((message) => (
               <div
                 key={message.id}

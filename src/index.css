@@ -23,6 +23,21 @@ body {
   line-height: 1.6;
 }
 
+html,
+body,
+#root {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
+img,
+video,
+canvas,
+svg {
+  max-width: 100%;
+}
+
 h1,
 h2 {
   font-weight: 800;

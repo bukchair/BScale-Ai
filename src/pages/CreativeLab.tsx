@@ -58,6 +58,7 @@ export function CreativeLab() {
   const [overlayPosition, setOverlayPosition] = useState<'top' | 'center' | 'bottom'>('bottom');
   const [exportedImageUrl, setExportedImageUrl] = useState<string | null>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const productDropdownRef = useRef<HTMLDivElement | null>(null);
 
   const wooConnection = connections.find((c) => c.id === 'woocommerce');
   const isWooConnected = wooConnection?.status === 'connected';
@@ -108,6 +109,30 @@ export function CreativeLab() {
     if (!scopedUid) return;
     getSavedAds(scopedUid).then(setSavedAds);
   }, [scopedUid]);
+
+  useEffect(() => {
+    if (!isProductDropdownOpen) return;
+
+    const handlePointerDown = (event: PointerEvent) => {
+      const target = event.target as Node | null;
+      if (!target) return;
+      if (productDropdownRef.current?.contains(target)) return;
+      setIsProductDropdownOpen(false);
+    };
+
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setIsProductDropdownOpen(false);
+      }
+    };
+
+    window.addEventListener('pointerdown', handlePointerDown);
+    window.addEventListener('keydown', handleEscape);
+    return () => {
+      window.removeEventListener('pointerdown', handlePointerDown);
+      window.removeEventListener('keydown', handleEscape);
+    };
+  }, [isProductDropdownOpen]);
 
   const showToast = (message: string) => {
     setToast(message);
@@ -361,7 +386,7 @@ export function CreativeLab() {
   };
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto">
+    <div className="space-y-6 max-w-7xl mx-auto min-w-0">
       {toast && (
         <div className="bg-emerald-50 border border-emerald-200 text-emerald-800 px-4 py-3 rounded-xl text-sm font-bold">
           {toast}
@@ -388,25 +413,25 @@ export function CreativeLab() {
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* Input Section */}
         <div className="lg:col-span-5 space-y-6">
-          <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6">
-            <div className="flex bg-gray-100 p-1 rounded-lg mb-6">
+          <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-4 sm:p-6">
+            <div className="grid grid-cols-1 sm:grid-cols-3 bg-gray-100 p-1 rounded-lg mb-6 gap-1">
               <button 
                 onClick={() => { setActiveTab('image'); setGeneratedContent(null); }}
-                className={cn("flex-1 flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium rounded-md transition-colors", activeTab === 'image' ? "bg-white text-gray-900 shadow-sm" : "text-gray-600 hover:text-gray-900")}
+                className={cn("flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium rounded-md transition-colors", activeTab === 'image' ? "bg-white text-gray-900 shadow-sm" : "text-gray-600 hover:text-gray-900")}
               >
                 <ImageIcon className="w-4 h-4" />
                 {isHebrew ? 'יצירת תמונות' : 'Image generation'}
               </button>
               <button 
                 onClick={() => { setActiveTab('copy'); setGeneratedContent(null); }}
-                className={cn("flex-1 flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium rounded-md transition-colors", activeTab === 'copy' ? "bg-white text-gray-900 shadow-sm" : "text-gray-600 hover:text-gray-900")}
+                className={cn("flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium rounded-md transition-colors", activeTab === 'copy' ? "bg-white text-gray-900 shadow-sm" : "text-gray-600 hover:text-gray-900")}
               >
                 <Type className="w-4 h-4" />
                 {isHebrew ? 'קופירייטינג' : 'Copywriting'}
               </button>
               <button 
                 onClick={() => { setActiveTab('video'); setGeneratedContent(null); }}
-                className={cn("flex-1 flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium rounded-md transition-colors", activeTab === 'video' ? "bg-white text-gray-900 shadow-sm" : "text-gray-600 hover:text-gray-900")}
+                className={cn("flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium rounded-md transition-colors", activeTab === 'video' ? "bg-white text-gray-900 shadow-sm" : "text-gray-600 hover:text-gray-900")}
               >
                 <Layout className="w-4 h-4" />
                 {isHebrew ? 'תסריט וידאו' : 'Video script'}
@@ -415,7 +440,7 @@ export function CreativeLab() {
 
             <div className="space-y-4">
               {/* Product Selection */}
-              <div className="relative">
+              <div ref={productDropdownRef} className="relative">
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   {isHebrew ? 'בחר מוצר מ-WooCommerce (אופציונלי)' : 'Select WooCommerce product (optional)'}
                 </label>
@@ -424,9 +449,11 @@ export function CreativeLab() {
                   onClick={() => setIsProductDropdownOpen(!isProductDropdownOpen)}
                   className="w-full flex items-center justify-between px-4 py-3 bg-white border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all text-sm text-gray-700"
                 >
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 min-w-0">
                     <ShoppingCart className="w-4 h-4 text-gray-400" />
-                    {selectedProduct ? selectedProduct.name : (isHebrew ? 'בחר מוצר...' : 'Select product...')}
+                    <span className="truncate">
+                      {selectedProduct ? selectedProduct.name : (isHebrew ? 'בחר מוצר...' : 'Select product...')}
+                    </span>
                   </div>
                   <ChevronDown className={cn("w-4 h-4 text-gray-400 transition-transform", isProductDropdownOpen && "rotate-180")} />
                 </button>
@@ -543,7 +570,7 @@ export function CreativeLab() {
 
         {/* Output Section */}
         <div className="lg:col-span-7">
-          <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 h-full min-h-[500px] flex flex-col">
+          <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-4 sm:p-6 h-full min-h-[420px] sm:min-h-[500px] flex flex-col">
             <h2 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
               <Sparkles className="w-5 h-5 text-amber-500" />
               {isHebrew ? 'תוצאות' : 'Results'}
@@ -617,7 +644,7 @@ export function CreativeLab() {
                       placeholder="קריאה לפעולה (למשל: קנה עכשיו)"
                       className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm mb-2"
                     />
-                    <div className="flex gap-2 mb-2">
+                    <div className="flex flex-wrap gap-2 mb-2">
                       {(['top', 'center', 'bottom'] as const).map((pos) => (
                         <button
                           key={pos}
@@ -631,41 +658,41 @@ export function CreativeLab() {
                     <div className="flex flex-wrap gap-2">
                       <button
                         onClick={exportImageWithOverlay}
-                        className="px-3 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-200"
+                        className="w-full sm:w-auto px-3 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-200"
                       >
                         ייצא תמונה עם טקסט
                       </button>
                       <button
                         onClick={handleSaveAdImageClick}
                         disabled={isWorkspaceReadOnly}
-                        className="px-3 py-2 bg-emerald-600 text-white rounded-lg text-sm font-medium hover:bg-emerald-700 flex items-center gap-1 disabled:opacity-40"
+                        className="w-full sm:w-auto px-3 py-2 bg-emerald-600 text-white rounded-lg text-sm font-medium hover:bg-emerald-700 flex items-center justify-center gap-1 disabled:opacity-40"
                       >
                         <Save className="w-4 h-4" /> שמור מודעה
                       </button>
                       <button
                         onClick={() => handlePublishTo('meta')}
                         disabled={isWorkspaceReadOnly}
-                        className="px-3 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 flex items-center gap-1 disabled:opacity-40"
+                        className="w-full sm:w-auto px-3 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 flex items-center justify-center gap-1 disabled:opacity-40"
                       >
                         <Send className="w-4 h-4" /> פרסם Meta
                       </button>
                       <button
                         onClick={() => handlePublishTo('google')}
                         disabled={isWorkspaceReadOnly}
-                        className="px-3 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 flex items-center gap-1 disabled:opacity-40"
+                        className="w-full sm:w-auto px-3 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 flex items-center justify-center gap-1 disabled:opacity-40"
                       >
                         <Send className="w-4 h-4" /> פרסם Google
                       </button>
                       <button
                         onClick={() => handlePublishTo('tiktok')}
                         disabled={isWorkspaceReadOnly}
-                        className="px-3 py-2 bg-gray-800 text-white rounded-lg text-sm font-medium hover:bg-gray-900 flex items-center gap-1 disabled:opacity-40"
+                        className="w-full sm:w-auto px-3 py-2 bg-gray-800 text-white rounded-lg text-sm font-medium hover:bg-gray-900 flex items-center justify-center gap-1 disabled:opacity-40"
                       >
                         <Send className="w-4 h-4" /> פרסם TikTok
                       </button>
                       <button
                         onClick={handleSuggestOverlayFromAI}
-                        className="px-3 py-2 bg-white text-indigo-600 border border-indigo-200 rounded-lg text-sm font-medium hover:bg-indigo-50 flex items-center gap-1"
+                        className="w-full sm:w-auto px-3 py-2 bg-white text-indigo-600 border border-indigo-200 rounded-lg text-sm font-medium hover:bg-indigo-50 flex items-center justify-center gap-1"
                       >
                         <Sparkles className="w-4 h-4" /> הצעת כותרת ו‑CTA מה‑AI
                       </button>
@@ -712,7 +739,7 @@ export function CreativeLab() {
                     </button>
                   </div>
                 </div>
-                <div className="grid grid-cols-3 gap-4">
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
                   {generatedContent.variations.map((url: string, idx: number) => (
                     <button
                       key={idx}
@@ -751,9 +778,9 @@ export function CreativeLab() {
                 <div className="space-y-4">
                   {generatedContent.options.map((option: any, idx: number) => (
                     <div key={idx} className="p-4 border border-gray-200 rounded-xl bg-white shadow-sm hover:shadow-md transition-shadow relative">
-                      <div className="flex items-center justify-between mb-3">
+                      <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
                         <span className="text-[10px] font-black text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded uppercase">אופציה {idx + 1}</span>
-                        <div className="flex gap-2" dir="ltr">
+                      <div className="flex flex-wrap gap-2" dir="ltr">
                           <button
                             onClick={() => setEditingCopyIndex(editingCopyIndex === idx ? null : idx)}
                             className="p-1.5 bg-gray-100 text-gray-600 rounded hover:bg-gray-200 transition-colors"
@@ -862,11 +889,11 @@ export function CreativeLab() {
                   ))}
                 </div>
                 
-                <div className="flex gap-3 mt-6">
-                  <button className="flex-1 py-2.5 bg-white border border-gray-200 text-gray-700 font-bold rounded-xl hover:bg-gray-50 transition-colors text-sm flex items-center justify-center gap-2">
+                <div className="flex flex-col sm:flex-row gap-3 mt-6">
+                  <button className="w-full sm:flex-1 py-2.5 bg-white border border-gray-200 text-gray-700 font-bold rounded-xl hover:bg-gray-50 transition-colors text-sm flex items-center justify-center gap-2">
                     <Download className="w-4 h-4" /> הורד תסריט
                   </button>
-                  <button className="flex-1 py-2.5 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 transition-colors text-sm flex items-center justify-center gap-2">
+                  <button className="w-full sm:flex-1 py-2.5 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 transition-colors text-sm flex items-center justify-center gap-2">
                     <Sparkles className="w-4 h-4" /> צור סטוריבורד
                   </button>
                 </div>

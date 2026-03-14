@@ -606,7 +606,7 @@ export function Campaigns() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">{t('campaigns.title')}</h1>
           <p className="text-sm text-gray-500 mt-0.5">
@@ -617,7 +617,7 @@ export function Campaigns() {
         <button 
           onClick={fetchRecommendations}
           disabled={loading}
-          className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50"
+          className="inline-flex w-full sm:w-auto justify-center items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50"
         >
           {loading ? <Loader2 className="w-4 h-4 ml-2 animate-spin" /> : <Zap className="w-4 h-4 ml-2" />}
           {t('campaigns.refreshAi')}
@@ -833,7 +833,7 @@ export function Campaigns() {
                   </div>
                 ))}
               </div>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
                 <select
                   value={rulePlatform}
                   onChange={(e) => setRulePlatform(e.target.value)}
@@ -1062,11 +1062,11 @@ export function Campaigns() {
                 ))}
               </select>
 
-              <div className="flex space-x-2 rtl:space-x-reverse">
+              <div className="flex flex-wrap gap-2">
                 <select
                   value={sortField}
                   onChange={(e) => setSortField(e.target.value)}
-                  className="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                  className="block min-w-0 flex-1 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
                 >
                   <option value="name">{t('campaigns.campaignName')}</option>
                   <option value="platform">{t('campaigns.platform')}</option>
@@ -1077,7 +1077,7 @@ export function Campaigns() {
                 </select>
                 <button
                   onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
-                  className="p-2 border border-gray-300 rounded-md hover:bg-gray-50"
+                  className="p-2 border border-gray-300 rounded-md hover:bg-gray-50 shrink-0"
                   title={sortOrder === 'asc' ? t('campaigns.ascending') : t('campaigns.descending')}
                 >
                   {sortOrder === 'asc' ? '↑' : '↓'}
@@ -1102,7 +1102,7 @@ export function Campaigns() {
                 {filteredAndSortedCampaigns.length > 0 ? (
                   filteredAndSortedCampaigns.map((campaign) => (
                     <tr key={campaign.id}>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{campaign.name}</td>
+                      <td className="px-6 py-4 text-sm font-medium text-gray-900 max-w-[240px] whitespace-normal break-words">{campaign.name}</td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                         <span className={cn(
                           "inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium",
