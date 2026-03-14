@@ -1,4 +1,5 @@
 import { PrismaClient } from '@prisma/client';
+import { PrismaPg } from '@prisma/adapter-pg';
 
 declare global {
   // eslint-disable-next-line no-var
@@ -6,7 +7,11 @@ declare global {
 }
 
 function createPrismaClient() {
+  const connectionString =
+    process.env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/bscale_integrations';
+
   return new PrismaClient({
+    adapter: new PrismaPg({ connectionString }),
     log: process.env.NODE_ENV === 'development' ? ['error', 'warn'] : ['error'],
   });
 }
