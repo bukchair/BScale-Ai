@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   DollarSign,
   Users,
@@ -489,7 +489,6 @@ export function Dashboard() {
   const currentUser = auth.currentUser;
   const text = COPY[language] || COPY.en;
   const statusLabels = STATUS_LABELS[language] || STATUS_LABELS.en;
-  const hasLoadedRealDataRef = useRef(false);
 
   const connectedPlatforms = connections.filter((c) => c.status === 'connected');
   const isWooConnected = connections.find((c) => c.id === 'woocommerce')?.status === 'connected';
@@ -533,18 +532,12 @@ export function Dashboard() {
   const [isGscUsingDemo, setIsGscUsingDemo] = useState(true);
 
   useEffect(() => {
-    hasLoadedRealDataRef.current = false;
     setFinancialAvailability({
       revenue: false,
       spend: false,
       netProfit: false,
       roas: false,
     });
-  }, [bounds.startDate, bounds.endDate]);
-
-  useEffect(() => {
-    if (hasLoadedRealDataRef.current) return;
-    hasLoadedRealDataRef.current = true;
 
     let cancelled = false;
 
@@ -695,11 +688,15 @@ export function Dashboard() {
           }
         }
 
-        if (google.settings.googleAdsId) {
+        const googleCustomerId =
+          google.settings.googleAdsId ||
+          google.settings.customerId ||
+          google.settings.googleCustomerId;
+        if (googleCustomerId) {
           try {
             const googleCampaigns = await fetchGoogleCampaigns(
               token,
-              google.settings.googleAdsId,
+              googleCustomerId,
               google.settings.loginCustomerId
             );
             googleCampaigns.forEach((campaign: any) => {
@@ -727,9 +724,14 @@ export function Dashboard() {
         }
       }
 
-      if (meta?.settings?.metaToken && meta.settings.metaAdsId) {
+      const metaToken = meta?.settings?.metaToken;
+      const metaAdsId =
+        meta?.settings?.metaAdsId ||
+        meta?.settings?.adAccountId ||
+        meta?.settings?.metaAdAccountId;
+      if (metaToken && metaAdsId) {
         try {
-          const metaCampaigns = await fetchMetaCampaigns(meta.settings.metaToken, meta.settings.metaAdsId);
+          const metaCampaigns = await fetchMetaCampaigns(metaToken, metaAdsId);
           metaCampaigns.forEach((campaign: any) => {
             const spend = moneyFromUnknown(campaign.spend);
             const roasValue = moneyFromUnknown(campaign.roas);
@@ -754,11 +756,14 @@ export function Dashboard() {
         }
       }
 
-      if (tiktok?.settings?.tiktokToken && tiktok.settings.tiktokAdvertiserId) {
+      const tiktokToken = tiktok?.settings?.tiktokToken || tiktok?.settings?.tiktokAccessToken;
+      const tiktokAdvertiserId =
+        tiktok?.settings?.tiktokAdvertiserId || tiktok?.settings?.advertiserId;
+      if (tiktokToken && tiktokAdvertiserId) {
         try {
           const tiktokCampaigns = await fetchTikTokCampaigns(
-            tiktok.settings.tiktokToken,
-            tiktok.settings.tiktokAdvertiserId
+            tiktokToken,
+            tiktokAdvertiserId
           );
           (Array.isArray(tiktokCampaigns) ? tiktokCampaigns : []).forEach((campaign: any) => {
             const spend = moneyFromUnknown(
