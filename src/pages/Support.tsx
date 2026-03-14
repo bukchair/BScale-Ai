@@ -60,6 +60,8 @@ type SupportCopy = {
   validationMessage: string;
   createError: string;
   sendError: string;
+  authRequired: string;
+  createSuccess: string;
 };
 
 const COPY: Record<Language, SupportCopy> = {
@@ -89,6 +91,8 @@ const COPY: Record<Language, SupportCopy> = {
     validationMessage: 'יש להזין הודעה.',
     createError: 'שמירת הפנייה נכשלה. נסה שוב.',
     sendError: 'שליחת ההודעה נכשלה. נסה שוב.',
+    authRequired: 'נדרשת התחברות כדי לשלוח פנייה.',
+    createSuccess: 'הפנייה נשלחה בהצלחה.',
   },
   en: {
     title: 'Technical Support',
@@ -116,6 +120,8 @@ const COPY: Record<Language, SupportCopy> = {
     validationMessage: 'Message is required.',
     createError: 'Failed to create request. Please try again.',
     sendError: 'Failed to send message. Please try again.',
+    authRequired: 'You must be logged in to send a request.',
+    createSuccess: 'Support request sent successfully.',
   },
   ru: {
     title: 'Техническая поддержка',
@@ -143,6 +149,8 @@ const COPY: Record<Language, SupportCopy> = {
     validationMessage: 'Введите сообщение.',
     createError: 'Не удалось создать запрос. Попробуйте снова.',
     sendError: 'Не удалось отправить сообщение. Попробуйте снова.',
+    authRequired: 'Нужно войти в систему, чтобы отправить запрос.',
+    createSuccess: 'Запрос в поддержку успешно отправлен.',
   },
   pt: {
     title: 'Suporte tecnico',
@@ -170,6 +178,8 @@ const COPY: Record<Language, SupportCopy> = {
     validationMessage: 'Mensagem obrigatoria.',
     createError: 'Falha ao criar solicitacao. Tente novamente.',
     sendError: 'Falha ao enviar mensagem. Tente novamente.',
+    authRequired: 'Voce precisa entrar para enviar a solicitacao.',
+    createSuccess: 'Solicitacao enviada com sucesso.',
   },
   fr: {
     title: 'Support technique',
@@ -197,6 +207,8 @@ const COPY: Record<Language, SupportCopy> = {
     validationMessage: 'Le message est obligatoire.',
     createError: 'Impossible de creer la demande. Reessayez.',
     sendError: 'Impossible d envoyer le message. Reessayez.',
+    authRequired: 'Vous devez vous connecter pour envoyer une demande.',
+    createSuccess: 'Demande de support envoyee avec succes.',
   },
 };
 
@@ -207,12 +219,18 @@ const statusClassName: Record<SupportStatus, string> = {
   resolved: 'bg-emerald-50 text-emerald-700',
 };
 
-export function Support({ userProfile }: { userProfile?: { role?: string } | null }) {
+export function Support({
+  userProfile,
+}: {
+  userProfile?: { role?: string; uid?: string; name?: string; email?: string } | null;
+}) {
   const { language, dir } = useLanguage();
   const copy = COPY[language] ?? COPY.en;
   const isAdmin = userProfile?.role === 'admin';
   const currentUser = auth.currentUser;
-  const currentUid = currentUser?.uid || '';
+  const currentUid = currentUser?.uid || userProfile?.uid || '';
+  const currentDisplayName = currentUser?.displayName || userProfile?.name || 'User';
+  const currentEmail = currentUser?.email || userProfile?.email || '';
   const [threads, setThreads] = useState<SupportThreadRow[]>([]);
   const [selectedThreadId, setSelectedThreadId] = useState<string | null>(null);
   const [messages, setMessages] = useState<SupportMessageRow[]>([]);
@@ -222,6 +240,7 @@ export function Support({ userProfile }: { userProfile?: { role?: string } | nul
   const [isCreating, setIsCreating] = useState(false);
   const [isSending, setIsSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
 
   useEffect(() => {
     if (!currentUid) return;
@@ -306,7 +325,10 @@ export function Support({ userProfile }: { userProfile?: { role?: string } | nul
   };
 
   const createThread = async () => {
-    if (!currentUid) return;
+    if (!currentUid) {
+      setError(copy.authRequired);
+      return;
+    }
     if (!subject.trim()) {
       setError(copy.validationSubject);
       return;
@@ -317,13 +339,14 @@ export function Support({ userProfile }: { userProfile?: { role?: string } | nul
     }
     setIsCreating(true);
     setError(null);
+    setSuccess(null);
     try {
       const now = new Date().toISOString();
       const threadRef = await addDoc(collection(db, 'supportThreads'), {
         subject: subject.trim().slice(0, 180),
         createdByUid: currentUid,
-        createdByName: currentUser?.displayName || 'User',
-        createdByEmail: currentUser?.email || '',
+        createdByName: currentDisplayName,
+        createdByEmail: currentEmail,
         createdAt: now,
         updatedAt: now,
         status: 'waiting-admin' as SupportStatus,
@@ -338,12 +361,13 @@ export function Support({ userProfile }: { userProfile?: { role?: string } | nul
         text: firstMessage.trim().slice(0, 4000),
         senderUid: currentUid,
         senderRole: 'user' as SenderRole,
-        senderName: currentUser?.displayName || 'User',
+        senderName: currentDisplayName,
         createdAt: now,
       });
       setSubject('');
       setFirstMessage('');
       setSelectedThreadId(threadRef.id);
+      setSuccess(copy.createSuccess);
     } catch (createError) {
       console.error('Failed creating support thread:', createError);
       setError(copy.createError);
@@ -353,7 +377,11 @@ export function Support({ userProfile }: { userProfile?: { role?: string } | nul
   };
 
   const sendReply = async () => {
-    if (!selectedThread || !currentUid) return;
+    if (!selectedThread) return;
+    if (!currentUid) {
+      setError(copy.authRequired);
+      return;
+    }
     const clean = reply.trim();
     if (!clean) return;
     setIsSending(true);
@@ -366,7 +394,7 @@ export function Support({ userProfile }: { userProfile?: { role?: string } | nul
         text: clean.slice(0, 4000),
         senderUid: currentUid,
         senderRole,
-        senderName: currentUser?.displayName || (isAdmin ? 'Admin' : 'User'),
+        senderName: currentDisplayName || (isAdmin ? 'Admin' : 'User'),
         createdAt: now,
       });
       await updateDoc(doc(db, 'supportThreads', selectedThread.id), {
@@ -427,11 +455,23 @@ export function Support({ userProfile }: { userProfile?: { role?: string } | nul
               />
               <button
                 onClick={createThread}
-                disabled={isCreating}
+                disabled={isCreating || !currentUid}
                 className="w-full px-3 py-2 rounded-lg bg-indigo-600 text-white text-sm font-bold hover:bg-indigo-700 disabled:opacity-60"
               >
                 {isCreating ? copy.sending : copy.sendRequest}
               </button>
+              {error && (
+                <p className="text-xs text-red-600 inline-flex items-center gap-1">
+                  <AlertCircle className="w-3.5 h-3.5" />
+                  {error}
+                </p>
+              )}
+              {success && (
+                <p className="text-xs text-emerald-700 inline-flex items-center gap-1">
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                  {success}
+                </p>
+              )}
             </div>
           )}
 
