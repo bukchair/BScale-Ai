@@ -50,7 +50,20 @@ interface ConnectionsContextType {
 
 const AI_CONNECTION_IDS = ['gemini', 'openai', 'claude'] as const;
 const PLATFORM_CONNECTION_IDS = ['google', 'meta', 'tiktok', 'woocommerce', 'shopify'] as const;
+const ADMIN_SALES_EMAIL = 'asher205@gmail.com';
 // AI connections are stored in appSettings/connections and shared with all users (read by everyone, write by admin only).
+
+const isValidDateValue = (value: unknown): value is string => {
+  return typeof value === 'string' && !Number.isNaN(Date.parse(value));
+};
+
+const isExpiredTrialStatus = (data: Record<string, unknown> | undefined) => {
+  if (!data) return false;
+  if (data.subscriptionStatus !== 'trial') return false;
+  const trialEndsAt = data.trialEndsAt;
+  if (!isValidDateValue(trialEndsAt)) return false;
+  return Date.parse(trialEndsAt) <= Date.now();
+};
 
 const initialConnections: Connection[] = [
   { 
@@ -132,13 +145,16 @@ export function ConnectionsProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let unsubGlobal: (() => void) | null = null;
     let unsubUser: (() => void) | null = null;
+    let unsubOwnerProfile: (() => void) | null = null;
     let isCancelled = false;
 
     const clearDataListeners = () => {
       if (unsubGlobal) unsubGlobal();
       if (unsubUser) unsubUser();
+      if (unsubOwnerProfile) unsubOwnerProfile();
       unsubGlobal = null;
       unsubUser = null;
+      unsubOwnerProfile = null;
     };
 
     const unsubscribeAuth = auth.onAuthStateChanged(async (user) => {
@@ -172,9 +188,37 @@ export function ConnectionsProvider({ children }: { children: ReactNode }) {
 
       const userConnectionsRef = doc(db, 'users', scopedOwnerUid, 'settings', 'connections');
       const globalAiRef = doc(db, 'appSettings', 'connections');
+      const ownerProfileRef = doc(db, 'users', scopedOwnerUid);
 
       let globalItems: Connection[] = [];
       let userItems: Connection[] = [];
+      let restrictPlatformsToDemo = false;
+
+      const shouldRestrictPlatformsToDemo = (ownerData: Record<string, unknown> | undefined) => {
+        if (!ownerData) return false;
+        const ownerRole = ownerData.role;
+        const ownerEmail = typeof ownerData.email === 'string' ? ownerData.email.toLowerCase() : '';
+        const ownerIsAdmin = ownerRole === 'admin' || ownerEmail === ADMIN_SALES_EMAIL;
+        if (ownerIsAdmin) return false;
+        return ownerData.subscriptionStatus === 'demo' || isExpiredTrialStatus(ownerData);
+      };
+
+      const applyPlanRestrictions = (items: Connection[]) => {
+        if (!restrictPlatformsToDemo) return items;
+        return items.map((connection) => {
+          if (!PLATFORM_CONNECTION_IDS.includes(connection.id as any)) return connection;
+          return {
+            ...connection,
+            status: 'disconnected' as ConnectionStatus,
+            score: undefined,
+            subConnections: connection.subConnections?.map((sub) => ({
+              ...sub,
+              status: 'disconnected' as ConnectionStatus,
+              score: undefined,
+            })),
+          };
+        });
+      };
 
       const mergeAndSet = () => {
         const byId = new Map<string, Connection>(initialConnections.map((c) => [c.id, { ...c }]));
@@ -182,8 +226,30 @@ export function ConnectionsProvider({ children }: { children: ReactNode }) {
         userItems.forEach((c) => byId.set(c.id, c));
         // ואז נתוני ה-AI הגלובליים גוברים על נתוני המשתמש לאותם מזהים
         globalItems.forEach((c) => byId.set(c.id, c));
-        setConnections(Array.from(byId.values()));
+        setConnections(applyPlanRestrictions(Array.from(byId.values())));
       };
+
+      try {
+        const ownerSnap = await getDoc(ownerProfileRef);
+        if (ownerSnap.exists()) {
+          restrictPlatformsToDemo = shouldRestrictPlatformsToDemo(ownerSnap.data() as Record<string, unknown>);
+        }
+      } catch (err) {
+        console.warn('Failed reading owner subscription mode for connection restrictions:', err);
+      }
+      if (isCancelled) return;
+
+      unsubOwnerProfile = onSnapshot(
+        ownerProfileRef,
+        (snap) => {
+          const ownerData = snap.exists() ? (snap.data() as Record<string, unknown>) : undefined;
+          restrictPlatformsToDemo = shouldRestrictPlatformsToDemo(ownerData);
+          mergeAndSet();
+        },
+        (err) => {
+          console.warn('Owner subscription snapshot failed, keeping existing restriction mode:', err);
+        }
+      );
 
       const handleSnapshotError = (source: 'global' | 'user') => (err: any) => {
         console.error(`Error in ${source} connections snapshot:`, err);

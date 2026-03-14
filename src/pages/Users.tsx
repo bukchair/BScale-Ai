@@ -58,20 +58,26 @@ export function Users() {
 
   const handleSubscriptionChange = async (
     userId: string,
-    nextStatus: 'active' | 'demo' | 'free'
+    nextStatus: 'active' | 'trial' | 'demo' | 'free'
   ) => {
     try {
+      const nowIso = new Date().toISOString();
+      const trialEndsAt = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString();
       const nextPlan =
         nextStatus === 'active'
           ? 'granted_by_admin'
+          : nextStatus === 'trial'
+            ? 'trial_3_days'
           : nextStatus === 'free'
             ? 'free_by_admin'
             : 'demo';
       await updateDoc(doc(db, 'users', userId), {
         subscriptionStatus: nextStatus,
         plan: nextPlan,
-        approvedAt: nextStatus === 'demo' ? null : new Date().toISOString(),
-        approvedByAdminUid: nextStatus === 'demo' ? null : auth.currentUser?.uid || null,
+        approvedAt: nextStatus === 'demo' || nextStatus === 'trial' ? null : nowIso,
+        approvedByAdminUid: nextStatus === 'demo' || nextStatus === 'trial' ? null : auth.currentUser?.uid || null,
+        trialStartedAt: nextStatus === 'trial' ? nowIso : null,
+        trialEndsAt: nextStatus === 'trial' ? trialEndsAt : null,
       });
     } catch (error) {
       console.error("Error updating subscription:", error);
@@ -255,18 +261,19 @@ export function Users() {
                         (() => {
                           const statusValue =
                             user.subscriptionStatus === 'active' ||
+                            user.subscriptionStatus === 'trial' ||
                             user.subscriptionStatus === 'free' ||
                             user.subscriptionStatus === 'demo'
-                              ? (user.subscriptionStatus as 'active' | 'free' | 'demo')
+                              ? (user.subscriptionStatus as 'active' | 'trial' | 'free' | 'demo')
                               : 'demo';
-                          const isPaidOrFree = statusValue === 'active' || statusValue === 'free';
+                          const isPaidOrFree = statusValue === 'active' || statusValue === 'free' || statusValue === 'trial';
                           return (
                         <select
                           value={statusValue}
                           onChange={(e) =>
                             handleSubscriptionChange(
                               user.uid,
-                              e.target.value as 'active' | 'demo' | 'free'
+                              e.target.value as 'active' | 'trial' | 'demo' | 'free'
                             )
                           }
                           className={cn(
@@ -277,6 +284,7 @@ export function Users() {
                           )}
                         >
                           <option value="active">{t('users.accessActive')}</option>
+                          <option value="trial">{t('users.accessTrial') || 'Trial (3 days)'}</option>
                           <option value="free">{t('users.accessFree') || 'Free'}</option>
                           <option value="demo">{t('users.accessDemo')}</option>
                         </select>

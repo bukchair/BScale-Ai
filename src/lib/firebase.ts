@@ -9,18 +9,31 @@ export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
 export const googleProvider = new GoogleAuthProvider();
 export const ADMIN_SALES_EMAIL = 'asher205@gmail.com';
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const TRIAL_DAYS = 3;
+const TRIAL_DURATION_MS = TRIAL_DAYS * 24 * 60 * 60 * 1000;
 
 export { signInWithPopup, signInWithRedirect, onAuthStateChanged, signOut };
+
+const normalizeIsoDate = (value: unknown): string | null => {
+  if (typeof value !== 'string' || !value.trim()) return null;
+  const ms = Date.parse(value);
+  if (Number.isNaN(ms)) return null;
+  return new Date(ms).toISOString();
+};
+
+const computeTrialEndsAt = (trialStartedAt: string) => {
+  return new Date(new Date(trialStartedAt).getTime() + TRIAL_DURATION_MS).toISOString();
+};
 
 export async function syncUserProfile(user: any) {
   if (!user) return null;
 
   const userRef = doc(db, 'users', user.uid);
   const userDoc = await getDoc(userRef);
+  const isAdmin = user.email === ADMIN_SALES_EMAIL;
 
   if (!userDoc.exists()) {
     // Determine initial role
-    const isAdmin = user.email === 'asher205@gmail.com';
     const initialRole = isAdmin ? 'admin' : 'owner';
 
     const userData = {
@@ -28,8 +41,10 @@ export async function syncUserProfile(user: any) {
       email: user.email,
       name: user.displayName || 'User',
       role: initialRole,
-      plan: 'demo',
-      subscriptionStatus: 'demo',
+      plan: 'trial_3_days',
+      subscriptionStatus: isAdmin ? 'active' : 'trial',
+      trialStartedAt: isAdmin ? null : new Date().toISOString(),
+      trialEndsAt: isAdmin ? null : computeTrialEndsAt(new Date().toISOString()),
       createdAt: new Date().toISOString(),
       storeIds: [],
       photoURL: user.photoURL,
@@ -42,7 +57,29 @@ export async function syncUserProfile(user: any) {
     return userData;
   }
 
-  return userDoc.data();
+  const existing = userDoc.data() as Record<string, any>;
+  const updates: Record<string, any> = {};
+
+  if (!isAdmin && existing.subscriptionStatus === 'trial') {
+    const trialStartedAt =
+      normalizeIsoDate(existing.trialStartedAt) ||
+      normalizeIsoDate(existing.createdAt) ||
+      new Date().toISOString();
+    const trialEndsAt = normalizeIsoDate(existing.trialEndsAt) || computeTrialEndsAt(trialStartedAt);
+    if (existing.trialStartedAt !== trialStartedAt) updates.trialStartedAt = trialStartedAt;
+    if (existing.trialEndsAt !== trialEndsAt) updates.trialEndsAt = trialEndsAt;
+    if (Date.parse(trialEndsAt) <= Date.now()) {
+      updates.subscriptionStatus = 'demo';
+      updates.plan = 'demo';
+      updates.trialExpiredAt = new Date().toISOString();
+    }
+  }
+
+  if (Object.keys(updates).length > 0) {
+    await setDoc(userRef, updates, { merge: true });
+  }
+
+  return { ...existing, ...updates };
 }
 
 export type SharedAccessRole = 'manager' | 'viewer';
