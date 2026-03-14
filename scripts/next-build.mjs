@@ -17,9 +17,17 @@ async function exists(targetPath) {
 }
 
 function runNextBuild() {
+  return runCommand('next', ['build']);
+}
+
+function runPrismaGenerate() {
+  return runCommand('prisma', ['generate']);
+}
+
+function runCommand(command, args) {
   return new Promise((resolve, reject) => {
     const nextBin = process.platform === 'win32' ? 'npx.cmd' : 'npx';
-    const child = spawn(nextBin, ['next', 'build'], {
+    const child = spawn(nextBin, [command, ...args], {
       stdio: 'inherit',
       cwd: projectRoot,
       env: process.env,
@@ -31,7 +39,7 @@ function runNextBuild() {
         resolve();
         return;
       }
-      reject(new Error(`next build exited with code=${code ?? 'null'} signal=${signal ?? 'null'}`));
+      reject(new Error(`${command} ${args.join(' ')} exited with code=${code ?? 'null'} signal=${signal ?? 'null'}`));
     });
   });
 }
@@ -39,6 +47,9 @@ function runNextBuild() {
 let movedPages = false;
 
 try {
+  console.log('Generating Prisma Client for Next.js runtime...');
+  await runPrismaGenerate();
+
   if (await exists(pagesDir)) {
     if (await exists(backupPagesDir)) {
       throw new Error(`Temporary backup directory already exists: ${backupPagesDir}`);
