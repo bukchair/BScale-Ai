@@ -5,11 +5,28 @@ import { googleLegacyBridge } from '@/src/lib/integrations/services/google-legac
 const GA4_DATA_API = 'https://analyticsdata.googleapis.com/v1beta';
 const GA4_ADMIN_API = 'https://analyticsadmin.googleapis.com/v1beta';
 const normalizePropertyId = (value: string) => value.replace(/^properties\//, '').trim();
+const normalizeMeasurementId = (value: string) => String(value || '').trim().toUpperCase();
 const isNumericPropertyId = (value: string) => /^\d+$/.test(value);
+const isMeasurementId = (value: string) => /^G-[A-Z0-9]+$/.test(value);
 const DATE_PARAM_REGEX = /^\d{4}-\d{2}-\d{2}$/;
 const normalizeDateParam = (value: string | null) => {
   const trimmed = (value || '').trim();
   return DATE_PARAM_REGEX.test(trimmed) ? trimmed : '';
+};
+
+const extractPropertyIdsFromSummaries = (parsed: unknown): string[] => {
+  if (!parsed || typeof parsed !== 'object') return [];
+  const summaries =
+    (parsed as { accountSummaries?: Array<{ propertySummaries?: Array<{ property?: string }> }> })
+      .accountSummaries ?? [];
+  const ids: string[] = [];
+  for (const summary of summaries) {
+    for (const property of summary.propertySummaries ?? []) {
+      const normalized = normalizePropertyId(String(property.property || ''));
+      if (isNumericPropertyId(normalized)) ids.push(normalized);
+    }
+  }
+  return [...new Set(ids)];
 };
 
 const toErrorMessage = (status: number, raw: string, parsed: unknown) => {
@@ -35,7 +52,9 @@ export async function GET(request: Request) {
     });
     const url = new URL(request.url);
 
-    const queryPropertyId = normalizePropertyId(url.searchParams.get('property_id') || '');
+    const queryPropertyIdRaw = url.searchParams.get('property_id') || '';
+    const queryPropertyId = normalizePropertyId(queryPropertyIdRaw);
+    const queryMeasurementId = normalizeMeasurementId(queryPropertyIdRaw);
     const startDate = normalizeDateParam(url.searchParams.get('start_date'));
     const endDate = normalizeDateParam(url.searchParams.get('end_date'));
     const fallbackPropertyId =
@@ -50,8 +69,14 @@ export async function GET(request: Request) {
           ''
         : '';
     let propertyId = normalizePropertyId(queryPropertyId || fallbackPropertyId);
+    let accountSummariesStatus: number | null = null;
+    let accountSummariesError: string | null = null;
+    let cachedPropertyIds: string[] | null = null;
 
-    if (!isNumericPropertyId(propertyId)) {
+    const getDiscoverablePropertyIds = async () => {
+      if (cachedPropertyIds) {
+        return { propertyIds: cachedPropertyIds, status: accountSummariesStatus, error: accountSummariesError };
+      }
       const discoverResponse = await fetch(`${GA4_ADMIN_API}/accountSummaries?pageSize=200`, {
         method: 'GET',
         headers: {
@@ -67,28 +92,85 @@ export async function GET(request: Request) {
         discoverParsed = null;
       }
 
-      if (discoverResponse.ok) {
-        const summaries =
-          discoverParsed && typeof discoverParsed === 'object'
-            ? ((discoverParsed as { accountSummaries?: Array<{ propertySummaries?: Array<{ property?: string }> }> })
-                .accountSummaries ?? [])
-            : [];
-        for (const summary of summaries) {
-          for (const property of summary.propertySummaries ?? []) {
-            const normalized = normalizePropertyId(String(property.property || ''));
-            if (isNumericPropertyId(normalized)) {
-              propertyId = normalized;
-              break;
-            }
+      accountSummariesStatus = discoverResponse.status;
+      if (!discoverResponse.ok) {
+        accountSummariesError = toErrorMessage(discoverResponse.status, discoverRaw, discoverParsed);
+        cachedPropertyIds = [];
+        return { propertyIds: cachedPropertyIds, status: accountSummariesStatus, error: accountSummariesError };
+      }
+
+      cachedPropertyIds = extractPropertyIdsFromSummaries(discoverParsed);
+      return { propertyIds: cachedPropertyIds, status: accountSummariesStatus, error: null };
+    };
+
+    // Accept Measurement ID (G-XXXX) input by resolving it to a GA4 numeric property ID.
+    if (!isNumericPropertyId(propertyId) && isMeasurementId(queryMeasurementId)) {
+      const discovered = await getDiscoverablePropertyIds();
+      const candidates = discovered.propertyIds.slice(0, 80);
+      for (const candidatePropertyId of candidates) {
+        const streamsResponse = await fetch(
+          `${GA4_ADMIN_API}/properties/${candidatePropertyId}/dataStreams?pageSize=200`,
+          {
+            method: 'GET',
+            headers: {
+              authorization: `Bearer ${accessToken}`,
+              'content-type': 'application/json',
+            },
           }
-          if (isNumericPropertyId(propertyId)) break;
+        );
+        if (!streamsResponse.ok) continue;
+        const streamsRaw = await streamsResponse.text();
+        let streamsParsed: unknown = {};
+        try {
+          streamsParsed = streamsRaw ? JSON.parse(streamsRaw) : {};
+        } catch {
+          streamsParsed = null;
+        }
+        const dataStreams =
+          streamsParsed && typeof streamsParsed === 'object'
+            ? ((streamsParsed as { dataStreams?: Array<{ webStreamData?: { measurementId?: string } }> })
+                .dataStreams ?? [])
+            : [];
+        const hasMatchingMeasurementId = dataStreams.some(
+          (stream) => normalizeMeasurementId(stream.webStreamData?.measurementId || '') === queryMeasurementId
+        );
+        if (hasMatchingMeasurementId) {
+          propertyId = candidatePropertyId;
+          break;
         }
       }
     }
 
     if (!isNumericPropertyId(propertyId)) {
+      const discovered = await getDiscoverablePropertyIds();
+      propertyId = discovered.propertyIds[0] || '';
+    }
+
+    if (!isNumericPropertyId(propertyId)) {
+      if (accountSummariesStatus === 403) {
+        return NextResponse.json(
+          {
+            message:
+              accountSummariesError ||
+              'Google connection is missing GA4 permission (analytics.readonly). Reconnect Google and approve Analytics access.',
+          },
+          { status: 403 }
+        );
+      }
+      if (isMeasurementId(queryMeasurementId)) {
+        return NextResponse.json(
+          {
+            message:
+              'The GA4 value you entered looks like a Measurement ID (G-XXXX). This endpoint needs a GA4 Property ID (digits), or a Google connection with GA4 permission to auto-discover it.',
+          },
+          { status: 400 }
+        );
+      }
       return NextResponse.json(
-        { message: 'Missing property_id for GA4 report. Select a GA4 property in integrations.' },
+        {
+          message:
+            'Missing property_id for GA4 report. Use a GA4 Property ID (digits only), not Measurement ID (G-XXXX).',
+        },
         { status: 400 }
       );
     }

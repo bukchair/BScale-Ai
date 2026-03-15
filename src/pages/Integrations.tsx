@@ -1085,6 +1085,11 @@ export function Integrations({ userProfile }: { userProfile?: { role?: string; s
                       <div>
                         <label className="block text-[10px] font-bold text-gray-500 mb-1 uppercase tracking-wider">{t('integrations.ga4MeasurementId')}</label>
                         <input type="text" placeholder="123456789" className="w-full px-3 py-1.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-xs text-left" dir="ltr" value={formValues.ga4Id || ""} onChange={(e) => handleInputChange('ga4Id', e.target.value)} />
+                        <p className="mt-1 text-[10px] text-gray-500">
+                          {isHebrew
+                            ? 'יש להזין GA4 Property ID מספרי בלבד (לא Measurement ID שמתחיל ב‑G-).'
+                            : 'Use GA4 Property ID (digits only), not Measurement ID that starts with G-.'}
+                        </p>
                       </div>
                       <div className="sm:col-span-2">
                         <label className="block text-[10px] font-bold text-gray-500 mb-1 uppercase tracking-wider">Google Access Token</label>
