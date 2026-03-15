@@ -30,7 +30,7 @@ const toErrorMessage = (status: number, raw: string, parsed: unknown) => {
 export async function GET(request: Request) {
   try {
     const user = await requireAuthenticatedUser();
-    const { connection, accessToken } = await googleLegacyBridge.getConnectionWithAccessToken(user.id, 'GA4', {
+    const { connection, accessToken, resolvedPlatform } = await googleLegacyBridge.getConnectionWithAccessToken(user.id, 'GA4', {
       allowGoogleAdsFallback: true,
     });
     const url = new URL(request.url);
@@ -39,9 +39,11 @@ export async function GET(request: Request) {
     const startDate = normalizeDateParam(url.searchParams.get('start_date'));
     const endDate = normalizeDateParam(url.searchParams.get('end_date'));
     const fallbackPropertyId =
-      connection.connectedAccounts.find((account) => account.isSelected)?.externalAccountId ||
-      connection.connectedAccounts[0]?.externalAccountId ||
-      '';
+      resolvedPlatform === 'GA4'
+        ? connection.connectedAccounts.find((account) => account.isSelected)?.externalAccountId ||
+          connection.connectedAccounts[0]?.externalAccountId ||
+          ''
+        : '';
     let propertyId = normalizePropertyId(queryPropertyId || fallbackPropertyId);
 
     if (!isNumericPropertyId(propertyId)) {

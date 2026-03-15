@@ -4,6 +4,8 @@ import { googleLegacyBridge } from '@/src/lib/integrations/services/google-legac
 
 const SEARCH_CONSOLE_API = 'https://searchconsole.googleapis.com/webmasters/v3';
 const DATE_PARAM_REGEX = /^\d{4}-\d{2}-\d{2}$/;
+const isValidSearchConsoleSite = (value: string) =>
+  /^https?:\/\/.+/i.test(value) || /^sc-domain:.+/i.test(value);
 
 const toErrorMessage = (status: number, raw: string, parsed: unknown) => {
   if (parsed && typeof parsed === 'object') {
@@ -34,19 +36,25 @@ const normalizeDateParam = (value: string | null) => {
 export async function GET(request: Request) {
   try {
     const user = await requireAuthenticatedUser();
-    const { connection, accessToken } = await googleLegacyBridge.getConnectionWithAccessToken(
+    const { connection, accessToken, resolvedPlatform } = await googleLegacyBridge.getConnectionWithAccessToken(
       user.id,
       'SEARCH_CONSOLE',
       { allowGoogleAdsFallback: true }
     );
     const url = new URL(request.url);
-    const querySiteUrl = (url.searchParams.get('site_url') || '').trim();
+    const querySiteUrlRaw = (url.searchParams.get('site_url') || '').trim();
+    const querySiteUrl = isValidSearchConsoleSite(querySiteUrlRaw) ? querySiteUrlRaw : '';
     const startDateParam = normalizeDateParam(url.searchParams.get('start_date'));
     const endDateParam = normalizeDateParam(url.searchParams.get('end_date'));
-    const fallbackSiteUrl =
-      connection.connectedAccounts.find((account) => account.isSelected)?.externalAccountId ||
-      connection.connectedAccounts[0]?.externalAccountId ||
-      '';
+    const fallbackSiteRaw =
+      resolvedPlatform === 'SEARCH_CONSOLE'
+        ? connection.connectedAccounts.find((account) => account.isSelected)?.externalAccountId ||
+          connection.connectedAccounts[0]?.externalAccountId ||
+          ''
+        : '';
+    const fallbackSiteUrl = isValidSearchConsoleSite(String(fallbackSiteRaw || '').trim())
+      ? String(fallbackSiteRaw || '').trim()
+      : '';
     let siteUrl = (querySiteUrl || fallbackSiteUrl).trim();
 
     if (!siteUrl) {
