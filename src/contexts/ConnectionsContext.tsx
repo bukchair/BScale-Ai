@@ -234,6 +234,9 @@ export function ConnectionsProvider({ children }: { children: ReactNode }) {
         const selectedGmail =
           gmail?.accounts?.find((account) => account.isSelected) || gmail?.accounts?.[0] || null;
         const connectedSubCount = (nextSubConnections || []).filter((sub) => sub.status === 'connected').length;
+        const googleManagedStatuses = [ads?.status, ga4?.status, gsc?.status, gmail?.status].filter(
+          (value): value is ManagedApiConnection['status'] => Boolean(value)
+        );
 
         const nextSettings: ConnectionSettings = {
           ...(connection.settings || {}),
@@ -263,13 +266,23 @@ export function ConnectionsProvider({ children }: { children: ReactNode }) {
               timezone: account.timezone ?? null,
             }))
           );
-          if (!nextSettings.googleAccessToken) {
-            nextSettings.googleAccessToken = 'server-managed';
-          }
+        }
+        if (
+          !nextSettings.googleAccessToken &&
+          googleManagedStatuses.some((status) => status === 'CONNECTED' || status === 'PENDING')
+        ) {
+          nextSettings.googleAccessToken = 'server-managed';
         }
 
-        const fallbackStatus =
-          ads || ga4 || gsc || gmail ? mapManagedStatusToLocal(ads?.status || ga4?.status || gsc?.status || gmail?.status) : connection.status;
+        const fallbackStatus = (() => {
+          if (!googleManagedStatuses.length) return connection.status;
+          if (googleManagedStatuses.includes('CONNECTED')) return 'connected' as ConnectionStatus;
+          if (googleManagedStatuses.includes('PENDING')) return 'connecting' as ConnectionStatus;
+          if (googleManagedStatuses.includes('ERROR') || googleManagedStatuses.includes('EXPIRED')) {
+            return 'error' as ConnectionStatus;
+          }
+          return 'disconnected' as ConnectionStatus;
+        })();
 
         return {
           ...connection,

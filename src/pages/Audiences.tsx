@@ -146,7 +146,7 @@ export function Audiences() {
     if (meta?.status === 'connected' && meta.settings?.metaToken) {
       try {
         const acc = meta.settings.metaAdsId || meta.settings.adAccountId || meta.settings.metaAdAccountId;
-        if (acc) result.meta = await fetchMetaCampaigns(meta.settings.metaToken, acc);
+        result.meta = await fetchMetaCampaigns(meta.settings.metaToken, acc || undefined);
       } catch (e) {
         result.meta = [{ error: String(e) }];
       }

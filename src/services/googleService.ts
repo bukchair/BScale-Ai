@@ -86,8 +86,9 @@ export async function sendGmailNotification(accessToken: string, to: string, sub
   return response.json();
 }
 
-export async function fetchGA4Report(accessToken: string, propertyId: string) {
-  const response = await fetch(`${API_BASE}/api/google/analytics/report?property_id=${propertyId}`, {
+export async function fetchGA4Report(accessToken: string, propertyId?: string) {
+  const query = propertyId ? `?property_id=${encodeURIComponent(propertyId)}` : '';
+  const response = await fetch(`${API_BASE}/api/google/analytics/report${query}`, {
     headers: {
       'Authorization': `Bearer ${accessToken}`
     }
@@ -101,8 +102,9 @@ export async function fetchGA4Report(accessToken: string, propertyId: string) {
   return response.json();
 }
 
-export async function fetchGSCData(accessToken: string, siteUrl: string) {
-  const response = await fetch(`${API_BASE}/api/google/search-console/query?site_url=${encodeURIComponent(siteUrl)}`, {
+export async function fetchGSCData(accessToken: string, siteUrl?: string) {
+  const query = siteUrl ? `?site_url=${encodeURIComponent(siteUrl)}` : '';
+  const response = await fetch(`${API_BASE}/api/google/search-console/query${query}`, {
     headers: {
       'Authorization': `Bearer ${accessToken}`
     }

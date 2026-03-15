@@ -647,10 +647,16 @@ export function Dashboard() {
 
       if (google?.settings?.googleAccessToken) {
         const token = google.settings.googleAccessToken;
+        const ga4Connected = Boolean(
+          google.subConnections?.some((sub) => sub.id === 'ga4' && sub.status === 'connected')
+        );
+        const gscConnected = Boolean(
+          google.subConnections?.some((sub) => sub.id === 'gsc' && sub.status === 'connected')
+        );
 
-        if (google.settings.ga4Id) {
+        if (ga4Connected || google.settings.ga4Id) {
           try {
-            const report = await fetchGA4Report(token, google.settings.ga4Id);
+            const report = await fetchGA4Report(token, google.settings.ga4Id || undefined);
             const rows = Array.isArray(report.rows) ? report.rows : [];
             let totalUsers = 0;
             let activeNow = 0;
@@ -672,9 +678,12 @@ export function Dashboard() {
           }
         }
 
-        if (google.settings.siteUrl) {
+        if (gscConnected || google.settings.siteUrl || google.settings.gscSiteUrl) {
           try {
-            const gsc = await fetchGSCData(token, google.settings.siteUrl);
+            const gsc = await fetchGSCData(
+              token,
+              google.settings.siteUrl || google.settings.gscSiteUrl || undefined
+            );
             const rows = Array.isArray(gsc.rows) ? gsc.rows : [];
             let clicks = 0;
             let impressions = 0;
@@ -739,9 +748,9 @@ export function Dashboard() {
         meta?.settings?.metaAdsId ||
         meta?.settings?.adAccountId ||
         meta?.settings?.metaAdAccountId;
-      if (metaToken && metaAdsId) {
+      if (metaToken) {
         try {
-          const metaCampaigns = await fetchMetaCampaigns(metaToken, metaAdsId);
+          const metaCampaigns = await fetchMetaCampaigns(metaToken, metaAdsId || undefined);
           metaCampaigns.forEach((campaign: any) => {
             const spend = moneyFromUnknown(campaign.spend);
             const roasValue = moneyFromUnknown(campaign.roas);

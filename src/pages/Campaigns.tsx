@@ -331,12 +331,12 @@ export function Campaigns() {
       metaConn?.settings?.metaAdsId ||
       metaConn?.settings?.adAccountId ||
       metaConn?.settings?.metaAdAccountId;
-    if (metaConn?.status === 'connected' && token && adAccountId) {
+    if (metaConn?.status === 'connected' && token) {
       setIsSyncing(true);
       try {
         const campaigns = await fetchMetaCampaigns(
           token,
-          adAccountId
+          adAccountId || undefined
         );
         
         setRealCampaigns(prev => [...prev.filter(c => c.platform !== 'Meta'), ...campaigns]);

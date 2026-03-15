@@ -50,8 +50,9 @@ export async function fetchMetaAdAccounts(accessToken: string) {
   return data.data;
 }
 
-export async function fetchMetaCampaigns(accessToken: string, adAccountId: string) {
-  const response = await fetch(`${API_BASE}/api/connections/meta/campaigns?ad_account_id=${adAccountId}`, {
+export async function fetchMetaCampaigns(accessToken: string, adAccountId?: string) {
+  const query = adAccountId ? `?ad_account_id=${encodeURIComponent(adAccountId)}` : '';
+  const response = await fetch(`${API_BASE}/api/connections/meta/campaigns${query}`, {
     headers: {
       'Authorization': `Bearer ${accessToken}`
     }
