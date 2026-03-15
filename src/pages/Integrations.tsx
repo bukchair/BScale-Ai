@@ -383,23 +383,44 @@ export function Integrations({ userProfile }: { userProfile?: { role?: string; s
     }
   };
 
+  const startManagedOAuth = async (
+    platformSlug: 'google-ads' | 'meta' | 'tiktok',
+    failureMessage: string
+  ) => {
+    const response = await fetch(`${API_BASE}/api/connections/${platformSlug}/start`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({}),
+    });
+
+    const text = await response.text();
+    let payload:
+      | {
+          success?: boolean;
+          message?: string;
+          errorCode?: string;
+          data?: { authorizationUrl?: string };
+        }
+      | null = null;
+
+    try {
+      payload = text ? JSON.parse(text) : null;
+    } catch {
+      payload = null;
+    }
+
+    if (!response.ok || !payload?.success || !payload?.data?.authorizationUrl) {
+      const detailedMessage = payload?.message || `${failureMessage} (${response.status})`;
+      throw new Error(detailedMessage);
+    }
+
+    window.location.assign(payload.data.authorizationUrl);
+  };
+
   const handleTikTokConnect = async () => {
     if (blockIfReadOnly()) return;
     try {
-      const response = await fetch(`${API_BASE}/api/auth/tiktok/url`);
-      if (!response.ok) throw new Error('Failed to get auth URL');
-      const { url } = await response.json();
-      
-      const width = 600;
-      const height = 700;
-      const left = window.screenX + (window.outerWidth - width) / 2;
-      const top = window.screenY + (window.outerHeight - height) / 2;
-      
-      window.open(
-        url,
-        'tiktok_auth',
-        `width=${width},height=${height},left=${left},top=${top}`
-      );
+      await startManagedOAuth('tiktok', 'Failed to start TikTok authentication');
     } catch (err) {
       console.error("Failed to get TikTok auth URL:", err);
       setToast({ message: "Failed to start TikTok authentication", type: 'error' });
@@ -410,20 +431,7 @@ export function Integrations({ userProfile }: { userProfile?: { role?: string; s
   const handleMetaConnect = async () => {
     if (blockIfReadOnly()) return;
     try {
-      const response = await fetch(`${API_BASE}/api/auth/meta/url`);
-      if (!response.ok) throw new Error('Failed to get auth URL');
-      const { url } = await response.json();
-      
-      const width = 600;
-      const height = 700;
-      const left = window.screenX + (window.outerWidth - width) / 2;
-      const top = window.screenY + (window.outerHeight - height) / 2;
-      
-      window.open(
-        url,
-        'meta_auth',
-        `width=${width},height=${height},left=${left},top=${top}`
-      );
+      await startManagedOAuth('meta', 'Failed to start Meta authentication');
     } catch (err) {
       console.error("Failed to get Meta auth URL:", err);
       setToast({ message: "Failed to start Meta authentication", type: 'error' });
@@ -434,38 +442,39 @@ export function Integrations({ userProfile }: { userProfile?: { role?: string; s
   const handleGoogleConnect = async () => {
     if (blockIfReadOnly()) return;
     try {
-      const response = await fetch(`${API_BASE}/api/auth/google/url`);
-      
-      // Log the full response for debugging
-      const responseText = await response.text();
-      console.log("Google Auth URL Response:", {
-        status: response.status,
-        ok: response.ok,
-        body: responseText
-      });
-
-      if (!response.ok) {
-        throw new Error(`Failed to get auth URL: ${response.status} ${responseText}`);
-      }
-      
-      const { url } = JSON.parse(responseText);
-      
-      const width = 600;
-      const height = 700;
-      const left = window.screenX + (window.outerWidth - width) / 2;
-      const top = window.screenY + (window.outerHeight - height) / 2;
-      
-      window.open(
-        url,
-        'google_auth',
-        `width=${width},height=${height},left=${left},top=${top}`
-      );
+      await startManagedOAuth('google-ads', 'Failed to start Google authentication');
     } catch (err) {
       console.error("Failed to get Google auth URL:", err);
       setToast({ message: `Failed to start Google authentication: ${err instanceof Error ? err.message : 'Unknown error'}`, type: 'error' });
       setTimeout(() => setToast(null), 3000);
     }
   };
+
+  React.useEffect(() => {
+    const url = new URL(window.location.href);
+    const connected = url.searchParams.get('connected');
+    const errorMessage = url.searchParams.get('error');
+
+    if (!connected && !errorMessage) return;
+
+    if (connected === '1') {
+      setToast({
+        message: isHebrew ? 'החיבור הושלם בהצלחה.' : 'Connection completed successfully.',
+        type: 'success',
+      });
+      setTimeout(() => setToast(null), 3000);
+    } else if (errorMessage) {
+      setToast({ message: errorMessage, type: 'error' });
+      setTimeout(() => setToast(null), 4000);
+    }
+
+    url.searchParams.delete('connected');
+    url.searchParams.delete('error');
+    url.searchParams.delete('platform');
+    const nextQuery = url.searchParams.toString();
+    const nextUrl = `${url.pathname}${nextQuery ? `?${nextQuery}` : ''}${url.hash || ''}`;
+    window.history.replaceState({}, '', nextUrl);
+  }, [isHebrew]);
 
   React.useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
