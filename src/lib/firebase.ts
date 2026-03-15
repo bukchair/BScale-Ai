@@ -263,6 +263,21 @@ export interface AutoAdsSchedule {
   nextRunAt: string | null;
 }
 
+export interface BudgetAutomationSettings {
+  enabled: boolean;
+  targetRoas: number;
+  minPlatformSpend: number;
+  reallocationPercent: number;
+  updatedAt?: string;
+}
+
+export interface BudgetPlatformAllocations {
+  google: number;
+  meta: number;
+  tiktok: number;
+  updatedAt?: string;
+}
+
 export async function getAutoAdsSchedule(uid: string): Promise<AutoAdsSchedule | null> {
   const userRef = doc(db, 'users', uid);
   const snap = await getDoc(userRef);
@@ -273,6 +288,48 @@ export async function getAutoAdsSchedule(uid: string): Promise<AutoAdsSchedule |
 export async function setAutoAdsSchedule(uid: string, schedule: Partial<AutoAdsSchedule>) {
   const userRef = doc(db, 'users', uid);
   await setDoc(userRef, { autoAdsSchedule: schedule }, { merge: true });
+}
+
+export async function getBudgetAutomationSettings(uid: string): Promise<BudgetAutomationSettings | null> {
+  const userRef = doc(db, 'users', uid);
+  const snap = await getDoc(userRef);
+  const data = snap.data();
+  return (data?.budgetAutomation as BudgetAutomationSettings) || null;
+}
+
+export async function setBudgetAutomationSettings(uid: string, settings: Partial<BudgetAutomationSettings>) {
+  const userRef = doc(db, 'users', uid);
+  await setDoc(
+    userRef,
+    {
+      budgetAutomation: {
+        ...settings,
+        updatedAt: new Date().toISOString(),
+      },
+    },
+    { merge: true }
+  );
+}
+
+export async function getBudgetPlatformAllocations(uid: string): Promise<BudgetPlatformAllocations | null> {
+  const userRef = doc(db, 'users', uid);
+  const snap = await getDoc(userRef);
+  const data = snap.data();
+  return (data?.budgetAllocations as BudgetPlatformAllocations) || null;
+}
+
+export async function setBudgetPlatformAllocations(uid: string, allocations: Partial<BudgetPlatformAllocations>) {
+  const userRef = doc(db, 'users', uid);
+  await setDoc(
+    userRef,
+    {
+      budgetAllocations: {
+        ...allocations,
+        updatedAt: new Date().toISOString(),
+      },
+    },
+    { merge: true }
+  );
 }
 
 export interface SavedAd {
