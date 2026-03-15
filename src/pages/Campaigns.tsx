@@ -368,11 +368,40 @@ export function Campaigns() {
     return `${numeric.toFixed(fractionDigits)}%`;
   };
 
-  const formatDateTime = (value: unknown) => {
-    if (typeof value !== 'string' || !value.trim()) return '—';
-    const date = new Date(value);
-    if (Number.isNaN(date.getTime())) return value;
-    return date.toLocaleDateString(language === 'he' ? 'he-IL' : 'en-US');
+  const hasMetaMetrics = (campaign: any) => {
+    const keys = ['spend', 'impressions', 'clicks', 'conversions', 'conversionValue', 'ctr', 'cpc', 'cpm', 'reach', 'frequency'];
+    return keys.some((key) => toAmount(campaign?.[key]) > 0);
+  };
+
+  const hasGoogleMetrics = (campaign: any) => {
+    const keys = ['spend', 'impressions', 'clicks', 'conversions', 'conversionValue', 'ctr', 'cpc', 'cpm', 'costPerConversion'];
+    return keys.some((key) => toAmount(campaign?.[key]) > 0);
+  };
+
+  const mergePlatformCampaignsPreferRich = (
+    existingRows: any[],
+    incomingRows: any[],
+    hasMetrics: (row: any) => boolean
+  ) => {
+    const existingById = new Map(
+      existingRows.map((row) => [String(row?.id || row?.campaignId || ''), row])
+    );
+    return incomingRows.map((row) => {
+      const key = String(row?.id || row?.campaignId || '');
+      if (!key) return row;
+      const existing = existingById.get(key);
+      if (!existing) return row;
+      if (!hasMetrics(row) && hasMetrics(existing)) {
+        // Keep richer historical row if new response only has minimal fields.
+        return {
+          ...existing,
+          ...row,
+          name: row.name || existing.name,
+          status: row.status || existing.status,
+        };
+      }
+      return row;
+    });
   };
 
   const fetchRecommendations = async () => {
@@ -437,7 +466,8 @@ export function Campaigns() {
           if (campaigns.length === 0 && existingMeta.length > 0) {
             return prev;
           }
-          return [...prev.filter(c => c.platform !== 'Meta'), ...campaigns];
+          const mergedMeta = mergePlatformCampaignsPreferRich(existingMeta, campaigns, hasMetaMetrics);
+          return [...prev.filter(c => c.platform !== 'Meta'), ...mergedMeta];
         });
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
@@ -465,8 +495,15 @@ export function Campaigns() {
           startDateIso,
           endDateIso
         );
-        
-        setRealCampaigns(prev => [...prev.filter(c => c.platform !== 'Google'), ...campaigns]);
+
+        setRealCampaigns(prev => {
+          const existingGoogle = prev.filter(c => c.platform === 'Google');
+          if (campaigns.length === 0 && existingGoogle.length > 0) {
+            return prev;
+          }
+          const mergedGoogle = mergePlatformCampaignsPreferRich(existingGoogle, campaigns, hasGoogleMetrics);
+          return [...prev.filter(c => c.platform !== 'Google'), ...mergedGoogle];
+        });
       } catch (err) {
         console.error("Failed to sync Google data:", err);
       }
@@ -908,48 +945,10 @@ export function Campaigns() {
                     <tbody className="bg-white divide-y divide-gray-100">
                       {campaigns.map((campaign) => (
                         <tr key={`campaign-row-${platformName}-${campaign.id}`}>
-                          <td className="px-4 py-2.5 text-sm font-medium text-gray-900 max-w-[320px] whitespace-normal break-words">
-                            <div>{campaign.name}</div>
-                            {isGoogleGroup && (
-                              <div className="mt-1 space-y-0.5 text-[11px] font-normal text-gray-500">
-                                <div>
-                                  ID: <span dir="ltr">{campaign.campaignId || campaign.id || '—'}</span>
-                                  {campaign.servingStatus ? (
-                                    <>
-                                      {' '}| Serving: <span dir="ltr">{campaign.servingStatus}</span>
-                                    </>
-                                  ) : null}
-                                </div>
-                                <div>
-                                  {isHebrew ? 'התחלה' : 'Start'}: {formatDateTime(campaign.startDate)} |{' '}
-                                  {isHebrew ? 'סיום' : 'End'}: {formatDateTime(campaign.endDate)}
-                                </div>
-                                <div>
-                                  {isHebrew ? 'תקציב' : 'Budget'}: {formatCurrency(toAmount(campaign.budget))}{' '}
-                                  {campaign.budgetPeriod ? `(${campaign.budgetPeriod})` : ''}
-                                </div>
-                              </div>
-                            )}
-                            {isMetaGroup && (
-                              <div className="mt-1 space-y-0.5 text-[11px] font-normal text-gray-500">
-                                <div>
-                                  ID: <span dir="ltr">{campaign.campaignId || campaign.id || '—'}</span>
-                                  {campaign.accountId ? (
-                                    <>
-                                      {' '}| Acc: <span dir="ltr">{campaign.accountId}</span>
-                                    </>
-                                  ) : null}
-                                </div>
-                                <div>
-                                  {isHebrew ? 'התחלה' : 'Start'}: {formatDateTime(campaign.startTime)} |{' '}
-                                  {isHebrew ? 'סיום' : 'End'}: {formatDateTime(campaign.stopTime)}
-                                </div>
-                                <div>
-                                  {isHebrew ? 'תקציב יומי' : 'Daily'}: {formatCurrency(toAmount(campaign.dailyBudget))} |{' '}
-                                  {isHebrew ? 'תקציב כולל' : 'Lifetime'}: {formatCurrency(toAmount(campaign.lifetimeBudget))}
-                                </div>
-                              </div>
-                            )}
+                          <td className="px-4 py-2.5 text-sm font-medium text-gray-900">
+                            <div className="max-w-[220px] truncate" title={String(campaign.name || '')}>
+                              {campaign.name}
+                            </div>
                           </td>
                           <td className="px-4 py-2.5 text-sm">
                             {(() => {
