@@ -159,6 +159,7 @@ export interface GA4LiveData {
   totalUsers: number;
   topPages: { name: string; users: number }[];
   trafficSources: { name: string; users: number; percent: number }[];
+  propertyIdUsed?: string;
 }
 
 export interface DateRangeParams {
@@ -187,8 +188,13 @@ export async function fetchGA4LiveData(
   });
 
   if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.message || 'Failed to fetch GA4 live data');
+    const error = await response.json().catch(() => ({}));
+    const attemptedPropertyIds = Array.isArray((error as any)?.attemptedPropertyIds)
+      ? (error as any).attemptedPropertyIds.filter((id: unknown) => typeof id === 'string' && id.trim())
+      : [];
+    const attemptedSuffix =
+      attemptedPropertyIds.length > 0 ? ` (attempted properties: ${attemptedPropertyIds.join(', ')})` : '';
+    throw new Error(((error as any)?.message || 'Failed to fetch GA4 live data') + attemptedSuffix);
   }
 
   return response.json();

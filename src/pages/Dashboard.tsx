@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, Legend } from 'recharts';
-import { DollarSign, Users, MousePointerClick, TrendingUp, Activity, Search, ShoppingCart, Target, Eye, ArrowRight, Zap, Megaphone, LineChart, Store } from 'lucide-react';
+import { DollarSign, Users, MousePointerClick, TrendingUp, Activity, Search, ShoppingCart, Target, Eye, ArrowRight, Zap, Megaphone, LineChart, Store, AlertCircle } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useDateRange } from '../contexts/DateRangeContext';
@@ -12,11 +12,13 @@ import { useAppNavigation } from '../contexts/AppNavigationContext';
 
 export function Dashboard() {
   const { t, dir } = useLanguage();
+  const isHebrew = dir === 'rtl';
   const { navigateTo } = useAppNavigation();
   const { dateRange, resolvedRange } = useDateRange();
   const { connections } = useConnections();
   const currentUser = auth.currentUser;
   const [ga4LiveData, setGa4LiveData] = useState<GA4LiveData | null>(null);
+  const [ga4Error, setGa4Error] = useState<string | null>(null);
   const [gscTotals, setGscTotals] = useState<{ clicks: number; impressions: number; position: number; ctr: number } | null>(null);
 
   const connectedPlatforms = connections.filter(c => c.status === 'connected');
@@ -58,6 +60,7 @@ export function Dashboard() {
 
     if (!googleConnection || googleConnection.status !== 'connected' || !accessToken) {
       setGa4LiveData(null);
+      setGa4Error(null);
       setGscTotals(null);
       return;
     }
@@ -69,11 +72,13 @@ export function Dashboard() {
         const ga4Data = await fetchGA4LiveData(accessToken, propertyId || undefined, resolvedRange);
         if (!isCancelled) {
           setGa4LiveData(ga4Data);
+          setGa4Error(null);
         }
       } catch (err) {
         console.error("Failed to load GA4 live data:", err);
         if (!isCancelled) {
           setGa4LiveData(null);
+          setGa4Error(err instanceof Error ? err.message : t('common.error'));
         }
       }
 
@@ -108,6 +113,10 @@ export function Dashboard() {
     };
   }, [connections, resolvedRange.endDate, resolvedRange.startDate]);
 
+  const useGa4Fallback = !ga4LiveData && !ga4Error;
+  const ga4ActiveUsers = ga4LiveData?.activeUsers ?? (useGa4Fallback ? 42 : 0);
+  const ga4TotalUsers = ga4LiveData?.totalUsers ?? (useGa4Fallback ? 1247 : 0);
+
   const topPages = ga4LiveData?.topPages?.length
     ? ga4LiveData.topPages.map((page) => ({
         name: page.name === '/' ? t('dashboard.homePage') : page.name,
@@ -116,11 +125,11 @@ export function Dashboard() {
           return totalTopPageUsers > 0 ? Math.max(1, Math.round((page.users / totalTopPageUsers) * 100)) : 0;
         })()
       }))
-    : [
+    : useGa4Fallback ? [
         { name: t('dashboard.homePage'), percent: 41 },
         { name: t('dashboard.products'), percent: 28 },
         { name: t('dashboard.promotions'), percent: 18 },
-      ];
+      ] : [];
 
   const trafficSources = ga4LiveData?.trafficSources?.length
     ? ga4LiveData.trafficSources.slice(0, 3).map((source, idx) => ({
@@ -128,11 +137,11 @@ export function Dashboard() {
         percent: source.percent,
         color: idx === 0 ? 'bg-emerald-500' : idx === 1 ? 'bg-blue-500' : 'bg-purple-500'
       }))
-    : [
+    : useGa4Fallback ? [
         { name: t('dashboard.organicSearch'), percent: 45, color: 'bg-emerald-500' },
         { name: t('dashboard.paidSearch'), percent: 30, color: 'bg-blue-500' },
         { name: t('dashboard.direct'), percent: 15, color: 'bg-purple-500' },
-      ];
+      ] : [];
 
   const quickActions = [
     { id: 'ai-recs', title: t('dashboard.viewAiRecs'), icon: Zap, color: 'bg-amber-100 dark:bg-amber-500/20 text-amber-600 dark:text-amber-400', desc: t('dashboard.viewAiRecsDesc'), tab: 'ai-recommendations' },
@@ -250,16 +259,34 @@ export function Dashboard() {
           </div>
           
           <div className="space-y-6">
+            {ga4Error && (
+              <div className="rounded-xl border border-red-200 bg-red-50 p-3">
+                <div className="flex items-start gap-2">
+                  <AlertCircle className="w-4 h-4 text-red-600 mt-0.5 shrink-0" />
+                  <div>
+                    <p className="text-xs font-bold text-red-700">
+                      {isHebrew ? 'שגיאת GA4 (פירוט מלא)' : 'GA4 error (detailed)'}
+                    </p>
+                    <p className="text-xs text-red-700 break-words">{ga4Error}</p>
+                    <p className="text-[11px] text-red-600 mt-1">
+                      {isHebrew
+                        ? 'בדוק שה־GA4 Property שייך לאותו משתמש Google המחובר ולחץ Reconnect אם צריך.'
+                        : 'Verify the GA4 property belongs to the connected Google user and reconnect if needed.'}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
             <div className="flex items-center justify-between bg-blue-50 dark:bg-blue-500/5 p-6 rounded-xl border border-blue-100 dark:border-blue-500/10 relative overflow-hidden">
               <div className={cn("absolute top-3 w-2 h-2 bg-blue-500 rounded-full animate-ping", dir === 'rtl' ? "left-3" : "right-3")} />
               <div className={cn("absolute top-3 w-2 h-2 bg-blue-500 rounded-full", dir === 'rtl' ? "left-3" : "right-3")} />
               <div>
                 <p className="text-sm font-medium text-blue-800 dark:text-blue-300 uppercase tracking-wider mb-1">{t('dashboard.activeNow')}</p>
-                <p className="text-5xl font-black text-blue-600 dark:text-blue-400">{ga4LiveData?.activeUsers ?? 42}</p>
+                <p className="text-5xl font-black text-blue-600 dark:text-blue-400">{ga4ActiveUsers}</p>
               </div>
               <div className="text-end">
                 <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">{t('dashboard.totalUsers')}</p>
-                <p className="text-xl font-bold text-gray-900 dark:text-white">{(ga4LiveData?.totalUsers ?? 1247).toLocaleString()}</p>
+                <p className="text-xl font-bold text-gray-900 dark:text-white">{ga4TotalUsers.toLocaleString()}</p>
               </div>
             </div>
 
@@ -267,7 +294,7 @@ export function Dashboard() {
               <div className="space-y-4">
                 <h3 className="text-sm font-bold text-gray-900 dark:text-white uppercase tracking-wider">{t('dashboard.topPages')}</h3>
                 <div className="space-y-3">
-                  {topPages.map((page, i) => (
+                  {topPages.length > 0 ? topPages.map((page, i) => (
                     <div key={i} className="flex items-center gap-3 text-sm">
                       <span className="w-24 font-medium text-gray-700 dark:text-gray-300 truncate">{page.name}</span>
                       <div className="flex-1 h-2 bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden">
@@ -275,14 +302,16 @@ export function Dashboard() {
                       </div>
                       <span className="w-8 font-bold text-gray-500 dark:text-gray-400 text-xs">{page.percent}%</span>
                     </div>
-                  ))}
+                  )) : (
+                    <p className="text-xs text-gray-500">{isHebrew ? 'אין נתוני עמודים זמינים כרגע.' : 'No page data available right now.'}</p>
+                  )}
                 </div>
               </div>
 
               <div className="space-y-4">
                 <h3 className="text-sm font-bold text-gray-900 dark:text-white uppercase tracking-wider">{t('dashboard.trafficSources')}</h3>
                 <div className="space-y-3">
-                  {trafficSources.map((source, i) => (
+                  {trafficSources.length > 0 ? trafficSources.map((source, i) => (
                     <div key={i} className="flex items-center gap-3 text-sm">
                       <div className={cn("w-2 h-2 rounded-full", source.color)} />
                       <span className="w-24 font-medium text-gray-700 dark:text-gray-300 truncate">{source.name}</span>
@@ -291,7 +320,9 @@ export function Dashboard() {
                       </div>
                       <span className="w-8 font-bold text-gray-500 dark:text-gray-400 text-xs">{source.percent}%</span>
                     </div>
-                  ))}
+                  )) : (
+                    <p className="text-xs text-gray-500">{isHebrew ? 'אין נתוני מקורות תנועה זמינים כרגע.' : 'No traffic source data available right now.'}</p>
+                  )}
                 </div>
               </div>
             </div>
