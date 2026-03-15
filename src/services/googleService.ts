@@ -90,6 +90,56 @@ export async function fetchGoogleCampaigns(
   });
 }
 
+export async function fetchGoogleSearchTerms(
+  accessToken: string,
+  customerId: string,
+  loginCustomerId?: string,
+  dateRange?: DateRangeParams
+) {
+  const search = new URLSearchParams({ customer_id: customerId });
+  if (loginCustomerId) {
+    search.set('login_customer_id', loginCustomerId);
+  }
+  if (dateRange) {
+    search.set('start_date', dateRange.startDate);
+    search.set('end_date', dateRange.endDate);
+  }
+
+  const response = await fetch(`/api/google/ads/search-terms?${search.toString()}`, {
+    headers: {
+      'Authorization': `Bearer ${accessToken}`
+    }
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}));
+    throw new Error(error.message || 'Failed to fetch Google Ads search terms');
+  }
+
+  const data = await response.json();
+
+  return (data.results || []).map((row: any) => {
+    const term = row.searchTermView?.searchTerm || '(not set)';
+    const clicks = Number(row.metrics?.clicks || 0);
+    const cost = Number(row.metrics?.costMicros || 0) / 1_000_000;
+    const conversions = Number(row.metrics?.conversions || 0);
+    const conversionValue = Number(row.metrics?.conversionsValue || 0);
+    const roas = cost > 0 ? conversionValue / cost : 0;
+    const status = conversions <= 0 && clicks >= 20 ? 'negative_candidate' : roas >= 3 ? 'optimal' : 'review';
+
+    return {
+      type: 'ads',
+      term,
+      clicks,
+      cost: Number(cost.toFixed(2)),
+      conversions,
+      roas: Number(roas.toFixed(2)),
+      source: 'Google Ads',
+      status,
+    };
+  });
+}
+
 export async function sendGmailNotification(accessToken: string, to: string, subject: string, body: string) {
   const response = await fetch('/api/google/gmail/send', {
     method: 'POST',

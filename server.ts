@@ -718,6 +718,48 @@ async function startServer() {
     }
   });
 
+  app.get("/api/google/ads/search-terms", async (req, res) => {
+    const accessToken = req.headers.authorization?.split(" ")[1];
+    const customerId = req.query.customer_id;
+    const { startDate, endDate } = getDateRangeFromQuery(req, 30);
+
+    if (!accessToken || !customerId) {
+      return res.status(400).json({ message: "Missing access token or customer ID" });
+    }
+
+    try {
+      const formattedCustomerId = String(customerId).replace(/-/g, "");
+      const dateFilter = `segments.date BETWEEN '${startDate}' AND '${endDate}'`;
+      const response = await axios.post(
+        `https://googleads.googleapis.com/v17/customers/${formattedCustomerId}/googleAds:search`,
+        {
+          query: `
+            SELECT
+              search_term_view.search_term,
+              metrics.clicks,
+              metrics.cost_micros,
+              metrics.conversions,
+              metrics.conversions_value
+            FROM search_term_view
+            WHERE ${dateFilter}
+            LIMIT 200
+          `
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            "developer-token": process.env.GOOGLE_ADS_DEVELOPER_TOKEN as string,
+            "login-customer-id": (req.query.login_customer_id as string) || formattedCustomerId
+          }
+        }
+      );
+      res.json(response.data);
+    } catch (error: any) {
+      console.error("Google Ads Search Terms API Error:", error.response?.data || error.message);
+      res.status(500).json({ message: getAxiosErrorMessage(error, "Failed to fetch Google Ads search terms") });
+    }
+  });
+
   app.get("/api/google/analytics/live", async (req, res) => {
     const accessToken = getBearerToken(req);
     const propertyId = req.query.property_id;

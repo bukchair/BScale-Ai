@@ -4,23 +4,18 @@ import { Search, AlertTriangle, TrendingUp, TrendingDown, Filter, Download, Zap,
 import { cn } from '../lib/utils';
 import { useConnections } from '../contexts/ConnectionsContext';
 import { useDateRange } from '../contexts/DateRangeContext';
-import { fetchGSCData } from '../services/googleService';
-
-const mockSearchTerms = [
-  { term: 'נעלי ריצה זולות', clicks: 145, cost: 320, conversions: 0, roas: 0, source: 'Google Ads', status: 'review' },
-  { term: 'נעלי הריצה הטובות ביותר 2024', clicks: 320, cost: 850, conversions: 12, roas: 4.2, source: 'Google Ads', status: 'optimal' },
-  { type: 'organic', term: 'איך להתחיל לרוץ', impressions: 4500, clicks: 320, position: 4.2, source: 'GSC', status: 'opportunity' },
-  { term: 'אפליקציית ריצה חינם', clicks: 85, cost: 120, conversions: 0, roas: 0, source: 'Google Ads', status: 'negative_candidate' },
-  { type: 'organic', term: 'נעלי ריצה קרובות אלי', impressions: 1200, clicks: 45, position: 8.5, source: 'GSC', status: 'improve' },
-];
+import { fetchGSCData, fetchGoogleSearchTerms } from '../services/googleService';
 
 export function SearchAnalysis() {
   const { t, dir } = useLanguage();
+  const isHebrew = dir === 'rtl';
   const { connections } = useConnections();
   const { resolvedRange } = useDateRange();
   const [activeTab, setActiveTab] = useState<'all' | 'ads' | 'organic' | 'negative'>('all');
-  const [searchTerms, setSearchTerms] = useState<any[]>(mockSearchTerms);
+  const [searchTerms, setSearchTerms] = useState<any[]>([]);
   const [selectedTerm, setSelectedTerm] = useState<any | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [syncErrors, setSyncErrors] = useState<{ ads: string | null; gsc: string | null }>({ ads: null, gsc: null });
   const [negativeKeywords, setNegativeKeywords] = useState([
     { id: 1, term: 'חינם', matchType: 'רחב', campaign: 'כל הקמפיינים', addedDate: '2024-03-01' },
     { id: 2, term: 'דרושים', matchType: 'ביטוי', campaign: 'נעלי גברים', addedDate: '2024-03-05' },
@@ -29,50 +24,99 @@ export function SearchAnalysis() {
 
   useEffect(() => {
     const googleConn = connections.find(c => c.id === 'google');
-    const accessToken = googleConn?.settings?.googleAccessToken;
-    const siteUrl = googleConn?.settings?.gscSiteUrl;
+    const accessToken = googleConn?.settings?.googleAccessToken || '';
+    const siteUrl = googleConn?.settings?.gscSiteUrl || '';
+    const googleAdsId = googleConn?.settings?.googleAdsId || '';
 
-    if (!googleConn || googleConn.status !== 'connected' || !accessToken || !siteUrl) {
-      setSearchTerms(mockSearchTerms);
-      return;
-    }
+    let isCancelled = false;
+    const loadTerms = async () => {
+      if (isCancelled) return;
+      setIsLoading(true);
+      const nextErrors: { ads: string | null; gsc: string | null } = { ads: null, gsc: null };
+      const combinedTerms: any[] = [];
 
-    const loadGscTerms = async () => {
-      try {
-        const gscData = await fetchGSCData(accessToken, siteUrl, resolvedRange);
-        const organicTerms = (gscData.rows || []).map((row: any) => {
-          const impressions = Number(row.impressions || 0);
-          const clicks = Number(row.clicks || 0);
-          const ctr = impressions > 0 ? clicks / impressions : 0;
-          const position = Number(row.position || 0);
-          const status =
-            position <= 4 ? 'optimal' :
-            ctr < 0.02 ? 'improve' :
-            'opportunity';
+      if (googleConn?.status !== 'connected') {
+        if (!isCancelled) {
+          setSearchTerms([]);
+          setSyncErrors({
+            ads: isHebrew ? 'Google לא מחובר.' : 'Google is not connected.',
+            gsc: isHebrew ? 'Google לא מחובר.' : 'Google is not connected.',
+          });
+          setIsLoading(false);
+        }
+        return;
+      }
 
-          return {
-            type: 'organic',
-            term: row.keys?.[0] || '(not set)',
-            impressions,
-            clicks,
-            position: Number(position.toFixed(1)),
-            source: 'GSC',
-            status
-          };
-        });
+      if (!accessToken) {
+        nextErrors.ads = isHebrew ? 'חסר Google Access Token פעיל.' : 'Missing active Google access token.';
+        nextErrors.gsc = isHebrew ? 'חסר Google Access Token פעיל.' : 'Missing active Google access token.';
+      } else {
+        // Google Ads terms sync runs independently.
+        if (!googleAdsId) {
+          nextErrors.ads = isHebrew ? 'חסר Google Ads Account ID.' : 'Missing Google Ads account ID.';
+        } else {
+          try {
+            const adsTerms = await fetchGoogleSearchTerms(accessToken, googleAdsId, undefined, resolvedRange);
+            combinedTerms.push(...adsTerms);
+          } catch (error) {
+            console.error('Failed to fetch Google Ads search terms:', error);
+            nextErrors.ads = error instanceof Error ? error.message : (isHebrew ? 'סנכרון Google Ads נכשל.' : 'Google Ads sync failed.');
+          }
+        }
 
-        setSearchTerms([
-          ...mockSearchTerms.filter(term => term.source === 'Google Ads'),
-          ...organicTerms
-        ]);
-      } catch (err) {
-        console.error("Failed to fetch GSC search terms:", err);
-        setSearchTerms(mockSearchTerms);
+        // GSC terms sync runs independently.
+        if (!siteUrl) {
+          nextErrors.gsc = isHebrew ? 'חסר GSC Site URL.' : 'Missing GSC site URL.';
+        } else {
+          try {
+            const gscData = await fetchGSCData(accessToken, siteUrl, resolvedRange);
+            const organicTerms = (gscData.rows || []).map((row: any) => {
+              const impressions = Number(row.impressions || 0);
+              const clicks = Number(row.clicks || 0);
+              const ctr = impressions > 0 ? clicks / impressions : 0;
+              const position = Number(row.position || 0);
+              const status = position <= 4 ? 'optimal' : ctr < 0.02 ? 'improve' : 'opportunity';
+
+              return {
+                type: 'organic',
+                term: row.keys?.[0] || '(not set)',
+                impressions,
+                clicks,
+                position: Number(position.toFixed(1)),
+                source: 'GSC',
+                status
+              };
+            });
+            combinedTerms.push(...organicTerms);
+          } catch (error) {
+            console.error('Failed to fetch GSC search terms:', error);
+            nextErrors.gsc = error instanceof Error ? error.message : (isHebrew ? 'סנכרון GSC נכשל.' : 'GSC sync failed.');
+          }
+        }
+      }
+
+      if (!isCancelled) {
+        setSearchTerms(combinedTerms);
+        setSyncErrors(nextErrors);
+        setIsLoading(false);
       }
     };
 
-    loadGscTerms();
-  }, [connections, resolvedRange.endDate, resolvedRange.startDate]);
+    void loadTerms();
+    const intervalId = window.setInterval(() => {
+      void loadTerms();
+    }, 45_000);
+    const handleFocus = () => {
+      void loadTerms();
+    };
+    window.addEventListener('focus', handleFocus);
+
+    return () => {
+      isCancelled = true;
+      window.clearInterval(intervalId);
+      window.removeEventListener('focus', handleFocus);
+    };
+  }, [connections, isHebrew, resolvedRange.endDate, resolvedRange.startDate]);
 
   const handleExport = () => {
     const rows = searchTerms
@@ -133,6 +177,19 @@ export function SearchAnalysis() {
     setActiveTab('negative');
   };
 
+  const visibleTerms = searchTerms.filter(
+    (term) =>
+      activeTab === 'all' ||
+      (activeTab === 'ads' && term.source === 'Google Ads') ||
+      (activeTab === 'organic' && term.source === 'GSC')
+  );
+  const estimatedMonthlySavings = Math.round(
+    searchTerms
+      .filter((term) => term.source === 'Google Ads' && term.status === 'negative_candidate')
+      .reduce((sum, term) => sum + Number(term.cost || 0), 0)
+  );
+  const syncIssues = Object.entries(syncErrors).filter(([, value]) => Boolean(value)) as Array<[string, string]>;
+
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -190,7 +247,7 @@ export function SearchAnalysis() {
             </div>
             <div className="bg-black/20 rounded-xl p-6 border border-white/10 flex flex-col justify-center items-center text-center">
               <p className="text-sm text-indigo-200 mb-2">{t('search.monthlySavings')}</p>
-              <p className="text-4xl font-black text-emerald-400" dir="ltr">₪1,760</p>
+              <p className="text-4xl font-black text-emerald-400" dir="ltr">₪{estimatedMonthlySavings.toLocaleString()}</p>
               <button
                 onClick={() => setActiveTab('negative')}
                 className="mt-6 px-6 py-2.5 bg-white text-indigo-900 font-bold rounded-xl hover:bg-indigo-50 transition-colors text-sm w-full shadow-lg"
@@ -235,6 +292,21 @@ export function SearchAnalysis() {
             </div>
           </div>
         </div>
+
+        {(isLoading || syncIssues.length > 0) && (
+          <div className="px-6 py-3 border-b border-gray-100 bg-gray-50/70 space-y-2">
+            {isLoading && (
+              <div className="text-xs font-bold text-indigo-700">
+                {isHebrew ? 'מסנכרן נתוני Google Ads + GSC...' : 'Syncing Google Ads + GSC data...'}
+              </div>
+            )}
+            {syncIssues.map(([source, message]) => (
+              <div key={`sync-issue-${source}`} className="text-xs text-amber-700">
+                <span className="font-bold uppercase">{source}</span>: {message}
+              </div>
+            ))}
+          </div>
+        )}
         
         {activeTab === 'negative' ? (
           <div className="p-6">
@@ -298,7 +370,13 @@ export function SearchAnalysis() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
-                {searchTerms.filter(t => activeTab === 'all' || (activeTab === 'ads' && t.source === 'Google Ads') || (activeTab === 'organic' && t.source === 'GSC')).map((term, idx) => (
+                {visibleTerms.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="px-6 py-10 text-center text-sm text-gray-500">
+                      {isHebrew ? 'אין נתוני חיפוש זמינים כעת לחיבורים הפעילים.' : 'No search data available for active connections right now.'}
+                    </td>
+                  </tr>
+                ) : visibleTerms.map((term, idx) => (
                   <tr key={idx} className="hover:bg-gray-50 transition-colors">
                     <td className="px-6 py-4 font-bold text-gray-900">
                       <div className="flex items-center gap-2">
