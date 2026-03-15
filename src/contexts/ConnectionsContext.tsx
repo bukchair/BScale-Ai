@@ -141,6 +141,60 @@ export function ConnectionsProvider({ children }: { children: ReactNode }) {
   const [workspaceOwnerEmail, setWorkspaceOwnerEmail] = useState<string | null>(null);
   const [sharedRole, setSharedRole] = useState<'manager' | 'viewer' | null>(null);
   const isWorkspaceReadOnly = dataAccessMode === 'shared' && sharedRole === 'viewer';
+  const managedPlatformByConnectionId: Partial<Record<Connection['id'], 'google-ads' | 'meta' | 'tiktok'>> = {
+    google: 'google-ads',
+    meta: 'meta',
+    tiktok: 'tiktok',
+  };
+
+  const ensureManagedApiSession = async () => {
+    const user = auth.currentUser;
+    if (!user) return;
+    const idToken = await user.getIdToken();
+    await fetch('/api/auth/session/bootstrap', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ idToken }),
+    });
+  };
+
+  const postManagedTest = async (
+    platformSlug: 'google-ads' | 'meta' | 'tiktok'
+  ): Promise<{ success: boolean; message: string }> => {
+    await ensureManagedApiSession();
+    const response = await fetch(`/api/connections/${platformSlug}/test`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({}),
+    });
+
+    const text = await response.text();
+    let payload:
+      | {
+          success?: boolean;
+          message?: string;
+          errorCode?: string;
+        }
+      | null = null;
+
+    try {
+      payload = text ? (JSON.parse(text) as typeof payload) : null;
+    } catch {
+      payload = null;
+    }
+
+    if (!response.ok || !payload?.success) {
+      return {
+        success: false,
+        message: payload?.message || `Managed test failed (${response.status}).`,
+      };
+    }
+
+    return {
+      success: true,
+      message: payload.message || 'Connection test succeeded.',
+    };
+  };
 
   useEffect(() => {
     let unsubGlobal: (() => void) | null = null;
@@ -503,6 +557,24 @@ export function ConnectionsProvider({ children }: { children: ReactNode }) {
     }
     const connection = connections.find(c => c.id === id);
     if (!connection) return { success: false, message: 'חיבור לא נמצא' };
+
+    const managedPlatformSlug = managedPlatformByConnectionId[id as Connection['id']];
+    if (managedPlatformSlug) {
+      try {
+        const result = await postManagedTest(managedPlatformSlug);
+        if (result.success) {
+          const updatedConnections = connections.map((c) =>
+            c.id === id ? { ...c, status: 'connected' as ConnectionStatus, score: c.score || 100 } : c
+          );
+          setConnections(updatedConnections);
+          await persistUserConnections(updatedConnections);
+        }
+        return result;
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : 'Managed connection test failed.';
+        return { success: false, message: msg };
+      }
+    }
 
     // Special logic for WooCommerce real verification
     if (id === 'woocommerce' && connection.settings) {

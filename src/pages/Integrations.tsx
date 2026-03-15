@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
 import { useConnections, Connection } from '../contexts/ConnectionsContext';
 import { useLanguage } from '../contexts/LanguageContext';
+import { auth } from '../lib/firebase';
 
 const viteEnv =
   typeof import.meta !== 'undefined'
@@ -387,6 +388,16 @@ export function Integrations({ userProfile }: { userProfile?: { role?: string; s
     platformSlug: 'google-ads' | 'meta' | 'tiktok',
     failureMessage: string
   ) => {
+    const currentUser = auth.currentUser;
+    if (currentUser) {
+      const idToken = await currentUser.getIdToken();
+      await fetch(`${API_BASE}/api/auth/session/bootstrap`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ idToken }),
+      });
+    }
+
     const response = await fetch(`${API_BASE}/api/connections/${platformSlug}/start`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
