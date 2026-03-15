@@ -97,6 +97,7 @@ export function Header({ onMenuClick, userProfile }: HeaderProps) {
   const [supportSuccess, setSupportSuccess] = useState<string | null>(null);
   const [isSupportSending, setIsSupportSending] = useState(false);
   const isDemo = userProfile?.subscriptionStatus === 'demo';
+  const isTrialUser = userProfile?.subscriptionStatus === 'trial' && userProfile?.role !== 'admin';
   const canViewLeads = userProfile?.role === 'admin';
   const canApproveUsers = userProfile?.role === 'admin';
   const canViewSupport = userProfile?.role === 'admin';
@@ -113,11 +114,52 @@ export function Header({ onMenuClick, userProfile }: HeaderProps) {
   const supportRef = useRef<HTMLDivElement | null>(null);
   const notificationsRef = useRef<HTMLDivElement | null>(null);
   const [liveSupportToast, setLiveSupportToast] = useState<{ id: string; subject: string; user: string } | null>(null);
+  const [trialNowMs, setTrialNowMs] = useState(() => Date.now());
 
   const tr = (key: string, fallback: string) => {
     const translated = t(key);
     return translated === key ? fallback : translated;
   };
+
+  const trialEndsAtMs = useMemo(() => {
+    if (!isTrialUser) return 0;
+    const trialEndsAtRaw = userProfile?.trialEndsAt;
+    const endsMs = Date.parse(String(trialEndsAtRaw || ''));
+    if (Number.isFinite(endsMs)) return endsMs;
+
+    // Fallback for older profiles that might not include trialEndsAt.
+    const startedMs = Date.parse(String(userProfile?.trialStartedAt || userProfile?.createdAt || ''));
+    if (!Number.isFinite(startedMs)) return 0;
+    return startedMs + 3 * 24 * 60 * 60 * 1000;
+  }, [isTrialUser, userProfile?.createdAt, userProfile?.trialEndsAt, userProfile?.trialStartedAt]);
+
+  const trialRemainingMs = useMemo(() => {
+    if (!trialEndsAtMs) return 0;
+    return Math.max(0, trialEndsAtMs - trialNowMs);
+  }, [trialEndsAtMs, trialNowMs]);
+
+  const trialCountdownLabel = useMemo(() => {
+    if (!isTrialUser) return '';
+    if (trialRemainingMs <= 0) {
+      return dir === 'rtl' ? 'הסתיים' : 'Expired';
+    }
+    const totalMinutes = Math.floor(trialRemainingMs / (60 * 1000));
+    const days = Math.floor(totalMinutes / (60 * 24));
+    const hours = Math.floor((totalMinutes % (60 * 24)) / 60);
+    const minutes = totalMinutes % 60;
+
+    if (days > 0) {
+      return dir === 'rtl'
+        ? `${days} ימים ${hours} שעות`
+        : `${days}d ${hours}h`;
+    }
+    if (hours > 0) {
+      return dir === 'rtl'
+        ? `${hours} שעות ${minutes} דק׳`
+        : `${hours}h ${minutes}m`;
+    }
+    return dir === 'rtl' ? `${minutes} דק׳` : `${minutes}m`;
+  }, [dir, isTrialUser, trialRemainingMs]);
 
   const fallbackNotifications = [
     { id: 1, type: 'ai', title: t('notifications.items.ai_ready'), desc: t('notifications.items.ai_ready_desc'), time: '2h ago', icon: CheckCircle, color: 'text-emerald-500' },
@@ -377,6 +419,15 @@ export function Header({ onMenuClick, userProfile }: HeaderProps) {
     const timeout = window.setTimeout(() => setLiveSupportToast(null), 6000);
     return () => window.clearTimeout(timeout);
   }, [liveSupportToast]);
+
+  useEffect(() => {
+    if (!isTrialUser) return;
+    setTrialNowMs(Date.now());
+    const intervalId = window.setInterval(() => {
+      setTrialNowMs(Date.now());
+    }, 60_000);
+    return () => window.clearInterval(intervalId);
+  }, [isTrialUser]);
 
   const handleApproveUserNoPayment = async (
     userId: string,
@@ -887,6 +938,15 @@ export function Header({ onMenuClick, userProfile }: HeaderProps) {
       </div>
 
       <div className="flex items-center gap-2 sm:gap-4 shrink-0">
+        {isTrialUser && (
+          <div className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-indigo-200 bg-indigo-50 text-indigo-700 text-[11px] font-bold">
+            <span className="w-1.5 h-1.5 rounded-full bg-indigo-500" />
+            <span className="whitespace-nowrap">
+              {dir === 'rtl' ? 'ימי ניסיון:' : 'Trial:'}
+            </span>
+            <span className="whitespace-nowrap text-indigo-900">{trialCountdownLabel}</span>
+          </div>
+        )}
         <ThemeSwitcher />
         <LanguageSwitcher />
 
