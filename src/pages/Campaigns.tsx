@@ -34,6 +34,7 @@ import { useCurrency } from '../contexts/CurrencyContext';
 import { fetchTikTokCampaigns } from '../services/tiktokService';
 import { fetchMetaCampaigns, isMetaRateLimitMessage } from '../services/metaService';
 import { fetchGoogleCampaigns, sendGmailNotification } from '../services/googleService';
+import { fetchWooCommerceProducts } from '../services/woocommerceService';
 import { auth } from '../lib/firebase';
 
 const mockCampaignData = [
@@ -93,6 +94,15 @@ type EditCampaignDraft = {
   dailyBudget: string;
 };
 
+type WooCampaignProduct = {
+  id: number;
+  name: string;
+  categories: string[];
+  price?: string;
+};
+
+type WooPublishScope = 'category' | 'product';
+
 const DAY_KEYS: DayKey[] = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
 
 const PLATFORM_MEDIA_LIMITS: Record<PlatformName, MediaLimits> = {
@@ -137,6 +147,12 @@ const createEmptyDaySchedule = (): DayHours => ({
   sun: [],
 });
 
+const stripHtmlToText = (value: unknown): string =>
+  String(value || '')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
 export function Campaigns() {
   const { t, dir, language } = useLanguage();
   const { format: formatCurrency } = useCurrency();
@@ -172,7 +188,7 @@ export function Campaigns() {
       ? 'המלצות אוטומטיות לפי אופי התוכן, סוג המוצר ומטרת הקמפיין.'
       : 'Auto recommendations by content nature, product type, and campaign objective.',
     addCustomAudience: isHebrew ? 'הוסף קהל ידני' : 'Add custom audience',
-    uploadTitle: isHebrew ? 'העלאת מדיה למודעות (תמונה / וידאו)' : 'Upload ad media (image / video)',
+    uploadTitle: isHebrew ? 'מדיה למודעות (תמונה / וידאו)' : 'Ad media (image / video)',
     uploadHint: isHebrew
       ? 'התמונות יעברו הקטנה חכמה אוטומטית לפי תנאי הפלטפורמות בלי פגיעה נראית לעין באיכות.'
       : 'Images are auto-resized smartly to fit platform requirements with no visible quality loss.',
@@ -209,6 +225,25 @@ export function Campaigns() {
     actions: isHebrew ? 'פעולות' : 'Actions',
     editNotAvailable: isHebrew ? 'עריכה זמינה רק לקמפיינים חיים מהפלטפורמות.' : 'Editing is available only for live platform campaigns.',
     saving: isHebrew ? 'שומר...' : 'Saving...',
+    wooPublishTitle: isHebrew ? 'בחירה מתוך WooCommerce' : 'Choose from WooCommerce',
+    wooPublishSubtitle: isHebrew
+      ? 'בחר מה לפרסם לפי קטגוריה או לפי מוצר מתוך החנות המחוברת.'
+      : 'Choose what to promote by category or by product from connected store.',
+    wooNotConnected: isHebrew
+      ? 'כדי לבחור מוצר/קטגוריה, חבר קודם WooCommerce במסך החיבורים.'
+      : 'Connect WooCommerce in Integrations to choose category/product.',
+    wooLoading: isHebrew ? 'טוען מוצרים מהחנות...' : 'Loading store products...',
+    wooNoProducts: isHebrew ? 'לא נמצאו מוצרים בחיבור WooCommerce.' : 'No products found in WooCommerce connection.',
+    wooScope: isHebrew ? 'שיטת פרסום' : 'Promotion mode',
+    wooByCategory: isHebrew ? 'לפי קטגוריה' : 'By category',
+    wooByProduct: isHebrew ? 'לפי מוצר' : 'By product',
+    wooCategory: isHebrew ? 'קטגוריה' : 'Category',
+    wooProduct: isHebrew ? 'מוצר' : 'Product',
+    wooChooseCategory: isHebrew ? 'בחר קטגוריה' : 'Select category',
+    wooChooseProduct: isHebrew ? 'בחר מוצר' : 'Select product',
+    wooRequireTarget: isHebrew
+      ? 'בחר קטגוריה או מוצר לפרסום מתוך WooCommerce.'
+      : 'Select a WooCommerce category or product to promote.',
   };
 
   const periodLabel = dateRange === 'today' ? t('dashboard.today') : dateRange === '7days' ? t('dashboard.last7Days') : dateRange === '30days' ? t('dashboard.last30Days') : t('dashboard.customRange');
@@ -294,6 +329,11 @@ export function Campaigns() {
   const [editingCampaign, setEditingCampaign] = useState<EditCampaignDraft | null>(null);
   const [editLoading, setEditLoading] = useState(false);
   const [editMessage, setEditMessage] = useState<string | null>(null);
+  const [wooProducts, setWooProducts] = useState<WooCampaignProduct[]>([]);
+  const [wooLoading, setWooLoading] = useState(false);
+  const [wooPublishScope, setWooPublishScope] = useState<WooPublishScope>('category');
+  const [selectedWooCategory, setSelectedWooCategory] = useState('');
+  const [selectedWooProductId, setSelectedWooProductId] = useState<string>('');
 
   const connectedAdPlatforms = useMemo(() => {
     const options: string[] = [];
@@ -302,6 +342,12 @@ export function Campaigns() {
     if (connections.find((c) => c.id === 'tiktok' && c.status === 'connected')) options.push('TikTok');
     return options;
   }, [connections]);
+
+  const wooConnection = useMemo(
+    () => connections.find((c) => c.id === 'woocommerce' && c.status === 'connected'),
+    [connections]
+  );
+  const isWooConnected = Boolean(wooConnection);
 
   const objectiveOptions: Array<{ value: ObjectiveType; label: string }> = [
     { value: 'sales', label: isHebrew ? 'מכירות' : 'Sales' },
@@ -360,6 +406,22 @@ export function Campaigns() {
     }, PLATFORM_MEDIA_LIMITS[activePlatforms[0]]);
   }, [selectedPlatforms]);
 
+  const wooCategoryOptions = useMemo(() => {
+    const names = wooProducts.flatMap((product) => product.categories);
+    return [...new Set(names.filter(Boolean))].sort((a, b) => a.localeCompare(b));
+  }, [wooProducts]);
+
+  const wooProductsFiltered = useMemo(() => {
+    if (wooPublishScope !== 'category') return wooProducts;
+    if (!selectedWooCategory) return wooProducts;
+    return wooProducts.filter((product) => product.categories.includes(selectedWooCategory));
+  }, [wooProducts, wooPublishScope, selectedWooCategory]);
+
+  const selectedWooProduct = useMemo(() => {
+    if (!selectedWooProductId) return null;
+    return wooProducts.find((product) => String(product.id) === String(selectedWooProductId)) || null;
+  }, [wooProducts, selectedWooProductId]);
+
   const audienceSuggestions = useMemo(() => {
     const combined = [
       ...aiGeneratedAudienceNames,
@@ -386,6 +448,78 @@ export function Campaigns() {
         : ((connectedAdPlatforms[0] || 'Google') as PlatformName)
     );
   }, [connectedAdPlatforms]);
+
+  useEffect(() => {
+    if (!wooConnection?.settings) {
+      setWooProducts([]);
+      setSelectedWooCategory('');
+      setSelectedWooProductId('');
+      return;
+    }
+    const { storeUrl, wooKey, wooSecret } = (wooConnection.settings || {}) as any;
+    if (!storeUrl || !wooKey || !wooSecret) {
+      setWooProducts([]);
+      return;
+    }
+    let cancelled = false;
+    setWooLoading(true);
+    fetchWooCommerceProducts(storeUrl, wooKey, wooSecret)
+      .then((list) => {
+        if (cancelled) return;
+        const mapped = (Array.isArray(list) ? list : [])
+          .map((item: any) => ({
+            id: Number(item?.id || 0),
+            name: stripHtmlToText(item?.name || ''),
+            categories: Array.isArray(item?.categories)
+              ? item.categories
+                  .map((category: any) => stripHtmlToText(category?.name || ''))
+                  .filter(Boolean)
+              : [],
+            price: item?.price != null ? String(item.price) : '',
+          }))
+          .filter((item: WooCampaignProduct) => item.id > 0 && item.name);
+        setWooProducts(mapped);
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setWooProducts([]);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setWooLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [wooConnection?.settings]);
+
+  useEffect(() => {
+    if (wooPublishScope === 'product') return;
+    if (!selectedWooCategory && wooCategoryOptions.length > 0) {
+      setSelectedWooCategory(wooCategoryOptions[0]);
+    }
+  }, [wooPublishScope, wooCategoryOptions, selectedWooCategory]);
+
+  useEffect(() => {
+    if (wooPublishScope !== 'product') return;
+    if (!selectedWooProductId && wooProductsFiltered.length > 0) {
+      setSelectedWooProductId(String(wooProductsFiltered[0].id));
+    }
+  }, [wooPublishScope, selectedWooProductId, wooProductsFiltered]);
+
+  useEffect(() => {
+    if (wooPublishScope !== 'product') return;
+    if (!selectedWooProductId) return;
+    const exists = wooProductsFiltered.some(
+      (product) => String(product.id) === String(selectedWooProductId)
+    );
+    if (!exists) {
+      setSelectedWooProductId(
+        wooProductsFiltered.length > 0 ? String(wooProductsFiltered[0].id) : ''
+      );
+    }
+  }, [wooPublishScope, selectedWooProductId, wooProductsFiltered]);
 
   useEffect(() => {
     setWeeklySchedule((prev) => {
@@ -1168,6 +1302,16 @@ export function Campaigns() {
       setBuilderMessage(text.requireAsset);
       return;
     }
+    if (isWooConnected && wooProducts.length > 0) {
+      if (wooPublishScope === 'category' && !selectedWooCategory) {
+        setBuilderMessage(text.wooRequireTarget);
+        return;
+      }
+      if (wooPublishScope === 'product' && !selectedWooProductId) {
+        setBuilderMessage(text.wooRequireTarget);
+        return;
+      }
+    }
 
     setIsCreatingCampaign(true);
     try {
@@ -1188,6 +1332,11 @@ export function Campaigns() {
           audiences: selectedAudiences,
           timeRules,
           weeklySchedule,
+          wooPublishMode: isWooConnected ? wooPublishScope : null,
+          wooCategory: wooPublishScope === 'category' ? selectedWooCategory || null : null,
+          wooProductId: wooPublishScope === 'product' ? selectedWooProductId || null : null,
+          wooProductName:
+            wooPublishScope === 'product' ? selectedWooProduct?.name || null : null,
           mediaMeta: uploadedAssets.map((asset) => ({
             name: asset.name,
             type: asset.type,
@@ -1221,6 +1370,10 @@ export function Campaigns() {
           brief: campaignBrief.trim(),
           audiences: selectedAudiences,
           mediaCount: uploadedAssets.length,
+          wooPublishMode: isWooConnected ? wooPublishScope : null,
+          wooCategory: wooPublishScope === 'category' ? selectedWooCategory || null : null,
+          wooProductName:
+            wooPublishScope === 'product' ? selectedWooProduct?.name || null : null,
         };
       });
       setCreatedCampaigns((prev) => [...created, ...prev]);
@@ -1740,6 +1893,71 @@ export function Campaigns() {
                   : 'Describe the post/product, target user, and campaign message.'
               }
             />
+          </div>
+
+          <div className="rounded-xl border border-sky-200 bg-sky-50/40 p-4">
+            <h4 className="text-sm font-bold text-sky-900 mb-1">{text.wooPublishTitle}</h4>
+            <p className="text-xs text-sky-700 mb-3">{text.wooPublishSubtitle}</p>
+            {!isWooConnected ? (
+              <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-3 py-2">
+                {text.wooNotConnected}
+              </p>
+            ) : wooLoading ? (
+              <div className="flex items-center gap-2 text-xs text-sky-700">
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                {text.wooLoading}
+              </div>
+            ) : wooProducts.length === 0 ? (
+              <p className="text-xs text-gray-600">{text.wooNoProducts}</p>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-gray-600 mb-1">{text.wooScope}</label>
+                  <select
+                    value={wooPublishScope}
+                    onChange={(e) => setWooPublishScope(e.target.value as WooPublishScope)}
+                    className="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm"
+                  >
+                    <option value="category">{text.wooByCategory}</option>
+                    <option value="product">{text.wooByProduct}</option>
+                  </select>
+                </div>
+
+                {wooPublishScope === 'category' ? (
+                  <div>
+                    <label className="block text-xs font-bold text-gray-600 mb-1">{text.wooCategory}</label>
+                    <select
+                      value={selectedWooCategory}
+                      onChange={(e) => setSelectedWooCategory(e.target.value)}
+                      className="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm"
+                    >
+                      {!selectedWooCategory && <option value="">{text.wooChooseCategory}</option>}
+                      {wooCategoryOptions.map((category) => (
+                        <option key={`woo-category-${category}`} value={category}>
+                          {category}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                ) : (
+                  <div className="md:col-span-2">
+                    <label className="block text-xs font-bold text-gray-600 mb-1">{text.wooProduct}</label>
+                    <select
+                      value={selectedWooProductId}
+                      onChange={(e) => setSelectedWooProductId(e.target.value)}
+                      className="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm"
+                    >
+                      {!selectedWooProductId && <option value="">{text.wooChooseProduct}</option>}
+                      {wooProductsFiltered.map((product) => (
+                        <option key={`woo-product-${product.id}`} value={String(product.id)}>
+                          {product.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           <div>
