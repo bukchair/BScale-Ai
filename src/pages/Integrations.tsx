@@ -231,7 +231,9 @@ export function Integrations({ userProfile }: { userProfile?: { role?: string; s
   const [metaAssets, setMetaAssets] = useState<MetaAssetsPayload | null>(null);
   const [metaAssetsLoading, setMetaAssetsLoading] = useState(false);
   const [metaAssetsError, setMetaAssetsError] = useState<string | null>(null);
-  const [reinstallingManagedPlatform, setReinstallingManagedPlatform] = useState<'google' | 'meta' | null>(null);
+  const [reinstallingManagedPlatform, setReinstallingManagedPlatform] = useState<
+    'google' | 'meta' | 'tiktok' | null
+  >(null);
   const [reinstallingGoogleAndMeta, setReinstallingGoogleAndMeta] = useState(false);
   const [isWizardOpen, setIsWizardOpen] = useState(false);
   const [wizardStep, setWizardStep] = useState<WizardStep>(1);
@@ -661,7 +663,7 @@ export function Integrations({ userProfile }: { userProfile?: { role?: string; s
     }
   };
 
-  const handleReinstallManagedConnection = async (platform: 'google' | 'meta') => {
+  const handleReinstallManagedConnection = async (platform: 'google' | 'meta' | 'tiktok') => {
     if (blockIfReadOnly()) return;
 
     const confirmMessage =
@@ -669,9 +671,13 @@ export function Integrations({ userProfile }: { userProfile?: { role?: string; s
         ? isHebrew
           ? 'לבצע התקנה מחדש לחיבור Google? הפעולה תנתק את החיבור הנוכחי (Ads/GA4/GSC/Gmail) ותפתח התחברות מחדש.'
           : 'Re-install Google connection? This will disconnect the current Google link (Ads/GA4/GSC/Gmail) and start OAuth again.'
+        : platform === 'meta'
+        ? isHebrew
+          ? 'לבצע התקנה מחדש לחיבור Meta? הפעולה תנתק את החיבור הנוכחי ותפתח התחברות מחדש.'
+          : 'Re-install Meta connection? This will disconnect the current Meta link and start OAuth again.'
         : isHebrew
-        ? 'לבצע התקנה מחדש לחיבור Meta? הפעולה תנתק את החיבור הנוכחי ותפתח התחברות מחדש.'
-        : 'Re-install Meta connection? This will disconnect the current Meta link and start OAuth again.';
+        ? 'לבצע התקנה מחדש לחיבור TikTok? הפעולה תנתק את החיבור הנוכחי ותפתח התחברות מחדש.'
+        : 'Re-install TikTok connection? This will disconnect the current TikTok link and start OAuth again.';
 
     if (!window.confirm(confirmMessage)) return;
 
@@ -685,8 +691,10 @@ export function Integrations({ userProfile }: { userProfile?: { role?: string; s
 
       if (platform === 'google') {
         await startManagedOAuth('google-ads', 'Failed to start Google authentication');
-      } else {
+      } else if (platform === 'meta') {
         await startManagedOAuth('meta', 'Failed to start Meta authentication');
+      } else {
+        await startManagedOAuth('tiktok', 'Failed to start TikTok authentication');
       }
     } catch (err) {
       setToast({
@@ -1365,6 +1373,27 @@ export function Integrations({ userProfile }: { userProfile?: { role?: string; s
                       {isConnected ? "Reconnect TikTok Ads" : "Connect with TikTok Ads"}
                     </button>
                   </div>
+                  {isConnected && (
+                    <div className="sm:col-span-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          void handleReinstallManagedConnection('tiktok');
+                        }}
+                        disabled={reinstallingGoogleAndMeta || reinstallingManagedPlatform === 'tiktok' || isConnecting}
+                        className="w-full inline-flex items-center justify-center gap-2 py-1.5 border border-amber-200 text-amber-700 bg-amber-50 rounded-lg text-xs font-bold hover:bg-amber-100 disabled:opacity-60 disabled:cursor-not-allowed"
+                      >
+                        {reinstallingManagedPlatform === 'tiktok' ? (
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        ) : (
+                          <RotateCcw className="w-3.5 h-3.5" />
+                        )}
+                        {isHebrew
+                          ? 'התקנה מחדש ל-TikTok (ניתוק + חיבור)'
+                          : 'Re-install TikTok (disconnect + reconnect)'}
+                      </button>
+                    </div>
+                  )}
                   {isConnected && (
                     <>
                       <div>
