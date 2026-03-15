@@ -23,6 +23,8 @@ import {
   ChevronUp,
   Sparkles,
   Video,
+  Pencil,
+  X,
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { useLanguage } from '../contexts/LanguageContext';
@@ -78,6 +80,17 @@ type MediaLimits = {
   videoMaxMb: number;
   maxImageWidth: number;
   maxImageHeight: number;
+};
+
+type EditableStatus = 'Active' | 'Paused';
+
+type EditCampaignDraft = {
+  rowKey: string;
+  platform: PlatformName;
+  campaignId: string;
+  name: string;
+  status: EditableStatus;
+  dailyBudget: string;
 };
 
 const DAY_KEYS: DayKey[] = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
@@ -182,6 +195,20 @@ export function Campaigns() {
     syncLive: isHebrew ? 'מסנכרן נתונים בזמן אמת...' : 'Syncing real-time data...',
     creatingLiveCampaigns: isHebrew ? 'יוצר קמפיינים חיים...' : 'Creating live campaigns...',
     aiMissing: isHebrew ? 'אין כרגע חיבור למנוע AI פעיל.' : 'No active AI engine connection found.',
+    editCampaign: isHebrew ? 'עריכת קמפיין קיים' : 'Edit existing campaign',
+    editCampaignSubtitle: isHebrew
+      ? 'עריכה ישירה בפלטפורמה המחוברת (שם, סטטוס, ובמקום אפשרי גם תקציב יומי).'
+      : 'Direct update on connected platform (name, status, and when supported also daily budget).',
+    saveChanges: isHebrew ? 'שמור שינויים' : 'Save changes',
+    cancel: isHebrew ? 'בטל' : 'Cancel',
+    editName: isHebrew ? 'שם קמפיין' : 'Campaign name',
+    editStatus: isHebrew ? 'סטטוס' : 'Status',
+    editBudget: isHebrew ? 'תקציב יומי (אופציונלי)' : 'Daily budget (optional)',
+    updateSuccess: isHebrew ? 'הקמפיין עודכן בהצלחה.' : 'Campaign updated successfully.',
+    updateFailed: isHebrew ? 'עדכון הקמפיין נכשל.' : 'Failed to update campaign.',
+    actions: isHebrew ? 'פעולות' : 'Actions',
+    editNotAvailable: isHebrew ? 'עריכה זמינה רק לקמפיינים חיים מהפלטפורמות.' : 'Editing is available only for live platform campaigns.',
+    saving: isHebrew ? 'שומר...' : 'Saving...',
   };
 
   const periodLabel = dateRange === 'today' ? t('dashboard.today') : dateRange === '7days' ? t('dashboard.last7Days') : dateRange === '30days' ? t('dashboard.last30Days') : t('dashboard.customRange');
@@ -264,6 +291,9 @@ export function Campaigns() {
   const [aiRecommendedHoursByPlatform, setAiRecommendedHoursByPlatform] = useState<Record<string, number[]>>({});
   const [isCreatingCampaign, setIsCreatingCampaign] = useState(false);
   const [publishResults, setPublishResults] = useState<Array<{ platform: string; ok: boolean; message: string; campaignId?: string }>>([]);
+  const [editingCampaign, setEditingCampaign] = useState<EditCampaignDraft | null>(null);
+  const [editLoading, setEditLoading] = useState(false);
+  const [editMessage, setEditMessage] = useState<string | null>(null);
 
   const connectedAdPlatforms = useMemo(() => {
     const options: string[] = [];
@@ -901,6 +931,98 @@ export function Campaigns() {
     setTimeRules((prev) => prev.filter((rule) => rule.id !== id));
   };
 
+  const isEditablePlatformCampaign = (campaign: any) => {
+    const platform = String(campaign?.platform || '');
+    if (platform !== 'Google' && platform !== 'Meta' && platform !== 'TikTok') return false;
+    const idValue = String(campaign?.campaignId || campaign?.id || '').trim();
+    if (!idValue) return false;
+    if (idValue.startsWith('local-') || idValue.startsWith('live-')) return false;
+    return true;
+  };
+
+  const openEditCampaign = (campaign: any) => {
+    const platform = String(campaign?.platform || '') as PlatformName;
+    const campaignId = String(campaign?.campaignId || campaign?.id || '').trim();
+    if (!campaignId || !isEditablePlatformCampaign(campaign)) {
+      setEditMessage(text.editNotAvailable);
+      return;
+    }
+    const normalizedStatus = normalizeCampaignStatus(campaign?.status);
+    const status: EditableStatus = normalizedStatus === 'Paused' ? 'Paused' : 'Active';
+    setEditMessage(null);
+    setEditingCampaign({
+      rowKey: `${platform}-${campaignId}`,
+      platform,
+      campaignId,
+      name: String(campaign?.name || '').trim(),
+      status,
+      dailyBudget: toAmount(campaign?.budget) > 0 ? String(toAmount(campaign?.budget)) : '',
+    });
+  };
+
+  const closeEditCampaign = () => {
+    setEditingCampaign(null);
+    setEditLoading(false);
+  };
+
+  const saveEditedCampaign = async () => {
+    if (!editingCampaign) return;
+    const trimmedName = editingCampaign.name.trim();
+    if (!trimmedName) {
+      setEditMessage(text.requireFields);
+      return;
+    }
+    setEditLoading(true);
+    setEditMessage(null);
+    try {
+      const parsedBudget = Number(editingCampaign.dailyBudget);
+      const dailyBudget =
+        editingCampaign.dailyBudget.trim().length > 0 && Number.isFinite(parsedBudget) && parsedBudget >= 0
+          ? parsedBudget
+          : null;
+      const response = await fetch('/api/campaigns/update', {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({
+          platform: editingCampaign.platform,
+          campaignId: editingCampaign.campaignId,
+          name: trimmedName,
+          status: editingCampaign.status,
+          dailyBudget,
+        }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok || payload?.success !== true) {
+        throw new Error(payload?.message || text.updateFailed);
+      }
+
+      const updateRow = (row: any) => {
+        const rowId = String(row?.campaignId || row?.id || '').trim();
+        const samePlatform = String(row?.platform || '') === editingCampaign.platform;
+        if (!samePlatform || rowId !== editingCampaign.campaignId) return row;
+        return {
+          ...row,
+          name: trimmedName,
+          status: editingCampaign.status,
+          budget: dailyBudget != null ? dailyBudget : row?.budget,
+        };
+      };
+
+      setRealCampaigns((prev) => prev.map(updateRow));
+      setCreatedCampaigns((prev) => prev.map(updateRow));
+      setEditMessage(payload?.message || text.updateSuccess);
+      setTimeout(() => {
+        setEditingCampaign(null);
+      }, 250);
+    } catch (error) {
+      setEditMessage(error instanceof Error ? error.message : text.updateFailed);
+    } finally {
+      setEditLoading(false);
+    }
+  };
+
   const handleAutoAudienceAndStrategy = async () => {
     setBuilderMessage(null);
     setAiAudienceLoading(true);
@@ -1276,6 +1398,11 @@ export function Campaigns() {
               {metaSyncNotice}
             </div>
           )}
+          {editMessage && (
+            <div className="rounded-md border border-indigo-200 bg-indigo-50 px-3 py-2 text-xs text-indigo-800">
+              {editMessage}
+            </div>
+          )}
           {filteredAndSortedCampaigns.length === 0 ? (
             <div className="rounded-lg border border-dashed border-gray-300 bg-gray-50 p-8 text-center text-sm text-gray-500">
               {!hasConnectedAdPlatform ? t('campaigns.connectPlatforms') : t('campaigns.noCampaigns')}
@@ -1298,6 +1425,7 @@ export function Campaigns() {
                       <th className="px-4 py-2 text-start text-[11px] font-bold text-gray-500 uppercase tracking-wide">{t('campaigns.cpa')}</th>
                       <th className="px-4 py-2 text-start text-[11px] font-bold text-gray-500 uppercase tracking-wide">Conv.</th>
                       <th className="px-4 py-2 text-start text-[11px] font-bold text-gray-500 uppercase tracking-wide">{isHebrew ? 'מקור נתונים' : 'Data source'}</th>
+                      <th className="px-4 py-2 text-start text-[11px] font-bold text-gray-500 uppercase tracking-wide">{text.actions}</th>
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-100">
@@ -1325,6 +1453,7 @@ export function Campaigns() {
                           : platform === 'Google'
                             ? hasGoogleMetrics(campaign)
                             : (toAmount(campaign.impressions) + toAmount(campaign.clicks) + toAmount(campaign.spend)) > 0;
+                      const canEdit = isEditablePlatformCampaign(campaign);
 
                       return (
                         <tr key={`campaign-row-${platform}-${campaign.id}`}>
@@ -1373,6 +1502,23 @@ export function Campaigns() {
                             )}>
                               {hasMetrics ? (isHebrew ? 'חי' : 'Live') : (isHebrew ? 'חסר מדדים' : 'Missing metrics')}
                             </span>
+                          </td>
+                          <td className="px-4 py-2.5 whitespace-nowrap text-sm">
+                            <button
+                              type="button"
+                              disabled={!canEdit}
+                              onClick={() => openEditCampaign(campaign)}
+                              title={!canEdit ? text.editNotAvailable : text.editCampaign}
+                              className={cn(
+                                'inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[11px] font-semibold',
+                                canEdit
+                                  ? 'border-indigo-300 text-indigo-700 hover:bg-indigo-50'
+                                  : 'border-gray-200 text-gray-400 cursor-not-allowed'
+                              )}
+                            >
+                              <Pencil className="w-3 h-3" />
+                              {text.editCampaign}
+                            </button>
                           </td>
                         </tr>
                       );
@@ -1965,6 +2111,85 @@ export function Campaigns() {
           )}
         </div>
       </section>
+
+      {editingCampaign && (
+        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4">
+          <div className="w-full max-w-md rounded-xl bg-white border border-gray-200 shadow-xl">
+            <div className="px-4 py-3 border-b border-gray-200 flex items-start justify-between gap-3">
+              <div>
+                <h4 className="text-sm font-bold text-gray-900">{text.editCampaign}</h4>
+                <p className="text-xs text-gray-600 mt-0.5">{text.editCampaignSubtitle}</p>
+              </div>
+              <button
+                type="button"
+                onClick={closeEditCampaign}
+                className="inline-flex items-center justify-center w-7 h-7 rounded-md border border-gray-200 text-gray-500 hover:bg-gray-50"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="p-4 space-y-3">
+              <div>
+                <label className="block text-xs font-bold text-gray-600 mb-1">{text.editName}</label>
+                <input
+                  value={editingCampaign.name}
+                  onChange={(e) =>
+                    setEditingCampaign((prev) => (prev ? { ...prev, name: e.target.value } : prev))
+                  }
+                  className="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-gray-600 mb-1">{text.editStatus}</label>
+                <select
+                  value={editingCampaign.status}
+                  onChange={(e) =>
+                    setEditingCampaign((prev) =>
+                      prev ? { ...prev, status: e.target.value as EditableStatus } : prev
+                    )
+                  }
+                  className="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm"
+                >
+                  <option value="Active">{isHebrew ? 'פעיל' : 'Active'}</option>
+                  <option value="Paused">{isHebrew ? 'מושהה' : 'Paused'}</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-gray-600 mb-1">{text.editBudget}</label>
+                <input
+                  type="number"
+                  min={0}
+                  step={1}
+                  value={editingCampaign.dailyBudget}
+                  onChange={(e) =>
+                    setEditingCampaign((prev) => (prev ? { ...prev, dailyBudget: e.target.value } : prev))
+                  }
+                  className="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm"
+                  placeholder={isHebrew ? 'למשל 250' : 'e.g. 250'}
+                />
+              </div>
+              <div className="flex items-center justify-end gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={closeEditCampaign}
+                  className="px-3 py-2 rounded-md border border-gray-300 text-gray-700 text-sm font-semibold hover:bg-gray-50"
+                >
+                  {text.cancel}
+                </button>
+                <button
+                  type="button"
+                  onClick={saveEditedCampaign}
+                  disabled={editLoading}
+                  className="inline-flex items-center gap-2 px-3 py-2 rounded-md bg-indigo-600 text-white text-sm font-semibold hover:bg-indigo-700 disabled:opacity-60"
+                >
+                  {editLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Pencil className="w-4 h-4" />}
+                  {editLoading ? text.saving : text.saveChanges}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );
