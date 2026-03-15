@@ -160,6 +160,37 @@ export function Campaigns() {
   const [loading, setLoading] = useState(false);
   const [appliedRecs, setAppliedRecs] = useState<number[]>([]);
   const [realCampaigns, setRealCampaigns] = useState<any[]>([]);
+  const CAMPAIGNS_CACHE_KEY = 'bscale:campaigns:realCampaigns:v1';
+
+  useEffect(() => {
+    try {
+      const raw = window.localStorage.getItem(CAMPAIGNS_CACHE_KEY);
+      if (!raw) return;
+      const parsed = JSON.parse(raw) as { items?: any[] };
+      if (Array.isArray(parsed.items) && parsed.items.length > 0) {
+        setRealCampaigns(parsed.items);
+      }
+    } catch {
+      // ignore cache parse errors
+    }
+  }, []);
+
+  useEffect(() => {
+    try {
+      if (realCampaigns.length > 0) {
+        window.localStorage.setItem(
+          CAMPAIGNS_CACHE_KEY,
+          JSON.stringify({
+            savedAt: Date.now(),
+            items: realCampaigns,
+          })
+        );
+      }
+    } catch {
+      // ignore storage quota errors
+    }
+  }, [realCampaigns]);
+
   const [createdCampaigns, setCreatedCampaigns] = useState<any[]>([]);
   const [isSyncing, setIsSyncing] = useState(false);
   const [sendingEmail, setSendingEmail] = useState(false);
@@ -358,8 +389,14 @@ export function Campaigns() {
           startDateIso,
           endDateIso
         );
-        
-        setRealCampaigns(prev => [...prev.filter(c => c.platform !== 'Meta'), ...campaigns]);
+
+        setRealCampaigns(prev => {
+          const existingMeta = prev.filter(c => c.platform === 'Meta');
+          if (campaigns.length === 0 && existingMeta.length > 0) {
+            return prev;
+          }
+          return [...prev.filter(c => c.platform !== 'Meta'), ...campaigns];
+        });
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
         if (!isMetaRateLimitMessage(message)) {

@@ -8,6 +8,14 @@ import { GoogleGenAI } from "@google/genai";
 export type AIKeys = { gemini?: string; openai?: string; claude?: string };
 const GEMINI_NOT_FOUND_COOLDOWN_MS = 10 * 60 * 1000;
 let geminiBlockedUntil = 0;
+const GEMINI_BLOCK_KEY = 'bscale:ai:geminiBlockedUntil';
+
+if (typeof window !== 'undefined') {
+  const persisted = Number(window.localStorage.getItem(GEMINI_BLOCK_KEY) || '0');
+  if (Number.isFinite(persisted) && persisted > Date.now()) {
+    geminiBlockedUntil = persisted;
+  }
+}
 
 function isGeminiTemporarilyBlocked() {
   return Date.now() < geminiBlockedUntil;
@@ -143,6 +151,9 @@ export async function requestJSON<T = unknown>(
     } catch (e) {
       if (isGeminiNotFoundError(e)) {
         geminiBlockedUntil = Date.now() + GEMINI_NOT_FOUND_COOLDOWN_MS;
+        if (typeof window !== 'undefined') {
+          window.localStorage.setItem(GEMINI_BLOCK_KEY, String(geminiBlockedUntil));
+        }
       }
       errors.push(`Gemini: ${e instanceof Error ? e.message : String(e)}`);
     }
