@@ -232,6 +232,7 @@ export function Integrations({ userProfile }: { userProfile?: { role?: string; s
   const [metaAssetsLoading, setMetaAssetsLoading] = useState(false);
   const [metaAssetsError, setMetaAssetsError] = useState<string | null>(null);
   const [reinstallingManagedPlatform, setReinstallingManagedPlatform] = useState<'google' | 'meta' | null>(null);
+  const [reinstallingGoogleAndMeta, setReinstallingGoogleAndMeta] = useState(false);
   const [isWizardOpen, setIsWizardOpen] = useState(false);
   const [wizardStep, setWizardStep] = useState<WizardStep>(1);
   const [wizardPlatform, setWizardPlatform] = useState<WizardPlatform>('google');
@@ -703,6 +704,48 @@ export function Integrations({ userProfile }: { userProfile?: { role?: string; s
     }
   };
 
+  const handleReinstallGoogleAndMeta = async () => {
+    if (blockIfReadOnly()) return;
+
+    const confirmMessage = isHebrew
+      ? 'לבצע התקנה מחדש גם ל-Google וגם ל-Meta? הפעולה תמחק את החיבורים הקיימים ותתחיל התחברות מחדש.'
+      : 'Re-install both Google and Meta? This will delete existing connections and start OAuth setup again.';
+
+    if (!window.confirm(confirmMessage)) return;
+
+    setError(null);
+    setSuccess(null);
+    setReinstallingGoogleAndMeta(true);
+    try {
+      await clearConnectionSettings('google');
+      await clearConnectionSettings('meta');
+      setExpandedId(null);
+      setFormValues({});
+
+      setToast({
+        message: isHebrew
+          ? 'החיבורים הישנים נמחקו. ממשיך להתחברות Google מחדש...'
+          : 'Previous connections deleted. Continuing with Google re-authentication...',
+        type: 'success',
+      });
+
+      await startManagedOAuth('google-ads', 'Failed to start Google authentication');
+    } catch (err) {
+      setToast({
+        message:
+          err instanceof Error && err.message
+            ? err.message
+            : isHebrew
+            ? 'התקנה מחדש ל-Google+Meta נכשלה. נסה שוב.'
+            : 'Google+Meta re-install failed. Please retry.',
+        type: 'error',
+      });
+      setTimeout(() => setToast(null), 3500);
+    } finally {
+      setReinstallingGoogleAndMeta(false);
+    }
+  };
+
   React.useEffect(() => {
     const url = new URL(window.location.href);
     const connected = url.searchParams.get('connected');
@@ -1078,7 +1121,7 @@ export function Integrations({ userProfile }: { userProfile?: { role?: string; s
                         onClick={() => {
                           void handleReinstallManagedConnection('google');
                         }}
-                        disabled={reinstallingManagedPlatform === 'google' || isConnecting}
+                        disabled={reinstallingGoogleAndMeta || reinstallingManagedPlatform === 'google' || isConnecting}
                         className="w-full inline-flex items-center justify-center gap-2 py-1.5 border border-amber-200 text-amber-700 bg-amber-50 rounded-lg text-xs font-bold hover:bg-amber-100 disabled:opacity-60 disabled:cursor-not-allowed"
                       >
                         {reinstallingManagedPlatform === 'google' ? (
@@ -1181,7 +1224,7 @@ export function Integrations({ userProfile }: { userProfile?: { role?: string; s
                         onClick={() => {
                           void handleReinstallManagedConnection('meta');
                         }}
-                        disabled={reinstallingManagedPlatform === 'meta' || isConnecting}
+                        disabled={reinstallingGoogleAndMeta || reinstallingManagedPlatform === 'meta' || isConnecting}
                         className="w-full inline-flex items-center justify-center gap-2 py-1.5 border border-amber-200 text-amber-700 bg-amber-50 rounded-lg text-xs font-bold hover:bg-amber-100 disabled:opacity-60 disabled:cursor-not-allowed"
                       >
                         {reinstallingManagedPlatform === 'meta' ? (
@@ -1784,6 +1827,20 @@ export function Integrations({ userProfile }: { userProfile?: { role?: string; s
               >
                 <RotateCcw className="w-4 h-4" />
                 {t('integrations.resetAll')}
+              </button>
+              <button
+                onClick={() => {
+                  void handleReinstallGoogleAndMeta();
+                }}
+                disabled={reinstallingGoogleAndMeta || reinstallingManagedPlatform !== null}
+                className="w-full sm:w-auto flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 font-bold text-sm hover:bg-amber-100 transition-all disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                {reinstallingGoogleAndMeta ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <RotateCcw className="w-4 h-4" />
+                )}
+                {isHebrew ? 'התקנה מחדש Google + Meta' : 'Re-install Google + Meta'}
               </button>
             </div>
           </div>
