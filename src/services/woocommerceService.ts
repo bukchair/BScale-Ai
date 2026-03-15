@@ -55,7 +55,17 @@ export async function verifyWooCommerceConnection(url: string, key: string, secr
   }
 }
 
-export async function fetchWooCommerceProducts(url: string, key: string, secret: string) {
+type FetchWooCommerceProductsOptions = {
+  fallbackToMock?: boolean;
+};
+
+export async function fetchWooCommerceProducts(
+  url: string,
+  key: string,
+  secret: string,
+  options?: FetchWooCommerceProductsOptions
+) {
+  const fallbackToMock = options?.fallbackToMock ?? true;
   // Mock data for demo purposes
   const mockProducts = [
     {
@@ -119,21 +129,36 @@ export async function fetchWooCommerceProducts(url: string, key: string, secret:
       try {
         data = JSON.parse(text);
       } catch (e) {
+        if (!fallbackToMock) {
+          throw new Error(`Failed to parse products response: ${text.substring(0, 160)}`);
+        }
         console.warn("Failed to parse products response, falling back to mock data");
         return mockProducts;
       }
     } else {
+      if (!fallbackToMock) {
+        throw new Error(`Empty products response from WooCommerce proxy (status: ${response.status}).`);
+      }
       console.warn("Empty products response, falling back to mock data");
       return mockProducts;
     }
 
     if (!response.ok) {
+      if (!fallbackToMock) {
+        const message = sanitizeWooErrorText(
+          String(data?.message || data?.error || response.statusText || 'WooCommerce products request failed.')
+        );
+        throw new Error(message || `WooCommerce API Error: ${response.statusText}`);
+      }
       console.warn(`WooCommerce API Error: ${response.statusText}. Falling back to mock data.`);
       return mockProducts;
     }
-    
-    return data;
+
+    return Array.isArray(data) ? data : Array.isArray(data?.products) ? data.products : [];
   } catch (error) {
+    if (!fallbackToMock) {
+      throw error;
+    }
     console.error("WooCommerce Fetch Error, falling back to mock data:", error);
     return mockProducts;
   }

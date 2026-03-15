@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   getOptimizationRecommendations,
   getAIKeysFromConnections,
@@ -99,6 +99,10 @@ type WooCampaignProduct = {
   name: string;
   categories: string[];
   price?: string;
+  shortDescription?: string;
+  description?: string;
+  sku?: string;
+  stockQuantity?: number | null;
 };
 
 type WooPublishScope = 'category' | 'product';
@@ -249,6 +253,16 @@ export function Campaigns() {
     wooRequireTarget: isHebrew
       ? 'בחר קטגוריה או מוצר לפרסום מתוך WooCommerce.'
       : 'Select a WooCommerce category or product to promote.',
+    wooAutoDescriptionHint: isHebrew
+      ? 'בחירת מוצר ממלאת אוטומטית את התיאור לפי מידע המוצר, וניתן לערוך חופשי.'
+      : 'Selecting a product auto-fills the description from product data and remains editable.',
+    wooImportProduct: isHebrew ? 'ייבא מוצר לקמפיין' : 'Import product to campaign',
+    wooImportSuccess: isHebrew
+      ? 'פרטי המוצר יובאו בהצלחה מ-WooCommerce.'
+      : 'Product details imported successfully from WooCommerce.',
+    wooProductDataMissing: isHebrew
+      ? 'למוצר הנבחר אין מספיק פרטים לייבוא.'
+      : 'Selected product has insufficient data for import.',
     markFullDay: isHebrew ? 'סמן יום מלא' : 'Mark full day',
     unmarkFullDay: isHebrew ? 'בטל יום מלא' : 'Unmark full day',
     platformCopyTitle: isHebrew ? 'כותרת ותיאור מותאמים לפי פלטפורמה' : 'Platform-fit title and description',
@@ -347,6 +361,7 @@ export function Campaigns() {
   const [wooPublishScope, setWooPublishScope] = useState<WooPublishScope>('category');
   const [selectedWooCategory, setSelectedWooCategory] = useState('');
   const [selectedWooProductId, setSelectedWooProductId] = useState<string>('');
+  const wooAutoBriefRef = useRef('');
 
   const connectedAdPlatforms = useMemo(() => {
     const options: string[] = [];
@@ -446,6 +461,68 @@ export function Campaigns() {
     return '';
   }, [isWooConnected, wooPublishScope, selectedWooProduct?.name, selectedWooCategory]);
 
+  const buildWooProductBrief = (product: WooCampaignProduct): string => {
+    const longDescription =
+      (product.shortDescription && product.shortDescription.trim()) ||
+      (product.description && product.description.trim()) ||
+      '';
+    const compactDescription =
+      longDescription.length > 420 ? `${longDescription.slice(0, 417).trim()}...` : longDescription;
+    const categoryLabel =
+      product.categories.length > 0
+        ? `${isHebrew ? 'קטגוריות' : 'Categories'}: ${product.categories.join(', ')}`
+        : '';
+    const priceLabel = product.price ? `${isHebrew ? 'מחיר' : 'Price'}: ${product.price}` : '';
+    const skuLabel = product.sku ? `SKU: ${product.sku}` : '';
+    const stockLabel =
+      typeof product.stockQuantity === 'number'
+        ? `${isHebrew ? 'מלאי' : 'Stock'}: ${product.stockQuantity}`
+        : '';
+    return [
+      `${isHebrew ? 'מוצר' : 'Product'}: ${product.name}`,
+      categoryLabel,
+      priceLabel,
+      skuLabel,
+      stockLabel,
+      compactDescription,
+    ]
+      .filter((item) => item && item.trim().length > 0)
+      .join('\n');
+  };
+
+  const importWooProductToBuilder = (
+    product: WooCampaignProduct,
+    options?: { overwriteExisting?: boolean; notify?: boolean }
+  ) => {
+    const overwriteExisting = options?.overwriteExisting ?? true;
+    const notify = options?.notify ?? false;
+    const productBrief = buildWooProductBrief(product);
+    if (!productBrief.trim()) {
+      if (notify) setBuilderMessage(text.wooProductDataMissing);
+      return;
+    }
+
+    setContentType('product');
+    setShortTitleInput((prev) =>
+      overwriteExisting || !prev.trim() ? product.name : prev
+    );
+    setCampaignNameInput((prev) =>
+      overwriteExisting || !prev.trim() ? product.name : prev
+    );
+    setServiceTypeInput((prev) => {
+      const nextCategory = product.categories[0] || '';
+      if (!nextCategory) return prev;
+      return overwriteExisting || !prev.trim() ? nextCategory : prev;
+    });
+    setCampaignBrief((prev) =>
+      overwriteExisting || !prev.trim() || prev.trim() === wooAutoBriefRef.current.trim()
+        ? productBrief
+        : prev
+    );
+    wooAutoBriefRef.current = productBrief;
+    if (notify) setBuilderMessage(text.wooImportSuccess);
+  };
+
   const audienceSuggestions = useMemo(() => {
     const combined = [
       ...aiGeneratedAudienceNames,
@@ -487,7 +564,7 @@ export function Campaigns() {
     }
     let cancelled = false;
     setWooLoading(true);
-    fetchWooCommerceProducts(storeUrl, wooKey, wooSecret)
+    fetchWooCommerceProducts(storeUrl, wooKey, wooSecret, { fallbackToMock: false })
       .then((list) => {
         if (cancelled) return;
         const mapped = (Array.isArray(list) ? list : [])
@@ -500,6 +577,13 @@ export function Campaigns() {
                   .filter(Boolean)
               : [],
             price: item?.price != null ? String(item.price) : '',
+            shortDescription: stripHtmlToText(item?.short_description || ''),
+            description: stripHtmlToText(item?.description || ''),
+            sku: stripHtmlToText(item?.sku || ''),
+            stockQuantity:
+              typeof item?.stock_quantity === 'number' && Number.isFinite(item.stock_quantity)
+                ? item.stock_quantity
+                : null,
           }))
           .filter((item: WooCampaignProduct) => item.id > 0 && item.name);
         setWooProducts(mapped);
@@ -550,6 +634,11 @@ export function Campaigns() {
     setShortTitleInput((prev) => (prev.trim() ? prev : inferredWooTitle));
     setCampaignNameInput((prev) => (prev.trim() ? prev : inferredWooTitle));
   }, [inferredWooTitle]);
+
+  useEffect(() => {
+    if (wooPublishScope !== 'product' || !selectedWooProduct) return;
+    importWooProductToBuilder(selectedWooProduct, { overwriteExisting: false, notify: false });
+  }, [wooPublishScope, selectedWooProduct]);
 
   useEffect(() => {
     setWeeklySchedule((prev) => {
@@ -1262,6 +1351,10 @@ export function Campaigns() {
                     name: selectedWooProduct.name,
                     categories: selectedWooProduct.categories,
                     price: selectedWooProduct.price || null,
+                    shortDescription: selectedWooProduct.shortDescription || null,
+                    description: selectedWooProduct.description || null,
+                    sku: selectedWooProduct.sku || null,
+                    stockQuantity: selectedWooProduct.stockQuantity ?? null,
                   }
                 : null,
           }
@@ -2070,6 +2163,9 @@ export function Campaigns() {
                   : 'Describe the post/product, target user, and campaign message.'
               }
             />
+            {wooPublishScope === 'product' && selectedWooProduct && (
+              <p className="mt-1 text-[11px] text-sky-700">{text.wooAutoDescriptionHint}</p>
+            )}
           </div>
 
           <div className="rounded-xl border border-sky-200 bg-sky-50/40 p-4">
@@ -2131,6 +2227,34 @@ export function Campaigns() {
                         </option>
                       ))}
                     </select>
+                    {selectedWooProduct && (
+                      <div className="mt-2 rounded-md border border-sky-200 bg-white p-2.5 space-y-2">
+                        <div className="flex items-center justify-between gap-2">
+                          <p className="text-xs font-bold text-sky-900 truncate" title={selectedWooProduct.name}>
+                            {selectedWooProduct.name}
+                          </p>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              importWooProductToBuilder(selectedWooProduct, {
+                                overwriteExisting: true,
+                                notify: true,
+                              })
+                            }
+                            className="inline-flex items-center rounded-md border border-sky-300 px-2 py-1 text-[11px] font-bold text-sky-800 hover:bg-sky-50"
+                          >
+                            {text.wooImportProduct}
+                          </button>
+                        </div>
+                        <p className="text-[11px] text-gray-600 line-clamp-3">
+                          {selectedWooProduct.shortDescription ||
+                            selectedWooProduct.description ||
+                            selectedWooProduct.categories.join(', ') ||
+                            selectedWooProduct.price ||
+                            ''}
+                        </p>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
