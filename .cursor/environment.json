@@ -1,5 +1,5 @@
 {
   "$schema": "https://cursor.com/schemas/environment.json",
-  "install": "npm ci --include=dev --no-audit --no-fund && npx --yes tsc --version",
+  "install": "npm ci --include=dev --no-audit --no-fund && npx --yes tsc --version && (npm run -s lint || echo '[env] npm run lint failed during bootstrap (non-blocking)')",
   "start": "echo 'Cloud environment ready'"
 }
