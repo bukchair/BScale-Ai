@@ -247,6 +247,7 @@ export function ConnectionsProvider({ children }: { children: ReactNode }) {
         }
         if (selectedGsc?.externalAccountId) {
           nextSettings.gscSiteUrl = selectedGsc.externalAccountId;
+          nextSettings.siteUrl = selectedGsc.externalAccountId;
         }
         if (selectedGmail?.name) {
           nextSettings.gmailAccount = selectedGmail.name;

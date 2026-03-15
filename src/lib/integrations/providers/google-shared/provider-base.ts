@@ -124,6 +124,10 @@ export abstract class BaseGoogleProvider {
     return tokenService.getAccessToken(connectionId);
   }
 
+  async getAccessTokenForConnection(connectionId: string): Promise<string> {
+    return this.getValidAccessToken(connectionId);
+  }
+
   async disconnect(connectionId: string): Promise<void> {
     const connection = await prisma.platformConnection.findUnique({
       where: { id: connectionId },
