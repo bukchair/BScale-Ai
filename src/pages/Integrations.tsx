@@ -509,15 +509,46 @@ export function Integrations({ userProfile }: { userProfile?: { role?: string; s
     });
   };
 
+  const persistManagedAccountSelection = async (
+    platformSlug: 'google-ads' | 'meta' | 'tiktok',
+    accountIds: string[]
+  ) => {
+    const normalizedIds = accountIds.map((id) => String(id || '').trim()).filter(Boolean);
+    if (!normalizedIds.length) return;
+    await bootstrapManagedSession();
+    const response = await fetch(`${API_BASE}/api/connections/${platformSlug}/select-accounts`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ accountIds: normalizedIds }),
+    });
+    const text = await response.text();
+    let payload: { success?: boolean; message?: string } | null = null;
+    try {
+      payload = text ? JSON.parse(text) : null;
+    } catch {
+      payload = null;
+    }
+    if (!response.ok || !payload?.success) {
+      throw new Error(payload?.message || `Failed to persist ${platformSlug} account selection.`);
+    }
+  };
+
   const persistManagedGoogleSelection = async (googleAdsId: string) => {
     const normalizedId = normalizeGoogleAdsAccountId(googleAdsId);
     if (!normalizedId) return;
-    await bootstrapManagedSession();
-    await fetch(`${API_BASE}/api/connections/google-ads/select-accounts`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ accountIds: [normalizedId] }),
-    });
+    await persistManagedAccountSelection('google-ads', [normalizedId]);
+  };
+
+  const persistManagedMetaSelection = async (metaAdsId: string) => {
+    const normalizedId = normalizeMetaAccountId(metaAdsId);
+    if (!normalizedId) return;
+    await persistManagedAccountSelection('meta', [normalizedId]);
+  };
+
+  const persistManagedTikTokSelection = async (advertiserId: string) => {
+    const normalizedId = String(advertiserId || '').trim();
+    if (!normalizedId) return;
+    await persistManagedAccountSelection('tiktok', [normalizedId]);
   };
 
   const loadManagedMetaAssets = async (seedValues?: Record<string, string>) => {
@@ -787,6 +818,36 @@ export function Integrations({ userProfile }: { userProfile?: { role?: string; s
           });
           setTimeout(() => setToast(null), 3500);
           console.warn('Failed to persist managed Google Ads selection:', selectionError);
+        }
+      }
+      if (id === 'meta' && settingsToSave.metaAdsId) {
+        try {
+          await persistManagedMetaSelection(settingsToSave.metaAdsId);
+        } catch (selectionError) {
+          setToast({
+            message:
+              language === 'he'
+                ? 'החיבור נשמר, אך בחירת חשבון ברירת המחדל ל-Meta נכשלה. נסה שוב.'
+                : 'Connection was saved, but default Meta account selection failed. Please retry.',
+            type: 'error',
+          });
+          setTimeout(() => setToast(null), 3500);
+          console.warn('Failed to persist managed Meta selection:', selectionError);
+        }
+      }
+      if (id === 'tiktok' && settingsToSave.tiktokAdvertiserId) {
+        try {
+          await persistManagedTikTokSelection(settingsToSave.tiktokAdvertiserId);
+        } catch (selectionError) {
+          setToast({
+            message:
+              language === 'he'
+                ? 'החיבור נשמר, אך בחירת חשבון ברירת המחדל ל-TikTok נכשלה. נסה שוב.'
+                : 'Connection was saved, but default TikTok account selection failed. Please retry.',
+            type: 'error',
+          });
+          setTimeout(() => setToast(null), 3500);
+          console.warn('Failed to persist managed TikTok selection:', selectionError);
         }
       }
       setExpandedId(null);

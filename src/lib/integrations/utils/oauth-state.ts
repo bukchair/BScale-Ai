@@ -103,6 +103,35 @@ export const consumeOAuthStateWithoutUser = async (
   };
 };
 
+export const resolveOAuthStateUser = async (
+  platform: Platform,
+  state: string
+): Promise<{ userId: string; redirectPath: string | null }> => {
+  const stateHash = sha256(state);
+  const existing = await prisma.oAuthState.findFirst({
+    where: {
+      platform,
+      stateHash,
+      status: 'ISSUED',
+      expiresAt: { gt: new Date() },
+    },
+    orderBy: { createdAt: 'desc' },
+    select: {
+      userId: true,
+      redirectPath: true,
+    },
+  });
+
+  if (!existing) {
+    throw new OAuthStateMismatchError();
+  }
+
+  return {
+    userId: existing.userId,
+    redirectPath: existing.redirectPath,
+  };
+};
+
 export const expireStaleOAuthStates = async (): Promise<void> => {
   await prisma.oAuthState.updateMany({
     where: { status: 'ISSUED', expiresAt: { lte: new Date() } },

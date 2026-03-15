@@ -158,37 +158,61 @@ export class MetaProvider implements IntegrationProvider {
 
   async discoverAccounts(connectionId: string): Promise<DiscoveredAccount[]> {
     const { accessToken } = await this.getValidAccessToken(connectionId);
-    const url = new URL(`${META_GRAPH_BASE}/me/adaccounts`);
-    url.searchParams.set(
-      'fields',
-      'id,account_id,name,currency,timezone_name,account_status,business{id,name}'
-    );
-    url.searchParams.set('limit', '200');
-    url.searchParams.set('access_token', accessToken);
+    const rows: Array<{
+      id?: string;
+      account_id?: string;
+      name?: string;
+      currency?: string;
+      timezone_name?: string;
+      account_status?: number;
+      business?: { id?: string; name?: string };
+    }> = [];
 
-    const response = await fetch(url);
-    const parsed = (await response.json()) as {
-      data?: Array<{
-        id?: string;
-        account_id?: string;
-        name?: string;
-        currency?: string;
-        timezone_name?: string;
-        account_status?: number;
-        business?: { id?: string; name?: string };
-      }>;
-      error?: { message?: string };
-    };
-
-    if (!response.ok) {
-      const message = parsed.error?.message || 'Meta account discovery failed.';
-      if (response.status === 403) {
-        throw new PlatformPermissionError(message);
+    let after: string | null = null;
+    for (let page = 0; page < 20; page += 1) {
+      const url = new URL(`${META_GRAPH_BASE}/me/adaccounts`);
+      url.searchParams.set(
+        'fields',
+        'id,account_id,name,currency,timezone_name,account_status,business{id,name}'
+      );
+      url.searchParams.set('limit', '200');
+      url.searchParams.set('access_token', accessToken);
+      if (after) {
+        url.searchParams.set('after', after);
       }
-      throw new ExternalApiError(message);
+
+      const response = await fetch(url);
+      const parsed = (await response.json()) as {
+        data?: Array<{
+          id?: string;
+          account_id?: string;
+          name?: string;
+          currency?: string;
+          timezone_name?: string;
+          account_status?: number;
+          business?: { id?: string; name?: string };
+        }>;
+        paging?: { cursors?: { after?: string } };
+        error?: { message?: string };
+      };
+
+      if (!response.ok) {
+        const message = parsed.error?.message || 'Meta account discovery failed.';
+        if (response.status === 403) {
+          throw new PlatformPermissionError(message);
+        }
+        throw new ExternalApiError(message);
+      }
+
+      rows.push(...(parsed.data ?? []));
+      const nextAfter = parsed.paging?.cursors?.after;
+      if (!nextAfter || nextAfter === after) {
+        break;
+      }
+      after = nextAfter;
     }
 
-    const discovered = (parsed.data ?? [])
+    const discovered = rows
       .filter((item) => item.account_id)
       .map<DiscoveredAccount>((item) => ({
         externalAccountId: String(item.account_id),

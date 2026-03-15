@@ -3,6 +3,8 @@ import { requireAuthenticatedUser } from '@/src/lib/auth/session';
 import { integrationOrchestrator } from '@/src/lib/integrations/services/integration-orchestrator';
 import { parsePlatformParam, toRoutePlatform } from '@/src/lib/integrations/utils/platform-utils';
 import { integrationsEnv } from '@/src/lib/env/integrations-env';
+import { IntegrationError } from '@/src/lib/integrations/core/errors';
+import { resolveOAuthStateUser } from '@/src/lib/integrations/utils/oauth-state';
 import { toErrorResponse } from '@/src/lib/integrations/utils/api-response';
 
 type RouteContext = {
@@ -11,12 +13,29 @@ type RouteContext = {
 
 export async function GET(request: Request, context: RouteContext) {
   try {
-    const user = await requireAuthenticatedUser();
     const { platform: platformParam } = await context.params;
     const platform = parsePlatformParam(platformParam);
     const url = new URL(request.url);
+    let userId = '';
 
-    const result = await integrationOrchestrator.handleCallback(user.id, platform, {
+    try {
+      const user = await requireAuthenticatedUser();
+      userId = user.id;
+    } catch (error) {
+      const state = url.searchParams.get('state') || '';
+      if (
+        error instanceof IntegrationError &&
+        error.errorCode === 'UNAUTHORIZED' &&
+        state.trim().length > 0
+      ) {
+        const stateOwner = await resolveOAuthStateUser(platform, state);
+        userId = stateOwner.userId;
+      } else {
+        throw error;
+      }
+    }
+
+    const result = await integrationOrchestrator.handleCallback(userId, platform, {
       state: url.searchParams.get('state'),
       code: url.searchParams.get('code'),
       error: url.searchParams.get('error'),

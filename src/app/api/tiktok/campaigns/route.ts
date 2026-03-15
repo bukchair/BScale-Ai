@@ -1,10 +1,23 @@
 import { NextResponse } from 'next/server';
+import { requireAuthenticatedUser } from '@/src/lib/auth/session';
+import { connectionService } from '@/src/lib/integrations/services/connection-service';
+import { TikTokProvider } from '@/src/lib/integrations/providers/tiktok/provider';
 
 const getBearerToken = (request: Request): string => {
   const auth = request.headers.get('authorization') || '';
   if (!auth.toLowerCase().startsWith('bearer ')) return '';
   return auth.slice(7).trim();
 };
+
+const pickSelectedAdvertiserId = (
+  connection: Awaited<ReturnType<typeof connectionService.getByUserPlatform>>
+) =>
+  connection?.connectedAccounts.find(
+    (account) => account.isSelected && account.status !== 'ARCHIVED'
+  )?.externalAccountId ||
+  connection?.connectedAccounts.find((account) => account.status !== 'ARCHIVED')?.externalAccountId ||
+  '';
+
 const DATE_PARAM_REGEX = /^\d{4}-\d{2}-\d{2}$/;
 const normalizeDateParam = (value: string | null) => {
   const trimmed = (value || '').trim();
@@ -14,10 +27,49 @@ const normalizeDateParam = (value: string | null) => {
 export async function GET(request: Request) {
   try {
     const url = new URL(request.url);
-    const advertiserId = (url.searchParams.get('advertiser_id') || '').trim();
+    let advertiserId = (url.searchParams.get('advertiser_id') || '').trim();
     const startDateParam = normalizeDateParam(url.searchParams.get('start_date'));
     const endDateParam = normalizeDateParam(url.searchParams.get('end_date'));
-    const accessToken = getBearerToken(request);
+    let accessToken = getBearerToken(request);
+    let managedConnection: Awaited<ReturnType<typeof connectionService.getByUserPlatform>> | null = null;
+    let managedUserId = '';
+    const tiktokProvider = new TikTokProvider();
+
+    if (!accessToken || accessToken === 'server-managed') {
+      const user = await requireAuthenticatedUser();
+      managedUserId = user.id;
+      managedConnection = await connectionService.getByUserPlatform(user.id, 'TIKTOK');
+      if (!managedConnection) {
+        return NextResponse.json(
+          { message: 'TikTok connection is not available for this user.' },
+          { status: 400 }
+        );
+      }
+      if (!advertiserId) {
+        advertiserId = pickSelectedAdvertiserId(managedConnection);
+      }
+      accessToken = await tiktokProvider.getAccessTokenForConnection(managedConnection.id);
+    }
+
+    if (!advertiserId && managedConnection && managedUserId) {
+      try {
+        const discovered = await tiktokProvider.discoverAccounts(managedConnection.id);
+        if (discovered.length > 0) {
+          await connectionService.saveDiscoveredAccounts(
+            managedUserId,
+            managedConnection.id,
+            'TIKTOK',
+            discovered
+          );
+          await connectionService.setSelectedAccounts(managedUserId, managedConnection.id, [
+            discovered[0].externalAccountId,
+          ]);
+          advertiserId = discovered[0].externalAccountId;
+        }
+      } catch {
+        // Fallback to validation below.
+      }
+    }
 
     if (!accessToken || !advertiserId) {
       return NextResponse.json({ message: 'Missing access token or advertiser ID' }, { status: 400 });
