@@ -60,6 +60,13 @@ type ManagedApiConnection = {
     timezone?: string | null;
   }>;
 };
+type ManagedPlatformSlug =
+  | 'google-ads'
+  | 'ga4'
+  | 'search-console'
+  | 'gmail'
+  | 'meta'
+  | 'tiktok';
 
 const AI_CONNECTION_IDS = ['gemini', 'openai', 'claude'] as const;
 const PLATFORM_CONNECTION_IDS = ['google', 'meta', 'tiktok', 'woocommerce', 'shopify'] as const;
@@ -154,10 +161,10 @@ export function ConnectionsProvider({ children }: { children: ReactNode }) {
   const [workspaceOwnerEmail, setWorkspaceOwnerEmail] = useState<string | null>(null);
   const [sharedRole, setSharedRole] = useState<'manager' | 'viewer' | null>(null);
   const isWorkspaceReadOnly = dataAccessMode === 'shared' && sharedRole === 'viewer';
-  const managedPlatformByConnectionId: Partial<Record<Connection['id'], 'google-ads' | 'meta' | 'tiktok'>> = {
-    google: 'google-ads',
-    meta: 'meta',
-    tiktok: 'tiktok',
+  const managedPlatformsByConnectionId: Partial<Record<Connection['id'], ManagedPlatformSlug[]>> = {
+    google: ['google-ads', 'ga4', 'search-console', 'gmail'],
+    meta: ['meta'],
+    tiktok: ['tiktok'],
   };
 
   const ensureManagedApiSession = async () => {
@@ -225,14 +232,20 @@ export function ConnectionsProvider({ children }: { children: ReactNode }) {
             return sub;
           }) || connection.subConnections;
 
+        const nonArchived = (accounts?: ManagedApiConnection['accounts']) =>
+          (accounts || []).filter((account) => account.status !== 'ARCHIVED');
+        const adsAccounts = nonArchived(ads?.accounts);
+        const ga4Accounts = nonArchived(ga4?.accounts);
+        const gscAccounts = nonArchived(gsc?.accounts);
+        const gmailAccounts = nonArchived(gmail?.accounts);
         const selectedAdsAccount =
-          ads?.accounts?.find((account) => account.isSelected) || ads?.accounts?.[0] || null;
+          adsAccounts.find((account) => account.isSelected) || adsAccounts[0] || null;
         const selectedGa4 =
-          ga4?.accounts?.find((account) => account.isSelected) || ga4?.accounts?.[0] || null;
+          ga4Accounts.find((account) => account.isSelected) || ga4Accounts[0] || null;
         const selectedGsc =
-          gsc?.accounts?.find((account) => account.isSelected) || gsc?.accounts?.[0] || null;
+          gscAccounts.find((account) => account.isSelected) || gscAccounts[0] || null;
         const selectedGmail =
-          gmail?.accounts?.find((account) => account.isSelected) || gmail?.accounts?.[0] || null;
+          gmailAccounts.find((account) => account.isSelected) || gmailAccounts[0] || null;
         const connectedSubCount = (nextSubConnections || []).filter((sub) => sub.status === 'connected').length;
         const googleManagedStatuses = [ads?.status, ga4?.status, gsc?.status, gmail?.status].filter(
           (value): value is ManagedApiConnection['status'] => Boolean(value)
@@ -244,20 +257,29 @@ export function ConnectionsProvider({ children }: { children: ReactNode }) {
 
         if (selectedAdsAccount?.externalAccountId) {
           nextSettings.googleAdsId = formatGoogleAdsAccountId(selectedAdsAccount.externalAccountId);
+        } else {
+          delete nextSettings.googleAdsId;
         }
         if (selectedGa4?.externalAccountId) {
           nextSettings.ga4Id = selectedGa4.externalAccountId;
+        } else {
+          delete nextSettings.ga4Id;
         }
         if (selectedGsc?.externalAccountId) {
           nextSettings.gscSiteUrl = selectedGsc.externalAccountId;
           nextSettings.siteUrl = selectedGsc.externalAccountId;
+        } else {
+          delete nextSettings.gscSiteUrl;
+          delete nextSettings.siteUrl;
         }
         if (selectedGmail?.name) {
           nextSettings.gmailAccount = selectedGmail.name;
+        } else {
+          delete nextSettings.gmailAccount;
         }
-        if (ads?.accounts?.length) {
+        if (adsAccounts.length) {
           nextSettings.googleAdsAccounts = JSON.stringify(
-            ads.accounts.map((account) => ({
+            adsAccounts.map((account) => ({
               externalAccountId: account.externalAccountId,
               name: account.name,
               isSelected: Boolean(account.isSelected),
@@ -266,12 +288,13 @@ export function ConnectionsProvider({ children }: { children: ReactNode }) {
               timezone: account.timezone ?? null,
             }))
           );
+        } else {
+          delete nextSettings.googleAdsAccounts;
         }
-        if (
-          !nextSettings.googleAccessToken &&
-          googleManagedStatuses.some((status) => status === 'CONNECTED' || status === 'PENDING')
-        ) {
+        if (googleManagedStatuses.some((status) => status === 'CONNECTED' || status === 'PENDING')) {
           nextSettings.googleAccessToken = 'server-managed';
+        } else {
+          delete nextSettings.googleAccessToken;
         }
 
         const fallbackStatus = (() => {
@@ -294,8 +317,13 @@ export function ConnectionsProvider({ children }: { children: ReactNode }) {
       }
 
       if (connection.id === 'meta' && meta) {
+        const nonArchivedMetaAccounts = (meta.accounts || []).filter(
+          (account) => account.status !== 'ARCHIVED'
+        );
         const selected =
-          meta.accounts?.find((account) => account.isSelected) || meta.accounts?.[0] || null;
+          nonArchivedMetaAccounts.find((account) => account.isSelected) ||
+          nonArchivedMetaAccounts[0] ||
+          null;
         const mappedMetaStatus = mapManagedStatusToLocal(meta.status);
         return {
           ...connection,
@@ -303,9 +331,11 @@ export function ConnectionsProvider({ children }: { children: ReactNode }) {
           score: mappedMetaStatus === 'connected' ? Math.max(connection.score || 0, 95) : connection.score,
           settings: {
             ...(connection.settings || {}),
-            metaAdsId: selected?.externalAccountId || connection.settings?.metaAdsId || '',
+            metaAdsId: selected?.externalAccountId || '',
             metaToken:
-              connection.settings?.metaToken || (mappedMetaStatus === 'connected' ? 'server-managed' : ''),
+              mappedMetaStatus === 'connected' || mappedMetaStatus === 'connecting'
+                ? 'server-managed'
+                : '',
           },
         };
       }
@@ -403,7 +433,7 @@ export function ConnectionsProvider({ children }: { children: ReactNode }) {
   };
 
   const disconnectManagedConnection = async (
-    platformSlug: 'google-ads' | 'meta' | 'tiktok'
+    platformSlug: ManagedPlatformSlug
   ): Promise<void> => {
     await ensureManagedApiSession();
 
@@ -767,9 +797,13 @@ export function ConnectionsProvider({ children }: { children: ReactNode }) {
 
   const clearConnectionSettings = async (id: string) => {
     if (isWorkspaceReadOnly) return;
-    const managedPlatformSlug = managedPlatformByConnectionId[id as Connection['id']];
-    if (managedPlatformSlug) {
-      await disconnectManagedConnection(managedPlatformSlug);
+    const managedPlatformSlugs = managedPlatformsByConnectionId[id as Connection['id']] || [];
+    if (managedPlatformSlugs.length > 0) {
+      await Promise.allSettled(
+        managedPlatformSlugs.map(async (platformSlug) => {
+          await disconnectManagedConnection(platformSlug);
+        })
+      );
     }
 
     const next = connections.map((c) =>
@@ -789,7 +823,7 @@ export function ConnectionsProvider({ children }: { children: ReactNode }) {
     );
     setConnections(next);
     await persistConnections(next, id);
-    if (managedPlatformSlug) {
+    if (managedPlatformSlugs.length > 0) {
       await syncManagedConnectionsToLocal();
     }
   };
@@ -853,7 +887,8 @@ export function ConnectionsProvider({ children }: { children: ReactNode }) {
     const connection = connections.find(c => c.id === id);
     if (!connection) return { success: false, message: 'חיבור לא נמצא' };
 
-    const managedPlatformSlug = managedPlatformByConnectionId[id as Connection['id']];
+    const managedPlatformSlug =
+      id === 'google' ? 'google-ads' : id === 'meta' ? 'meta' : id === 'tiktok' ? 'tiktok' : undefined;
     if (managedPlatformSlug) {
       try {
         const fallbackAccountId =

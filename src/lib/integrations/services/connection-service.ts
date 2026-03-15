@@ -1,7 +1,6 @@
 import { prisma } from '@/src/lib/db/prisma';
 import type { Platform } from '@/src/lib/integrations/core/types';
 import { IntegrationError } from '@/src/lib/integrations/core/errors';
-import { toPrismaJson } from '@/src/lib/integrations/utils/prisma-json';
 
 export const connectionService = {
   async listForUser(userId: string) {
@@ -156,28 +155,19 @@ export const connectionService = {
 
   async disconnect(userId: string, platform: Platform): Promise<void> {
     const connection = await this.getByUserPlatform(userId, platform);
-    if (!connection) return;
+    if (!connection) {
+      await prisma.oauthState.deleteMany({
+        where: { userId, platform },
+      });
+      return;
+    }
 
     await prisma.$transaction(async (tx) => {
-      await tx.connectedAccount.updateMany({
-        where: { platformConnectionId: connection.id },
-        data: { isSelected: false, status: 'ARCHIVED' },
+      await tx.oauthState.deleteMany({
+        where: { userId, platform },
       });
-
-      await tx.platformConnection.update({
+      await tx.platformConnection.delete({
         where: { id: connection.id },
-        data: {
-          status: 'DISCONNECTED',
-          encryptedAccessToken: null,
-          encryptedRefreshToken: null,
-          tokenExpiresAt: null,
-          scopes: [],
-          tokenType: null,
-          externalUserId: null,
-          externalBusinessId: null,
-          metadata: toPrismaJson({}),
-          lastError: null,
-        },
       });
     });
   },
