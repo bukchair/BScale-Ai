@@ -33,7 +33,11 @@ export interface Connection {
 interface ConnectionsContextType {
   connections: Connection[];
   toggleConnection: (id: string, subId?: string) => Promise<void>;
-  updateConnectionSettings: (id: string, settings: ConnectionSettings) => Promise<void>;
+  updateConnectionSettings: (
+    id: string,
+    settings: ConnectionSettings,
+    options?: { silent?: boolean }
+  ) => Promise<void>;
   testConnection: (id: string) => Promise<{ success: boolean; message: string }>;
   overallQualityScore: number;
   connectedCount: number;
@@ -133,6 +137,45 @@ export function ConnectionsProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const normalizeGa4PropertyId = (value: string) => {
+    const normalized = String(value || '').replace(/^properties\//i, '').trim();
+    if (!normalized) return '';
+    // GA4 Measurement IDs (G-XXXX) are not valid Property IDs.
+    if (/^G-[A-Z0-9]+$/i.test(normalized)) return '';
+    return normalized;
+  };
+
+  const mergeGoogleDiscoveredSettings = (
+    base: ConnectionSettings,
+    discovered?: {
+      ga4PropertyId?: string;
+      gscSiteUrl?: string;
+      googleAdsId?: string;
+    }
+  ): ConnectionSettings => {
+    const next: ConnectionSettings = { ...base };
+    const normalizedProvidedGa4 = normalizeGa4PropertyId(next.ga4PropertyId || next.ga4Id || '');
+    if (normalizedProvidedGa4) {
+      next.ga4PropertyId = normalizedProvidedGa4;
+      next.ga4Id = normalizedProvidedGa4;
+    }
+
+    const discoveredGa4 = normalizeGa4PropertyId(discovered?.ga4PropertyId || '');
+    if (discoveredGa4 && !normalizedProvidedGa4) {
+      next.ga4PropertyId = discoveredGa4;
+      next.ga4Id = discoveredGa4;
+    }
+
+    if (discovered?.gscSiteUrl && !next.gscSiteUrl) {
+      next.gscSiteUrl = discovered.gscSiteUrl;
+    }
+    if (discovered?.googleAdsId && !next.googleAdsId) {
+      next.googleAdsId = discovered.googleAdsId;
+    }
+
+    return next;
+  };
+
   const toggleConnection = async (id: string, subId?: string) => {
     const newConnections = connections.map(c => {
       if (c.id === id) {
@@ -198,18 +241,39 @@ export function ConnectionsProvider({ children }: { children: ReactNode }) {
     await persistConnections(finalConnections);
   };
 
-  const updateConnectionSettings = async (id: string, settings: ConnectionSettings) => {
-    const connectingConnections = connections.map(c => {
-      if (c.id === id) {
-        return { ...c, status: 'connecting' as ConnectionStatus };
+  const updateConnectionSettings = async (
+    id: string,
+    settings: ConnectionSettings,
+    options?: { silent?: boolean }
+  ) => {
+    const silent = options?.silent === true;
+    if (!silent) {
+      const connectingConnections = connections.map(c => {
+        if (c.id === id) {
+          return { ...c, status: 'connecting' as ConnectionStatus };
+        }
+        return c;
+      });
+      setConnections(connectingConnections);
+      // Simulate API validation
+      await new Promise(resolve => setTimeout(resolve, 1000));
+    }
+
+    let normalizedSettings: ConnectionSettings = { ...settings };
+    if (id === 'google') {
+      const token = normalizedSettings.googleAccessToken || '';
+      if (token) {
+        try {
+          const discovery = await fetchGoogleDiscovery(token);
+          normalizedSettings = mergeGoogleDiscoveredSettings(normalizedSettings, discovery.discovered);
+        } catch (discoveryErr) {
+          normalizedSettings = mergeGoogleDiscoveredSettings(normalizedSettings);
+          console.warn('Google discovery warning during save:', discoveryErr);
+        }
+      } else {
+        normalizedSettings = mergeGoogleDiscoveredSettings(normalizedSettings);
       }
-      return c;
-    });
-    
-    setConnections(connectingConnections);
-    
-    // Simulate API validation
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    }
 
     const finalConnections = connections.map(c => {
       if (c.id === id) {
@@ -217,7 +281,7 @@ export function ConnectionsProvider({ children }: { children: ReactNode }) {
           ...c, 
           status: 'connected' as ConnectionStatus,
           score: Math.floor(Math.random() * 10) + 90,
-          settings: { ...c.settings, ...settings }
+          settings: { ...c.settings, ...normalizedSettings }
         };
       }
       return c;
@@ -335,10 +399,21 @@ export function ConnectionsProvider({ children }: { children: ReactNode }) {
         await persistConnections(updatedConnections);
       };
 
-      const markGoogleConnected = async () => {
+      const markGoogleConnected = async (
+        discovered?: {
+          ga4PropertyId?: string;
+          gscSiteUrl?: string;
+          googleAdsId?: string;
+        }
+      ) => {
         const updatedConnections = connections.map(c =>
           c.id === 'google'
-            ? { ...c, status: 'connected' as ConnectionStatus, score: 100 }
+            ? {
+                ...c,
+                status: 'connected' as ConnectionStatus,
+                score: 100,
+                settings: mergeGoogleDiscoveredSettings({ ...(c.settings || {}) }, discovered),
+              }
             : c
         );
         setConnections(updatedConnections);
@@ -360,12 +435,13 @@ export function ConnectionsProvider({ children }: { children: ReactNode }) {
         }
 
         await validateGoogleAccessToken(accessToken);
-        await markGoogleConnected();
         // Discovery failures should not block auth validation.
         try {
-          await fetchGoogleDiscovery(accessToken);
+          const discovery = await fetchGoogleDiscovery(accessToken);
+          await markGoogleConnected(discovery.discovered);
         } catch (discoveryErr) {
           console.warn('Google discovery warning during test:', discoveryErr);
+          await markGoogleConnected();
         }
         return { success: true, message: 'החיבור ל-Google אומת בהצלחה.' };
       } catch (err) {
@@ -375,11 +451,12 @@ export function ConnectionsProvider({ children }: { children: ReactNode }) {
             accessToken = refreshed.access_token;
             await persistGoogleTokens(accessToken, refreshed.expires_in || 3600);
             await validateGoogleAccessToken(accessToken);
-            await markGoogleConnected();
             try {
-              await fetchGoogleDiscovery(accessToken);
+              const discovery = await fetchGoogleDiscovery(accessToken);
+              await markGoogleConnected(discovery.discovered);
             } catch (discoveryErr) {
               console.warn('Google discovery warning after refresh:', discoveryErr);
+              await markGoogleConnected();
             }
             return { success: true, message: 'החיבור ל-Google אומת בהצלחה לאחר רענון טוקן.' };
           }

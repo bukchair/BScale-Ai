@@ -801,10 +801,12 @@ async function startServer() {
       };
     };
 
-    const requestedPropertyId =
+    const requestedPropertyIdRaw =
       typeof propertyId === "string" && propertyId.trim()
         ? normalizePropertyId(String(propertyId))
         : "";
+    const requestedLooksLikeMeasurementId = /^G-[A-Z0-9]+$/i.test(requestedPropertyIdRaw);
+    const requestedPropertyId = requestedLooksLikeMeasurementId ? "" : requestedPropertyIdRaw;
     const candidateIds: string[] = [];
     if (requestedPropertyId) {
       candidateIds.push(requestedPropertyId);
@@ -825,7 +827,11 @@ async function startServer() {
     for (const candidateId of candidateIds) {
       try {
         const payload = await fetchGa4LiveForProperty(candidateId);
-        return res.json(payload);
+        return res.json({
+          ...payload,
+          requestedPropertyId: requestedPropertyIdRaw || undefined,
+          usedDiscoveredProperty: Boolean(discoveredPropertyId && candidateId === discoveredPropertyId),
+        });
       } catch (error) {
         lastError = error;
         continue;

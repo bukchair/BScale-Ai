@@ -18,7 +18,7 @@ export function Dashboard() {
   const isHebrew = dir === 'rtl';
   const { navigateTo } = useAppNavigation();
   const { dateRange, resolvedRange } = useDateRange();
-  const { connections } = useConnections();
+  const { connections, updateConnectionSettings } = useConnections();
   const currentUser = auth.currentUser;
   const [ga4LiveData, setGa4LiveData] = useState<GA4LiveData | null>(null);
   const [ga4Error, setGa4Error] = useState<string | null>(null);
@@ -26,6 +26,8 @@ export function Dashboard() {
   const [overviewSyncStage, setOverviewSyncStage] = useState<'idle' | 'platforms' | 'woocommerce'>('idle');
   const [wooLiveLoadingPercent, setWooLiveLoadingPercent] = useState(0);
   const syncInFlightRef = useRef(false);
+  const ga4AutoSyncInFlightRef = useRef(false);
+  const lastSyncedGa4PropertyRef = useRef<string>('');
 
   const connectedPlatforms = connections.filter(c => c.status === 'connected');
   const isWooConnected = connections.find(c => c.id === 'woocommerce')?.status === 'connected';
@@ -67,7 +69,7 @@ export function Dashboard() {
     const propertyId = googleConnection?.settings?.ga4PropertyId || googleConnection?.settings?.ga4Id;
     const siteUrl = googleConnection?.settings?.gscSiteUrl;
 
-    if (!googleConnection || googleConnection.status !== 'connected' || !accessToken) {
+    if (!googleConnection || googleConnection.status !== 'connected') {
       setGa4LiveData(null);
       setGa4Error(null);
       setGscTotals(null);
@@ -95,53 +97,93 @@ export function Dashboard() {
       let syncedAdSpendTotal = 0;
 
       try {
-        try {
-          // 1) Google sync (GA4/GSC + Google Ads for revenue window spend).
-          const ga4Data = await fetchGA4LiveData(accessToken, propertyId || undefined, resolvedRange);
-          if (!isCancelled) {
-            setGa4LiveData(ga4Data);
-            setGa4Error(null);
-          }
-        } catch (err) {
-          console.error("Failed to load GA4 live data:", err);
+        if (!accessToken) {
           if (!isCancelled) {
             setGa4LiveData(null);
-            setGa4Error(err instanceof Error ? err.message : t('common.error'));
-          }
-        }
-
-        try {
-          if (siteUrl) {
-            const gscData = await fetchGSCData(accessToken, siteUrl, resolvedRange);
-            const rows = gscData.rows || [];
-            const clicks = rows.reduce((sum: number, row: any) => sum + Number(row.clicks || 0), 0);
-            const impressions = rows.reduce((sum: number, row: any) => sum + Number(row.impressions || 0), 0);
-            const weightedPosition = rows.reduce((sum: number, row: any) => sum + (Number(row.position || 0) * Number(row.impressions || 0)), 0);
-            const position = impressions > 0 ? weightedPosition / impressions : 0;
-            const ctr = impressions > 0 ? (clicks / impressions) * 100 : 0;
-
-            if (!isCancelled) {
-              setGscTotals({ clicks, impressions, position, ctr });
-            }
-          }
-        } catch (err) {
-          console.error("Failed to load Search Console data:", err);
-          if (!isCancelled) {
+            setGa4Error(
+              isHebrew
+                ? 'חיבור Google קיים אך חסר Access Token פעיל. בצע Reconnect ל-Google.'
+                : 'Google is connected but missing an active access token. Please reconnect Google.'
+            );
             setGscTotals(null);
           }
-        }
+        } else {
+          try {
+            // 1) Google sync (GA4/GSC + Google Ads for revenue window spend).
+            const ga4Data = await fetchGA4LiveData(accessToken, propertyId || undefined, resolvedRange);
+            if (!isCancelled) {
+              setGa4LiveData(ga4Data);
+              setGa4Error(null);
+            }
 
-        try {
-          const googleAdsId = googleConnection?.settings?.googleAdsId || '';
-          if (googleAdsId) {
-            const googleCampaigns = await fetchGoogleCampaigns(accessToken, googleAdsId, undefined, resolvedRange);
-            syncedAdSpendTotal += googleCampaigns.reduce(
-              (sum, campaign) => sum + parseCurrencyNumber(campaign?.spend),
-              0
-            );
+            const normalizePropertyId = (value: unknown) =>
+              typeof value === 'string' ? value.replace(/^properties\//i, '').trim() : '';
+            const usedPropertyId = normalizePropertyId(ga4Data?.propertyIdUsed);
+            const currentPropertyId = normalizePropertyId(propertyId);
+
+            // Auto-heal GA4 setting when server had to use a different accessible property.
+            if (
+              usedPropertyId &&
+              usedPropertyId !== currentPropertyId &&
+              !ga4AutoSyncInFlightRef.current &&
+              lastSyncedGa4PropertyRef.current !== usedPropertyId
+            ) {
+              ga4AutoSyncInFlightRef.current = true;
+              lastSyncedGa4PropertyRef.current = usedPropertyId;
+              const googleSettings = { ...(googleConnection.settings || {}) };
+              void updateConnectionSettings(
+                'google',
+                {
+                  ...googleSettings,
+                  ga4PropertyId: usedPropertyId,
+                  ga4Id: usedPropertyId,
+                },
+                { silent: true }
+              ).finally(() => {
+                ga4AutoSyncInFlightRef.current = false;
+              });
+            }
+          } catch (err) {
+            console.error("Failed to load GA4 live data:", err);
+            if (!isCancelled) {
+              setGa4LiveData(null);
+              setGa4Error(err instanceof Error ? err.message : t('common.error'));
+            }
           }
-        } catch (googleCampaignErr) {
-          console.warn('Failed to sync Google Ads campaigns during overview sync:', googleCampaignErr);
+  
+          try {
+            if (siteUrl) {
+              const gscData = await fetchGSCData(accessToken, siteUrl, resolvedRange);
+              const rows = gscData.rows || [];
+              const clicks = rows.reduce((sum: number, row: any) => sum + Number(row.clicks || 0), 0);
+              const impressions = rows.reduce((sum: number, row: any) => sum + Number(row.impressions || 0), 0);
+              const weightedPosition = rows.reduce((sum: number, row: any) => sum + (Number(row.position || 0) * Number(row.impressions || 0)), 0);
+              const position = impressions > 0 ? weightedPosition / impressions : 0;
+              const ctr = impressions > 0 ? (clicks / impressions) * 100 : 0;
+  
+              if (!isCancelled) {
+                setGscTotals({ clicks, impressions, position, ctr });
+              }
+            }
+          } catch (err) {
+            console.error("Failed to load Search Console data:", err);
+            if (!isCancelled) {
+              setGscTotals(null);
+            }
+          }
+
+          try {
+            const googleAdsId = googleConnection?.settings?.googleAdsId || '';
+            if (googleAdsId) {
+              const googleCampaigns = await fetchGoogleCampaigns(accessToken, googleAdsId, undefined, resolvedRange);
+              syncedAdSpendTotal += googleCampaigns.reduce(
+                (sum, campaign) => sum + parseCurrencyNumber(campaign?.spend),
+                0
+              );
+            }
+          } catch (googleCampaignErr) {
+            console.warn('Failed to sync Google Ads campaigns during overview sync:', googleCampaignErr);
+          }
         }
 
         // 2) Meta sync before WooCommerce.
@@ -246,7 +288,7 @@ export function Dashboard() {
       isCancelled = true;
       window.clearInterval(intervalId);
     };
-  }, [connections, resolvedRange.endDate, resolvedRange.startDate, buildDashboardData, t]);
+  }, [connections, resolvedRange.endDate, resolvedRange.startDate, buildDashboardData, t, isHebrew, updateConnectionSettings]);
 
   useEffect(() => {
     if (!(isWooConnected && overviewSyncStage === 'woocommerce')) {
@@ -276,7 +318,8 @@ export function Dashboard() {
     netProfit: isWooLiveLoading ? '—' : `₪${netProfit.toLocaleString()}`,
   };
 
-  const useGa4Fallback = !ga4LiveData && !ga4Error;
+  const isGoogleConnected = connections.find(c => c.id === 'google')?.status === 'connected';
+  const useGa4Fallback = !isGoogleConnected && !ga4LiveData && !ga4Error;
   const ga4ActiveUsers = ga4LiveData?.activeUsers ?? (useGa4Fallback ? 42 : 0);
   const ga4TotalUsers = ga4LiveData?.totalUsers ?? (useGa4Fallback ? 1247 : 0);
 
