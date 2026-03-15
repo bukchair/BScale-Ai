@@ -171,11 +171,14 @@ export function ConnectionsProvider({ children }: { children: ReactNode }) {
     const user = auth.currentUser;
     if (!user) return;
     const idToken = await user.getIdToken();
-    await fetch('/api/auth/session/bootstrap', {
+    const response = await fetch('/api/auth/session/bootstrap', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ idToken }),
     });
+    if (!response.ok) {
+      throw new Error('Failed to initialize managed API session.');
+    }
   };
 
   const parseManagedPayload = (raw: string) => {
@@ -799,12 +802,17 @@ export function ConnectionsProvider({ children }: { children: ReactNode }) {
   const clearConnectionSettings = async (id: string) => {
     if (isWorkspaceReadOnly) return;
     const managedPlatformSlugs = managedPlatformsByConnectionId[id as Connection['id']] || [];
+    let disconnectFailures: string[] = [];
     if (managedPlatformSlugs.length > 0) {
-      await Promise.allSettled(
+      const results = await Promise.allSettled(
         managedPlatformSlugs.map(async (platformSlug) => {
           await disconnectManagedConnection(platformSlug);
         })
       );
+      disconnectFailures = results
+        .map((result, index) => ({ result, platformSlug: managedPlatformSlugs[index] }))
+        .filter((entry) => entry.result.status === 'rejected')
+        .map((entry) => entry.platformSlug);
     }
 
     const next = connections.map((c) =>
@@ -827,15 +835,31 @@ export function ConnectionsProvider({ children }: { children: ReactNode }) {
     if (managedPlatformSlugs.length > 0) {
       await syncManagedConnectionsToLocal();
     }
+    if (disconnectFailures.length > 0) {
+      throw new Error(`Failed to fully disconnect: ${disconnectFailures.join(', ')}`);
+    }
   };
 
   const resetAllConnections = async () => {
     if (isWorkspaceReadOnly) return;
+    const managedResetTargets: Connection['id'][] = ['google', 'meta', 'tiktok'];
+    const managedResetFailures: string[] = [];
+    for (const targetId of managedResetTargets) {
+      try {
+        await clearConnectionSettings(targetId);
+      } catch {
+        managedResetFailures.push(targetId);
+      }
+    }
+
     const aiPart = connections.filter((c) => AI_CONNECTION_IDS.includes(c.id as any));
     const platformPart = initialConnections.filter((c) => PLATFORM_CONNECTION_IDS.includes(c.id as any));
     const fresh = [...aiPart, ...platformPart];
     setConnections(fresh);
     await persistUserConnections(fresh);
+    if (managedResetFailures.length > 0) {
+      throw new Error(`Failed to fully reset: ${managedResetFailures.join(', ')}`);
+    }
   };
 
   const migrateAiConnectionsFromUser = async (): Promise<{ success: boolean; message: string }> => {

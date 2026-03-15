@@ -1845,11 +1845,24 @@ export function Integrations({ userProfile }: { userProfile?: { role?: string; s
               <button
                 onClick={async () => {
                   if (window.confirm(t('integrations.resetAllConfirm'))) {
-                    await resetAllConnections();
-                    setExpandedId(null);
-                    setFormValues({});
-                    setToast({ message: t('integrations.resetAllDone'), type: 'success' });
-                    setTimeout(() => setToast(null), 3000);
+                    try {
+                      await resetAllConnections();
+                      setExpandedId(null);
+                      setFormValues({});
+                      setToast({ message: t('integrations.resetAllDone'), type: 'success' });
+                      setTimeout(() => setToast(null), 3000);
+                    } catch (err) {
+                      setToast({
+                        message:
+                          err instanceof Error && err.message
+                            ? err.message
+                            : isHebrew
+                            ? 'איפוס כולל נכשל. נסה שוב.'
+                            : 'Failed to reset all connections. Please retry.',
+                        type: 'error',
+                      });
+                      setTimeout(() => setToast(null), 3500);
+                    }
                   }
                 }}
                 className="w-full sm:w-auto flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-white/20 border border-white/30 text-white font-bold text-sm hover:bg-white/30 transition-all"
