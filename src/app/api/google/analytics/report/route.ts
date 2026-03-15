@@ -104,10 +104,12 @@ export async function GET(request: Request) {
         dimensions: [{ name: 'date' }],
         metrics: [
           { name: 'activeUsers' },
+          { name: 'totalUsers' },
           { name: 'sessions' },
           { name: 'conversions' },
           { name: 'totalRevenue' },
         ],
+        metricAggregations: ['TOTAL'],
       }),
     });
 

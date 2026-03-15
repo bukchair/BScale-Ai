@@ -537,6 +537,7 @@ export function Dashboard() {
   });
 
   const [isGa4UsingDemo, setIsGa4UsingDemo] = useState(true);
+  const [hasGa4LiveSnapshot, setHasGa4LiveSnapshot] = useState(false);
   const [isOrdersUsingDemo, setIsOrdersUsingDemo] = useState(true);
   const [isCampaignsUsingDemo, setIsCampaignsUsingDemo] = useState(true);
   const [isGscUsingDemo, setIsGscUsingDemo] = useState(true);
@@ -593,6 +594,7 @@ export function Dashboard() {
       let hasRevenueLive = false;
       let hasSpendLive = false;
       let ga4Live = DEMO_GA4_STATS;
+      let ga4SnapshotLoaded = false;
       let gscLive = DEMO_GSC_STATS;
       let latestOrdersLive: WooCommerceOrder[] = [];
       const campaignRows: CampaignSnapshot[] = [];
@@ -655,21 +657,41 @@ export function Dashboard() {
             endIsoDateOnly
           );
           const rows = Array.isArray(report.rows) ? report.rows : [];
+          const metricHeaders = Array.isArray((report as any).metricHeaders)
+            ? (report as any).metricHeaders
+            : [];
+          const metricIndexByName = metricHeaders.reduce<Record<string, number>>((acc, header, index) => {
+            const name = String(header?.name || '').trim();
+            if (name) acc[name] = index;
+            return acc;
+          }, {});
+          const metricValueByName = (row: any, metricName: string, fallbackIndex: number) => {
+            const metrics = row?.metricValues || row?.metrics || [];
+            const namedIndex = metricIndexByName[metricName];
+            const index =
+              typeof namedIndex === 'number' && Number.isInteger(namedIndex)
+                ? namedIndex
+                : fallbackIndex;
+            return metrics?.[index]?.value;
+          };
           let totalUsers = 0;
           let activeNow = 0;
           rows.forEach((row: any) => {
-            const metrics = row.metricValues || row.metrics || [];
-            totalUsers += moneyFromUnknown(metrics?.[0]?.value);
+            totalUsers += moneyFromUnknown(metricValueByName(row, 'totalUsers', 0));
           });
           if (rows.length) {
-            const latestMetrics = rows[rows.length - 1]?.metricValues || rows[rows.length - 1]?.metrics || [];
-            activeNow = moneyFromUnknown(latestMetrics?.[0]?.value);
+            activeNow = moneyFromUnknown(metricValueByName(rows[rows.length - 1], 'activeUsers', 0));
+          }
+          const totalsRow = Array.isArray((report as any).totals) ? (report as any).totals[0] : undefined;
+          if (totalsRow) {
+            totalUsers = moneyFromUnknown(metricValueByName(totalsRow, 'totalUsers', 0));
           }
           ga4Live = {
             activeNow: toNumber(activeNow, DEMO_GA4_STATS.activeNow),
             totalUsers: toNumber(totalUsers, DEMO_GA4_STATS.totalUsers),
           };
-          hasGa4Live = ga4Live.activeNow > 0 || ga4Live.totalUsers > 0;
+          hasGa4Live = true;
+          ga4SnapshotLoaded = true;
         } catch (error) {
           console.warn('Failed to load GA4 stats', error);
         }
@@ -828,12 +850,15 @@ export function Dashboard() {
       if (hasGa4Live) {
         setGa4Stats(ga4Live);
         setIsGa4UsingDemo(false);
+        setHasGa4LiveSnapshot(ga4SnapshotLoaded);
       } else if (useDemoFallback) {
         setGa4Stats(DEMO_GA4_STATS);
         setIsGa4UsingDemo(true);
+        setHasGa4LiveSnapshot(false);
       } else {
         setGa4Stats({ activeNow: 0, totalUsers: 0 });
         setIsGa4UsingDemo(false);
+        setHasGa4LiveSnapshot(false);
       }
 
       if (hasGscLive) {
@@ -909,13 +934,13 @@ export function Dashboard() {
     avgPosition: toNumber(gscStats.avgPosition, DEMO_GSC_STATS.avgPosition),
     ctr: toNumber(gscStats.ctr, DEMO_GSC_STATS.ctr),
   };
-  const hasGa4Data = isGa4UsingDemo || safeGa4Stats.activeNow > 0 || safeGa4Stats.totalUsers > 0;
+  const hasGa4Data = isGa4UsingDemo || hasGa4LiveSnapshot;
   const hasGscData = isGscUsingDemo || safeGscStats.clicks > 0 || safeGscStats.impressions > 0;
   const hasOrdersData = isOrdersUsingDemo || recentOrders.length > 0;
   const hasCampaignData = isCampaignsUsingDemo || campaignSummary.totalCampaigns > 0;
   const ga4Availability = {
-    activeNow: isGa4UsingDemo || safeGa4Stats.activeNow > 0,
-    totalUsers: isGa4UsingDemo || safeGa4Stats.totalUsers > 0,
+    activeNow: isGa4UsingDemo || hasGa4LiveSnapshot,
+    totalUsers: isGa4UsingDemo || hasGa4LiveSnapshot,
   };
   const campaignAvailability = {
     totalCampaigns: hasCampaignData,
@@ -932,8 +957,8 @@ export function Dashboard() {
     avgPosition: hasGscData,
   };
   const ga4LiveAvailability = {
-    activeNow: !isGa4UsingDemo && ga4Availability.activeNow,
-    totalUsers: !isGa4UsingDemo && ga4Availability.totalUsers,
+    activeNow: !isGa4UsingDemo && hasGa4LiveSnapshot,
+    totalUsers: !isGa4UsingDemo && hasGa4LiveSnapshot,
   };
   const campaignLiveAvailability = {
     totalCampaigns: !isCampaignsUsingDemo && campaignAvailability.totalCampaigns,
