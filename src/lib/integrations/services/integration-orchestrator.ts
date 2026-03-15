@@ -84,11 +84,40 @@ export const integrationOrchestrator = {
         }
       );
 
+      let autoImportedAccounts = 0;
+      if (result.connectionId && provider.supports('ACCOUNT_DISCOVERY')) {
+        try {
+          const discovered = await accountDiscoveryService.run(userId, result.connectionId, provider);
+          if (discovered.length > 0) {
+            await connectionService.setSelectedAccounts(
+              userId,
+              result.connectionId,
+              discovered.map((account) => account.externalAccountId)
+            );
+            autoImportedAccounts = discovered.length;
+          }
+        } catch (autoImportError) {
+          await auditService.log({
+            userId,
+            action: 'accounts_auto_import_failed',
+            platform,
+            connectionId: result.connectionId,
+            details: {
+              message:
+                autoImportError instanceof Error ? autoImportError.message : String(autoImportError),
+            },
+          });
+        }
+      }
+
       await auditService.log({
         userId,
         action: 'connect_success',
         platform,
         connectionId: result.connectionId,
+        details: {
+          autoImportedAccounts,
+        },
       });
 
       return result;
