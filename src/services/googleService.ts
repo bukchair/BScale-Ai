@@ -87,18 +87,45 @@ export async function fetchGoogleCampaigns(
   // Google Ads API returns results in a 'results' array
   return (data.results || []).map((r: any) => {
     const c = r.campaign;
+    const budget = r.campaignBudget || {};
     const m = r.metrics;
     const spend = parseFloat(m.costMicros || 0) / 1000000;
+    const impressions = parseFloat(m.impressions || 0) || 0;
+    const clicks = parseFloat(m.clicks || 0) || 0;
+    const ctr = parseFloat(m.ctr || 0) || (impressions > 0 ? (clicks / impressions) * 100 : 0);
+    const avgCpc = parseFloat(m.averageCpc || 0) / 1000000 || (clicks > 0 ? spend / clicks : 0);
+    const avgCpm = parseFloat(m.averageCpm || 0) / 1000000 || (impressions > 0 ? (spend / impressions) * 1000 : 0);
     const conversions = parseFloat(m.conversions || 0);
     const conversionValue = parseFloat(m.conversionsValue || 0);
     const cpa = conversions > 0 ? spend / conversions : 0;
+    const costPerConversion =
+      parseFloat(m.costPerConversion || 0) / 1000000 || (conversions > 0 ? spend / conversions : 0);
     const roas = spend > 0 ? conversionValue / spend : 0;
+    const budgetMicros = parseFloat(budget.amountMicros || 0) || 0;
 
     return {
       id: c.id,
       name: c.name,
       platform: 'Google',
       status: c.status === 'ENABLED' ? 'Active' : 'Paused',
+      campaignId: c.id || '',
+      advertisingChannelType: c.advertisingChannelType || '',
+      advertisingChannelSubType: c.advertisingChannelSubType || '',
+      biddingStrategyType: c.biddingStrategyType || '',
+      servingStatus: c.servingStatus || '',
+      startDate: c.startDate || '',
+      endDate: c.endDate || '',
+      budget: budgetMicros / 1000000,
+      budgetPeriod: budget.period || '',
+      impressions,
+      clicks,
+      ctr,
+      cpc: avgCpc,
+      cpm: avgCpm,
+      costPerConversion,
+      searchImpressionShare: parseFloat(m.searchImpressionShare || 0) || 0,
+      searchTopImpressionShare: parseFloat(m.searchTopImpressionShare || 0) || 0,
+      absoluteTopImpressionPercentage: parseFloat(m.absoluteTopImpressionPercentage || 0) || 0,
       spend,
       roas: Number.isFinite(roas) ? roas.toFixed(2) : '0.00',
       cpa,

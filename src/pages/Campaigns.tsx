@@ -817,12 +817,29 @@ export function Campaigns() {
                 <div className="overflow-x-auto">
                   {(() => {
                     const isMetaGroup = platformName.toLowerCase() === 'meta';
+                    const isGoogleGroup = platformName.toLowerCase() === 'google';
                     return (
                   <table className="min-w-full divide-y divide-gray-200">
                     <thead className="bg-white">
                       <tr>
                         <th className="px-4 py-2 text-start text-[11px] font-bold text-gray-500 uppercase tracking-wide">{t('campaigns.campaignName')}</th>
                         <th className="px-4 py-2 text-start text-[11px] font-bold text-gray-500 uppercase tracking-wide">{t('campaigns.status')}</th>
+                        {isGoogleGroup && (
+                          <>
+                            <th className="px-4 py-2 text-start text-[11px] font-bold text-gray-500 uppercase tracking-wide">Type</th>
+                            <th className="px-4 py-2 text-start text-[11px] font-bold text-gray-500 uppercase tracking-wide">Sub type</th>
+                            <th className="px-4 py-2 text-start text-[11px] font-bold text-gray-500 uppercase tracking-wide">Bidding</th>
+                            <th className="px-4 py-2 text-start text-[11px] font-bold text-gray-500 uppercase tracking-wide">Impr.</th>
+                            <th className="px-4 py-2 text-start text-[11px] font-bold text-gray-500 uppercase tracking-wide">Clicks</th>
+                            <th className="px-4 py-2 text-start text-[11px] font-bold text-gray-500 uppercase tracking-wide">CTR</th>
+                            <th className="px-4 py-2 text-start text-[11px] font-bold text-gray-500 uppercase tracking-wide">Avg CPC</th>
+                            <th className="px-4 py-2 text-start text-[11px] font-bold text-gray-500 uppercase tracking-wide">Avg CPM</th>
+                            <th className="px-4 py-2 text-start text-[11px] font-bold text-gray-500 uppercase tracking-wide">Cost / Conv</th>
+                            <th className="px-4 py-2 text-start text-[11px] font-bold text-gray-500 uppercase tracking-wide">Conv.</th>
+                            <th className="px-4 py-2 text-start text-[11px] font-bold text-gray-500 uppercase tracking-wide">Conv. Value</th>
+                            <th className="px-4 py-2 text-start text-[11px] font-bold text-gray-500 uppercase tracking-wide">Search IS</th>
+                          </>
+                        )}
                         {isMetaGroup && (
                           <>
                             <th className="px-4 py-2 text-start text-[11px] font-bold text-gray-500 uppercase tracking-wide">Objective</th>
@@ -847,6 +864,26 @@ export function Campaigns() {
                         <tr key={`campaign-row-${platformName}-${campaign.id}`}>
                           <td className="px-4 py-2.5 text-sm font-medium text-gray-900 max-w-[320px] whitespace-normal break-words">
                             <div>{campaign.name}</div>
+                            {isGoogleGroup && (
+                              <div className="mt-1 space-y-0.5 text-[11px] font-normal text-gray-500">
+                                <div>
+                                  ID: <span dir="ltr">{campaign.campaignId || campaign.id || '—'}</span>
+                                  {campaign.servingStatus ? (
+                                    <>
+                                      {' '}| Serving: <span dir="ltr">{campaign.servingStatus}</span>
+                                    </>
+                                  ) : null}
+                                </div>
+                                <div>
+                                  {isHebrew ? 'התחלה' : 'Start'}: {formatDateTime(campaign.startDate)} |{' '}
+                                  {isHebrew ? 'סיום' : 'End'}: {formatDateTime(campaign.endDate)}
+                                </div>
+                                <div>
+                                  {isHebrew ? 'תקציב' : 'Budget'}: {formatCurrency(toAmount(campaign.budget))}{' '}
+                                  {campaign.budgetPeriod ? `(${campaign.budgetPeriod})` : ''}
+                                </div>
+                              </div>
+                            )}
                             {isMetaGroup && (
                               <div className="mt-1 space-y-0.5 text-[11px] font-normal text-gray-500">
                                 <div>
@@ -892,6 +929,22 @@ export function Campaigns() {
                               );
                             })()}
                           </td>
+                          {isGoogleGroup && (
+                            <>
+                              <td className="px-4 py-2.5 whitespace-nowrap text-sm text-gray-600">{campaign.advertisingChannelType || '—'}</td>
+                              <td className="px-4 py-2.5 whitespace-nowrap text-sm text-gray-600">{campaign.advertisingChannelSubType || '—'}</td>
+                              <td className="px-4 py-2.5 whitespace-nowrap text-sm text-gray-600">{campaign.biddingStrategyType || '—'}</td>
+                              <td className="px-4 py-2.5 whitespace-nowrap text-sm text-gray-600">{toAmount(campaign.impressions).toLocaleString()}</td>
+                              <td className="px-4 py-2.5 whitespace-nowrap text-sm text-gray-600">{toAmount(campaign.clicks).toLocaleString()}</td>
+                              <td className="px-4 py-2.5 whitespace-nowrap text-sm text-gray-600">{formatPercent(campaign.ctr)}</td>
+                              <td className="px-4 py-2.5 whitespace-nowrap text-sm text-gray-600">{formatCurrency(toAmount(campaign.cpc))}</td>
+                              <td className="px-4 py-2.5 whitespace-nowrap text-sm text-gray-600">{formatCurrency(toAmount(campaign.cpm))}</td>
+                              <td className="px-4 py-2.5 whitespace-nowrap text-sm text-gray-600">{formatCurrency(toAmount(campaign.costPerConversion))}</td>
+                              <td className="px-4 py-2.5 whitespace-nowrap text-sm text-gray-600">{toAmount(campaign.conversions).toLocaleString()}</td>
+                              <td className="px-4 py-2.5 whitespace-nowrap text-sm text-gray-600">{formatCurrency(toAmount(campaign.conversionValue))}</td>
+                              <td className="px-4 py-2.5 whitespace-nowrap text-sm text-gray-600">{formatPercent(toAmount(campaign.searchImpressionShare) * 100)}</td>
+                            </>
+                          )}
                           {isMetaGroup && (
                             <>
                               <td className="px-4 py-2.5 whitespace-nowrap text-sm text-gray-600">{campaign.objective || '—'}</td>
