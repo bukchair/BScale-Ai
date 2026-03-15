@@ -15,6 +15,30 @@ type ManagedGoogleAdsAccount = {
   timezone?: string | null;
 };
 
+type MetaAssetOption = {
+  id: string;
+  name: string;
+  isSelected?: boolean;
+};
+
+type MetaPixelOption = {
+  id: string;
+  name: string;
+  adAccountId?: string;
+};
+
+type MetaAssetsPayload = {
+  adAccounts: MetaAssetOption[];
+  businesses: MetaAssetOption[];
+  messageAccounts: MetaAssetOption[];
+  pixels: MetaPixelOption[];
+  warnings?: string[];
+  defaultAdAccountId?: string;
+  defaultBusinessId?: string;
+  defaultMessageAccountId?: string;
+  defaultPixelId?: string;
+};
+
 const viteEnv =
   typeof import.meta !== 'undefined'
     ? ((import.meta as unknown as { env?: Record<string, unknown> }).env ?? undefined)
@@ -37,6 +61,8 @@ const formatGoogleAdsAccountId = (value: string) => {
   if (digits.length !== 10) return digits || value;
   return `${digits.slice(0, 3)}-${digits.slice(3, 6)}-${digits.slice(6)}`;
 };
+
+const normalizeMetaAccountId = (value: string) => String(value || '').replace(/^act_/i, '').trim();
 
 const parseManagedGoogleAdsAccounts = (raw: string | undefined): ManagedGoogleAdsAccount[] => {
   if (!raw) return [];
@@ -202,6 +228,9 @@ export function Integrations({ userProfile }: { userProfile?: { role?: string; s
   const [success, setSuccess] = useState<string | null>(null);
 
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+  const [metaAssets, setMetaAssets] = useState<MetaAssetsPayload | null>(null);
+  const [metaAssetsLoading, setMetaAssetsLoading] = useState(false);
+  const [metaAssetsError, setMetaAssetsError] = useState<string | null>(null);
   const [isWizardOpen, setIsWizardOpen] = useState(false);
   const [wizardStep, setWizardStep] = useState<WizardStep>(1);
   const [wizardPlatform, setWizardPlatform] = useState<WizardPlatform>('google');
@@ -491,6 +520,62 @@ export function Integrations({ userProfile }: { userProfile?: { role?: string; s
     });
   };
 
+  const loadManagedMetaAssets = async (seedValues?: Record<string, string>) => {
+    await bootstrapManagedSession();
+    setMetaAssetsLoading(true);
+    setMetaAssetsError(null);
+    try {
+      const response = await fetch(`${API_BASE}/api/connections/meta/assets`, {
+        method: 'GET',
+        headers: { accept: 'application/json' },
+        cache: 'no-store',
+      });
+      const text = await response.text();
+      let payload:
+        | {
+            success?: boolean;
+            message?: string;
+            data?: MetaAssetsPayload;
+          }
+        | null = null;
+      try {
+        payload = text ? JSON.parse(text) : null;
+      } catch {
+        payload = null;
+      }
+
+      if (!response.ok || !payload?.success || !payload?.data) {
+        throw new Error(payload?.message || `Failed to load Meta assets (${response.status}).`);
+      }
+
+      const assets = payload.data;
+      setMetaAssets(assets);
+
+      setFormValues((prev) => {
+        const source = seedValues || prev;
+        const next = { ...prev };
+        if (!String(source.metaAdsId || '').trim() && assets.defaultAdAccountId) {
+          next.metaAdsId = assets.defaultAdAccountId;
+        }
+        if (!String(source.businessId || '').trim() && assets.defaultBusinessId) {
+          next.businessId = assets.defaultBusinessId;
+        }
+        if (!String(source.messageAccountId || '').trim() && assets.defaultMessageAccountId) {
+          next.messageAccountId = assets.defaultMessageAccountId;
+        }
+        if (!String(source.pixelId || '').trim() && assets.defaultPixelId) {
+          next.pixelId = assets.defaultPixelId;
+        }
+        return next;
+      });
+    } catch (err) {
+      setMetaAssets(null);
+      setMetaAssetsError(err instanceof Error ? err.message : 'Failed to load Meta assets.');
+    } finally {
+      setMetaAssetsLoading(false);
+    }
+  };
+
   const startManagedOAuth = async (
     platformSlug: 'google-ads' | 'meta' | 'tiktok',
     failureMessage: string
@@ -667,6 +752,12 @@ export function Integrations({ userProfile }: { userProfile?: { role?: string; s
       setExpandedId(integration.id);
       setFormValues(integration.settings || {});
       setSuccess(null);
+      if (integration.id === 'meta' && integration.status === 'connected') {
+        void loadManagedMetaAssets(integration.settings || {});
+      } else {
+        setMetaAssets(null);
+        setMetaAssetsError(null);
+      }
     }
   };
 
@@ -1017,18 +1108,112 @@ export function Integrations({ userProfile }: { userProfile?: { role?: string; s
                   </div>
                   {isConnected && (
                     <>
-                      <div>
-                        <label className="block text-[10px] font-bold text-gray-500 mb-1 uppercase tracking-wider">{t('integrations.adsAccountId')}</label>
-                        <input type="text" placeholder="act_123456789" className="w-full px-3 py-1.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-xs text-left" dir="ltr" value={formValues.metaAdsId || ""} onChange={(e) => handleInputChange('metaAdsId', e.target.value)} />
+                      <div className="sm:col-span-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            void loadManagedMetaAssets(formValues);
+                          }}
+                          disabled={metaAssetsLoading}
+                          className="w-full inline-flex items-center justify-center gap-2 py-1.5 border border-blue-200 text-blue-700 bg-blue-50 rounded-lg text-xs font-bold hover:bg-blue-100 disabled:opacity-60 disabled:cursor-not-allowed"
+                        >
+                          {metaAssetsLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RotateCcw className="w-3.5 h-3.5" />}
+                          {isHebrew ? 'טען/רענן נכסים קיימים מ‑Meta' : 'Load/refresh existing Meta assets'}
+                        </button>
+                        {metaAssetsError && (
+                          <p className="mt-1 text-[11px] text-red-600">{metaAssetsError}</p>
+                        )}
                       </div>
                       <div>
-                        <label className="block text-[10px] font-bold text-gray-500 mb-1 uppercase tracking-wider">{t('integrations.pixelId')}</label>
-                        <input type="text" placeholder="1234567890" className="w-full px-3 py-1.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-xs text-left" dir="ltr" value={formValues.pixelId || ""} onChange={(e) => handleInputChange('pixelId', e.target.value)} />
+                        <label className="block text-[10px] font-bold text-gray-500 mb-1 uppercase tracking-wider">
+                          {t('integrations.adsAccountId')}
+                        </label>
+                        <select
+                          className="w-full px-3 py-1.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-xs bg-white"
+                          value={normalizeMetaAccountId(formValues.metaAdsId || '')}
+                          onChange={(e) => handleInputChange('metaAdsId', normalizeMetaAccountId(e.target.value))}
+                        >
+                          <option value="">{isHebrew ? 'בחר חשבון מודעות' : 'Select ad account'}</option>
+                          {(metaAssets?.adAccounts || []).map((account) => (
+                            <option key={account.id} value={account.id}>
+                              {account.name} ({account.id.startsWith('act_') ? account.id : `act_${account.id}`})
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-bold text-gray-500 mb-1 uppercase tracking-wider">
+                          {t('integrations.businessId')}
+                        </label>
+                        <select
+                          className="w-full px-3 py-1.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-xs bg-white"
+                          value={formValues.businessId || ''}
+                          onChange={(e) => handleInputChange('businessId', e.target.value)}
+                        >
+                          <option value="">{isHebrew ? 'בחר Business Manager' : 'Select Business Manager'}</option>
+                          {(metaAssets?.businesses || []).map((business) => (
+                            <option key={business.id} value={business.id}>
+                              {business.name} ({business.id})
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-bold text-gray-500 mb-1 uppercase tracking-wider">
+                          {isHebrew ? 'חשבון הודעות' : 'Messaging account'}
+                        </label>
+                        <select
+                          className="w-full px-3 py-1.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-xs bg-white"
+                          value={formValues.messageAccountId || ''}
+                          onChange={(e) => handleInputChange('messageAccountId', e.target.value)}
+                        >
+                          <option value="">{isHebrew ? 'בחר חשבון הודעות' : 'Select messaging account'}</option>
+                          {(metaAssets?.messageAccounts || []).map((account) => (
+                            <option key={account.id} value={account.id}>
+                              {account.name} ({account.id})
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-bold text-gray-500 mb-1 uppercase tracking-wider">
+                          {t('integrations.pixelId')}
+                        </label>
+                        <select
+                          className="w-full px-3 py-1.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-xs bg-white"
+                          value={formValues.pixelId || ''}
+                          onChange={(e) => handleInputChange('pixelId', e.target.value)}
+                        >
+                          <option value="">{isHebrew ? 'בחר Pixel' : 'Select pixel'}</option>
+                          {(metaAssets?.pixels || [])
+                            .filter((pixel) => {
+                              const selectedAccount = normalizeMetaAccountId(formValues.metaAdsId || '');
+                              if (!selectedAccount) return true;
+                              return !pixel.adAccountId || normalizeMetaAccountId(pixel.adAccountId) === selectedAccount;
+                            })
+                            .map((pixel) => (
+                              <option key={`${pixel.adAccountId || 'any'}-${pixel.id}`} value={pixel.id}>
+                                {pixel.name} ({pixel.id})
+                              </option>
+                            ))}
+                        </select>
                       </div>
                       <div className="sm:col-span-2">
                         <label className="block text-[10px] font-bold text-gray-500 mb-1 uppercase tracking-wider">{t('integrations.accessToken')}</label>
                         <input type="password" placeholder="EAAB..." className="w-full px-3 py-1.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-xs text-left bg-gray-50" dir="ltr" value={formValues.metaToken || ""} readOnly />
                       </div>
+                      {Array.isArray(metaAssets?.warnings) && metaAssets.warnings.length > 0 && (
+                        <div className="sm:col-span-2 rounded-lg border border-amber-200 bg-amber-50 p-2">
+                          <p className="text-[11px] font-bold text-amber-800">
+                            {isHebrew ? 'הערות מה‑API של Meta:' : 'Meta API notes:'}
+                          </p>
+                          <ul className="mt-1 list-disc pl-4 text-[11px] text-amber-700 space-y-0.5">
+                            {metaAssets.warnings.slice(0, 3).map((warning, idx) => (
+                              <li key={`meta-warning-${idx}`}>{warning}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
                     </>
                   )}
                 </>

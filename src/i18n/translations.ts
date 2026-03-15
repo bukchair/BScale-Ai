@@ -276,7 +276,7 @@ export const translations = {
       meta: {
         step1: "Click 'Connect with Meta Ads' below",
         step2: "Authorize the app in the popup",
-        step3: "Enter your Ads Account ID (act_...)"
+        step3: "Choose Business Manager, messaging account, ad account and pixel from lists."
       },
       tiktok: {
         step1: "Click 'Connect with TikTok' below",
@@ -860,7 +860,7 @@ export const translations = {
       meta: {
         step1: "לחץ על 'התחבר עם Meta Ads' למטה",
         step2: "אשר את האפליקציה בחלון הקופץ",
-        step3: "הזן את מזהה חשבון המודעות שלך (act_...)"
+        step3: "בחר מתוך רשימות את Business Manager, חשבון הודעות, חשבון מודעות ו‑Pixel."
       },
       tiktok: {
         step1: "לחץ על 'התחבר עם TikTok' למטה",
