@@ -19,6 +19,8 @@ const API_BASE = (() => {
 const META_CACHE_PREFIX = 'bscale:meta-campaigns:';
 const META_RATE_LIMIT_COOLDOWN_MS = 3 * 60 * 1000;
 let metaRateLimitedUntil = 0;
+let lastSuccessfulMetaCampaigns: any[] = [];
+const metaInFlight = new Map<string, Promise<any[]>>();
 
 const isMetaRateLimitMessage = (message: string) => {
   const normalized = String(message || '').toLowerCase();
@@ -131,59 +133,67 @@ export async function fetchMetaCampaigns(
 ) {
   await ensureManagedApiSession(accessToken);
   const cacheKey = buildMetaCacheKey(adAccountId, startDate, endDate);
+  const inFlight = metaInFlight.get(cacheKey);
+  if (inFlight) return inFlight;
 
-  if (Date.now() < metaRateLimitedUntil) {
-    const cached = loadCachedMetaCampaigns(cacheKey);
-    if (cached) return cached;
-  }
-
-  const loadCampaigns = async (candidateAccountId?: string) => {
-    const query = new URLSearchParams();
-    if (candidateAccountId) query.set('ad_account_id', candidateAccountId);
-    if (startDate) query.set('start_date', startDate);
-    if (endDate) query.set('end_date', endDate);
-
-    const response = await fetch(`${API_BASE}/api/connections/meta/campaigns?${query.toString()}`, {
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-      },
-      cache: 'no-store',
-    });
-
-    const payload = await response.json().catch(() => null);
-    return { response, payload };
-  };
-
-  let { response, payload } = await loadCampaigns(adAccountId);
-  if (!response.ok && adAccountId) {
-    const message = String((payload as any)?.message || '').toLowerCase();
-    const hasStaleAccountError =
-      message.includes('unsupported get request') ||
-      message.includes('does not exist') ||
-      message.includes('unknown path components') ||
-      message.includes('cannot access ad account') ||
-      message.includes('permission');
-
-    // Retry once without forcing a possibly stale account id.
-    if (hasStaleAccountError) {
-      ({ response, payload } = await loadCampaigns(undefined));
-    }
-  }
-
-  if (!response.ok) {
-    const message = String((payload as any)?.message || 'Failed to fetch Meta campaigns');
-    if (isMetaRateLimitMessage(message)) {
-      metaRateLimitedUntil = Date.now() + META_RATE_LIMIT_COOLDOWN_MS;
+  const run = async () => {
+    if (Date.now() < metaRateLimitedUntil) {
       const cached = loadCachedMetaCampaigns(cacheKey);
-      if (cached) {
-        return cached;
+      if (cached && cached.length > 0) return cached;
+      if (lastSuccessfulMetaCampaigns.length > 0) return lastSuccessfulMetaCampaigns;
+      throw new Error('Meta is temporarily rate-limited. Please wait 2-3 minutes and retry.');
+    }
+
+    const loadCampaigns = async (candidateAccountId?: string) => {
+      const query = new URLSearchParams();
+      if (candidateAccountId) query.set('ad_account_id', candidateAccountId);
+      if (startDate) query.set('start_date', startDate);
+      if (endDate) query.set('end_date', endDate);
+
+      const response = await fetch(`${API_BASE}/api/connections/meta/campaigns?${query.toString()}`, {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+        cache: 'no-store',
+      });
+
+      const payload = await response.json().catch(() => null);
+      return { response, payload };
+    };
+
+    let { response, payload } = await loadCampaigns(adAccountId);
+    if (!response.ok && adAccountId) {
+      const message = String((payload as any)?.message || '').toLowerCase();
+      const hasStaleAccountError =
+        message.includes('unsupported get request') ||
+        message.includes('does not exist') ||
+        message.includes('unknown path components') ||
+        message.includes('cannot access ad account') ||
+        message.includes('permission');
+
+      // Retry once without forcing a possibly stale account id.
+      if (hasStaleAccountError) {
+        ({ response, payload } = await loadCampaigns(undefined));
       }
     }
-    throw new Error(message);
-  }
 
-  const campaigns = Array.isArray((payload as any)?.data) ? (payload as any).data : [];
-  const mapped = campaigns.map((c: any) => {
+    if (!response.ok) {
+      const message = String((payload as any)?.message || 'Failed to fetch Meta campaigns');
+      if (isMetaRateLimitMessage(message) || response.status === 429) {
+        metaRateLimitedUntil = Date.now() + META_RATE_LIMIT_COOLDOWN_MS;
+        const cached = loadCachedMetaCampaigns(cacheKey);
+        if (cached && cached.length > 0) {
+          return cached;
+        }
+        if (lastSuccessfulMetaCampaigns.length > 0) {
+          return lastSuccessfulMetaCampaigns;
+        }
+      }
+      throw new Error(message);
+    }
+
+    const campaigns = Array.isArray((payload as any)?.data) ? (payload as any).data : [];
+    const mapped = campaigns.map((c: any) => {
     const insights = c.insights?.data?.[0] || {};
     const spend = parseFloat(insights.spend || 0) || 0;
     const impressions = parseFloat(insights.impressions || 0) || 0;
@@ -262,8 +272,18 @@ export async function fetchMetaCampaigns(
       conversions,
       conversionValue,
     };
-  });
+    });
 
-  saveCachedMetaCampaigns(cacheKey, mapped);
-  return mapped;
+    saveCachedMetaCampaigns(cacheKey, mapped);
+    if (mapped.length > 0) {
+      lastSuccessfulMetaCampaigns = mapped;
+    }
+    return mapped;
+  };
+
+  const requestPromise = run().finally(() => {
+    metaInFlight.delete(cacheKey);
+  });
+  metaInFlight.set(cacheKey, requestPromise);
+  return requestPromise;
 }

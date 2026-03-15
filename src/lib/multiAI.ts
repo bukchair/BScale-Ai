@@ -9,6 +9,10 @@ export type AIKeys = { gemini?: string; openai?: string; claude?: string };
 const GEMINI_NOT_FOUND_COOLDOWN_MS = 10 * 60 * 1000;
 let geminiBlockedUntil = 0;
 
+function isGeminiTemporarilyBlocked() {
+  return Date.now() < geminiBlockedUntil;
+}
+
 function normalizeProviderKey(value: string | undefined): string {
   const trimmed = String(value || '').trim();
   if (!trimmed) return '';
@@ -172,9 +176,10 @@ export async function requestJSON<T = unknown>(
 
 /** Check if at least one AI key is configured */
 export function hasAnyAIKey(keys: AIKeys): boolean {
-  return !!(
-    normalizeProviderKey(keys.gemini) ||
-    normalizeProviderKey(keys.openai) ||
-    normalizeProviderKey(keys.claude)
-  );
+  const geminiKey = normalizeProviderKey(keys.gemini);
+  const openaiKey = normalizeProviderKey(keys.openai);
+  const claudeKey = normalizeProviderKey(keys.claude);
+  const hasFallbackProvider = Boolean(openaiKey || claudeKey);
+  const hasUsableGemini = Boolean(geminiKey) && (!isGeminiTemporarilyBlocked() || hasFallbackProvider);
+  return Boolean(hasUsableGemini || hasFallbackProvider);
 }
