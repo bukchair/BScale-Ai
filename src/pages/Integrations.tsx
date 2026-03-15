@@ -6,6 +6,24 @@ import { useConnections, Connection } from '../contexts/ConnectionsContext';
 import { useLanguage } from '../contexts/LanguageContext';
 import { fetchGoogleDiscovery } from '../services/googleService';
 
+type ConnectionFlowState = {
+  integrated: boolean;
+  assetsLoaded: boolean;
+  tested: boolean;
+};
+
+type MetaAssetOption = { id: string; name: string };
+type MetaAssetsData = {
+  adAccounts: MetaAssetOption[];
+  businesses: MetaAssetOption[];
+  messageAccounts: MetaAssetOption[];
+  pixels: Array<MetaAssetOption & { adAccountId?: string }>;
+  defaultAdAccountId?: string;
+  defaultBusinessId?: string;
+  defaultMessageAccountId?: string;
+  defaultPixelId?: string;
+};
+
 const iconMap: Record<string, React.ElementType> = {
   'gemini': Sparkles,
   'google': Megaphone,
@@ -26,12 +44,16 @@ const brandStyles: Record<string, { bg: string, text: string, border: string, li
 
 export function Integrations() {
   const { t, dir } = useLanguage();
+  const isHebrew = dir === 'rtl';
   const { connections, toggleConnection, updateConnectionSettings, testConnection } = useConnections();
   const [error, setError] = useState<{ id: string; message: string } | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [formValues, setFormValues] = useState<Record<string, string>>({});
   const [testingId, setTestingId] = useState<string | null>(null);
   const [discoveringGoogle, setDiscoveringGoogle] = useState(false);
+  const [metaAssetsLoading, setMetaAssetsLoading] = useState(false);
+  const [metaAssets, setMetaAssets] = useState<MetaAssetsData | null>(null);
+  const [connectionFlowState, setConnectionFlowState] = useState<Record<string, ConnectionFlowState>>({});
 
   const [success, setSuccess] = useState<string | null>(null);
 
@@ -46,6 +68,68 @@ export function Integrations() {
     if (!connection) return 'Integration';
     const translated = t(connection.name);
     return translated === connection.name ? connection.id : translated;
+  };
+
+  const supportsStructuredFlow = (integrationId: string) =>
+    integrationId === 'google' || integrationId === 'meta' || integrationId === 'tiktok';
+
+  const getFlowState = (integration: Connection): ConnectionFlowState => {
+    const saved = connectionFlowState[integration.id];
+    const settings = integration.settings || {};
+
+    const integratedFromSettings =
+      integration.id === 'google'
+        ? Boolean(settings.googleAccessToken || formValues.googleAccessToken)
+        : integration.id === 'meta'
+        ? Boolean(settings.metaToken || formValues.metaToken)
+        : integration.id === 'tiktok'
+        ? Boolean(settings.tiktokToken || formValues.tiktokToken)
+        : integration.status === 'connected';
+
+    const assetsLoadedFromSettings =
+      integration.id === 'google'
+        ? Boolean(
+            formValues.googleAdsId ||
+              formValues.ga4PropertyId ||
+              formValues.ga4Id ||
+              formValues.gscSiteUrl ||
+              settings.googleAdsId ||
+              settings.ga4PropertyId ||
+              settings.ga4Id ||
+              settings.gscSiteUrl
+          )
+        : integration.id === 'meta'
+        ? Boolean(
+            formValues.metaAdsId ||
+              formValues.pixelId ||
+              formValues.businessId ||
+              formValues.messageAccountId ||
+              settings.metaAdsId ||
+              settings.pixelId ||
+              settings.businessId ||
+              settings.messageAccountId
+          )
+        : integration.id === 'tiktok'
+        ? Boolean(formValues.tiktokAdvertiserId || settings.tiktokAdvertiserId)
+        : true;
+
+    return {
+      integrated: Boolean(saved?.integrated || integration.status === 'connected' || integratedFromSettings),
+      assetsLoaded: Boolean(saved?.assetsLoaded || assetsLoadedFromSettings),
+      tested: Boolean(saved?.tested),
+    };
+  };
+
+  const patchFlowState = (integrationId: string, patch: Partial<ConnectionFlowState>) => {
+    setConnectionFlowState((prev) => ({
+      ...prev,
+      [integrationId]: {
+        integrated: prev[integrationId]?.integrated || false,
+        assetsLoaded: prev[integrationId]?.assetsLoaded || false,
+        tested: prev[integrationId]?.tested || false,
+        ...patch,
+      },
+    }));
   };
 
   const handleTikTokConnect = async () => {
@@ -128,6 +212,137 @@ export function Integrations() {
     };
   };
 
+  const handleMetaAssetsLoad = async () => {
+    const metaConn = connections.find((c) => c.id === 'meta');
+    const token = formValues.metaToken || metaConn?.settings?.metaToken || '';
+    if (!token) {
+      setToast({
+        message: isHebrew
+          ? 'תחילה בצע שילוב Meta כדי לטעון נכסים קיימים.'
+          : 'Please connect Meta first to load existing assets.',
+        type: 'error',
+      });
+      return;
+    }
+
+    setMetaAssetsLoading(true);
+    try {
+      const loadMetaAssetsDirectly = async (): Promise<MetaAssetsData> => {
+        const apiVersion = 'v21.0';
+        const base = `https://graph.facebook.com/${apiVersion}`;
+        const fetchJson = async (url: string) => {
+          const response = await fetch(url);
+          const json = await response.json().catch(() => ({}));
+          if (!response.ok) {
+            throw new Error(
+              (json && typeof json === 'object' && (json as any).error?.message) ||
+                `Meta API error (${response.status})`
+            );
+          }
+          return json as any;
+        };
+
+        const pages = await fetchJson(
+          `${base}/me/accounts?fields=id,name&limit=200&access_token=${encodeURIComponent(token)}`
+        );
+        const businesses = await fetchJson(
+          `${base}/me/businesses?fields=id,name&limit=200&access_token=${encodeURIComponent(token)}`
+        );
+        const adAccounts = await fetchJson(
+          `${base}/me/adaccounts?fields=account_id,name&limit=200&access_token=${encodeURIComponent(token)}`
+        );
+
+        const mappedAdAccounts: MetaAssetOption[] = (adAccounts.data || [])
+          .filter((item: any) => item?.account_id)
+          .map((item: any) => ({
+            id: String(item.account_id),
+            name: String(item.name || item.account_id),
+          }));
+        const mappedBusinesses: MetaAssetOption[] = (businesses.data || [])
+          .filter((item: any) => item?.id)
+          .map((item: any) => ({
+            id: String(item.id),
+            name: String(item.name || item.id),
+          }));
+        const mappedPages: MetaAssetOption[] = (pages.data || [])
+          .filter((item: any) => item?.id)
+          .map((item: any) => ({
+            id: String(item.id),
+            name: String(item.name || item.id),
+          }));
+
+        const pixels: Array<MetaAssetOption & { adAccountId?: string }> = [];
+        for (const account of mappedAdAccounts.slice(0, 50)) {
+          try {
+            const px = await fetchJson(
+              `${base}/act_${account.id}/adspixels?fields=id,name&limit=200&access_token=${encodeURIComponent(token)}`
+            );
+            (px.data || []).forEach((p: any) => {
+              if (!p?.id) return;
+              pixels.push({
+                id: String(p.id),
+                name: String(p.name || p.id),
+                adAccountId: account.id,
+              });
+            });
+          } catch {
+            // Continue collecting pixels from other accounts.
+          }
+        }
+
+        return {
+          adAccounts: mappedAdAccounts,
+          businesses: mappedBusinesses,
+          messageAccounts: mappedPages,
+          pixels,
+          defaultAdAccountId: mappedAdAccounts[0]?.id || '',
+          defaultBusinessId: mappedBusinesses[0]?.id || '',
+          defaultMessageAccountId: mappedPages[0]?.id || '',
+          defaultPixelId: pixels[0]?.id || '',
+        };
+      };
+
+      const response = await fetch('/api/connections/meta/assets', {
+        method: 'GET',
+        headers: {
+          authorization: `Bearer ${token}`,
+        },
+      });
+      const payload = (await response.json().catch(() => null)) as
+        | { success?: boolean; message?: string; data?: MetaAssetsData }
+        | null;
+      const data =
+        response.ok && payload?.success && payload?.data ? payload.data : await loadMetaAssetsDirectly();
+      setMetaAssets(data);
+
+      setFormValues((prev) => ({
+        ...prev,
+        metaAdsId: prev.metaAdsId || data.defaultAdAccountId || '',
+        businessId: prev.businessId || data.defaultBusinessId || '',
+        messageAccountId: prev.messageAccountId || data.defaultMessageAccountId || '',
+        pixelId: prev.pixelId || data.defaultPixelId || '',
+      }));
+      patchFlowState('meta', { assetsLoaded: true, tested: false });
+
+      setToast({
+        message: isHebrew ? 'נכסי Meta נטענו בהצלחה.' : 'Meta assets loaded successfully.',
+        type: 'success',
+      });
+    } catch (err) {
+      setToast({
+        message:
+          err instanceof Error
+            ? err.message
+            : isHebrew
+            ? 'טעינת נכסי Meta נכשלה.'
+            : 'Failed to load Meta assets.',
+        type: 'error',
+      });
+    } finally {
+      setMetaAssetsLoading(false);
+    }
+  };
+
   const handleGoogleDiscovery = async () => {
     const googleConn = connections.find(c => c.id === 'google');
     const accessToken = formValues.googleAccessToken || googleConn?.settings?.googleAccessToken;
@@ -141,7 +356,7 @@ export function Integrations() {
       const discoveredSettings = await getDiscoveredGoogleSettings(accessToken);
       const mergedSettings = { ...formValues, ...discoveredSettings };
       setFormValues(mergedSettings);
-      await handleSave('google', mergedSettings);
+      patchFlowState('google', { assetsLoaded: true, tested: false });
       setToast({ message: t('integrations.oauth.googleScanSuccess'), type: 'success' });
     } catch (err) {
       console.error("Google discovery failed:", err);
@@ -163,19 +378,23 @@ export function Integrations() {
 
       if (event.data?.type === 'OAUTH_AUTH_SUCCESS' && event.data?.platform === 'tiktok') {
         const { data } = event.data;
-        // Update connection settings with the new token
-        handleSave('tiktok', { 
-          tiktokToken: data.access_token,
-        });
+        setExpandedId('tiktok');
+        setFormValues((prev) => ({
+          ...prev,
+          tiktokToken: data.access_token || '',
+        }));
+        patchFlowState('tiktok', { integrated: true, tested: false });
         setToast({ message: t('integrations.oauth.tiktokConnected'), type: 'success' });
       }
 
       if (event.data?.type === 'OAUTH_AUTH_SUCCESS' && event.data?.platform === 'meta') {
         const { data } = event.data;
-        // Update connection settings with the new token
-        handleSave('meta', { 
-          metaToken: data.access_token,
-        });
+        setExpandedId('meta');
+        setFormValues((prev) => ({
+          ...prev,
+          metaToken: data.access_token || '',
+        }));
+        patchFlowState('meta', { integrated: true, tested: false });
         setToast({ message: t('integrations.oauth.metaConnected'), type: 'success' });
       }
 
@@ -188,13 +407,16 @@ export function Integrations() {
           googleExpiry: (Date.now() + tokens.expires_in * 1000).toString(),
         };
 
+        setExpandedId('google');
         try {
           const discoveredSettings = await getDiscoveredGoogleSettings(tokens.access_token);
-          await handleSave('google', { ...tokenSettings, ...discoveredSettings });
+          setFormValues((prev) => ({ ...prev, ...tokenSettings, ...discoveredSettings }));
+          patchFlowState('google', { integrated: true, assetsLoaded: true, tested: false });
           setToast({ message: t('integrations.oauth.googleConnectedAndSynced'), type: 'success' });
         } catch (err) {
           console.error("Google discovery during OAuth failed:", err);
-          await handleSave('google', tokenSettings);
+          setFormValues((prev) => ({ ...prev, ...tokenSettings }));
+          patchFlowState('google', { integrated: true, tested: false });
           setToast({ message: t('integrations.oauth.googleConnectedScanFailed'), type: 'error' });
         }
       }
@@ -214,12 +436,28 @@ export function Integrations() {
     } else {
       setExpandedId(integration.id);
       setFormValues(integration.settings || {});
+      setMetaAssets(null);
+      patchFlowState(integration.id, {
+        integrated: integration.status === 'connected',
+        assetsLoaded:
+          integration.id === 'google'
+            ? Boolean(integration.settings?.googleAdsId || integration.settings?.ga4PropertyId || integration.settings?.ga4Id || integration.settings?.gscSiteUrl)
+            : integration.id === 'meta'
+            ? Boolean(integration.settings?.metaAdsId || integration.settings?.pixelId || integration.settings?.businessId || integration.settings?.messageAccountId)
+            : integration.id === 'tiktok'
+            ? Boolean(integration.settings?.tiktokAdvertiserId)
+            : true,
+        tested: false,
+      });
       setSuccess(null);
     }
   };
 
   const handleInputChange = (key: string, value: string) => {
     setFormValues(prev => ({ ...prev, [key]: value }));
+    if (expandedId && supportsStructuredFlow(expandedId)) {
+      patchFlowState(expandedId, { tested: false });
+    }
   };
 
   const handleSave = async (id: string, overrideSettings?: Record<string, string>) => {
@@ -244,6 +482,7 @@ export function Integrations() {
     try {
       const result = await testConnection(id);
       if (result.success) {
+        patchFlowState(id, { tested: true });
         setSuccess(result.message);
         setToast({ message: result.message, type: 'success' });
         setTimeout(() => {
@@ -251,11 +490,13 @@ export function Integrations() {
           setToast(null);
         }, 5000);
       } else {
+        patchFlowState(id, { tested: false });
         setError({ id, message: result.message });
         setToast({ message: result.message, type: 'error' });
         setTimeout(() => setToast(null), 5000);
       }
     } catch (err) {
+      patchFlowState(id, { tested: false });
       setError({ id, message: t('common.error') });
       setToast({ message: t('common.error'), type: 'error' });
       setTimeout(() => setToast(null), 5000);
@@ -268,6 +509,9 @@ export function Integrations() {
     setError(null);
     try {
       await toggleConnection(id, subId);
+      if (supportsStructuredFlow(id)) {
+        patchFlowState(id, { integrated: false, assetsLoaded: false, tested: false });
+      }
     } catch (err) {
       setError({ id, message: t('common.error') });
     }
@@ -447,6 +691,12 @@ export function Integrations() {
   const renderIntegrationSettings = (integration: Connection) => {
     const isConnected = integration.status === 'connected';
     const isConnecting = integration.status === 'connecting';
+    const isFlowStructured = supportsStructuredFlow(integration.id);
+    const flowState = getFlowState(integration);
+    const canRunTest = !isConnecting && (!isFlowStructured || (flowState.integrated && flowState.assetsLoaded));
+    const canSaveConnection =
+      !isConnecting &&
+      (!isFlowStructured || (flowState.integrated && flowState.assetsLoaded && flowState.tested));
 
     return (
       <motion.div 
@@ -471,6 +721,31 @@ export function Integrations() {
 
         <div className="flex flex-col lg:flex-row gap-4">
           <div className="flex-1 space-y-3">
+            {isFlowStructured && (
+              <div className="rounded-lg border border-indigo-100 bg-indigo-50/60 p-3">
+                <h5 className="text-[11px] font-black text-indigo-800 mb-2">
+                  {isHebrew ? 'סדר חיבור מומלץ (4 שלבים)' : 'Recommended connection flow (4 steps)'}
+                </h5>
+                <ol className="space-y-1.5 text-[11px] text-indigo-900">
+                  <li className="flex items-center gap-2">
+                    <CheckCircle2 className={cn('w-3.5 h-3.5', flowState.integrated ? 'text-emerald-600' : 'text-gray-400')} />
+                    {isHebrew ? '1) שילוב (Connect/Reconnect)' : '1) Integrate (Connect/Reconnect)'}
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <CheckCircle2 className={cn('w-3.5 h-3.5', flowState.assetsLoaded ? 'text-emerald-600' : 'text-gray-400')} />
+                    {isHebrew ? '2) טעינת נכסים קיימים' : '2) Load existing assets'}
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <CheckCircle2 className={cn('w-3.5 h-3.5', flowState.tested ? 'text-emerald-600' : 'text-gray-400')} />
+                    {isHebrew ? '3) בדיקת חיבור' : '3) Test connection'}
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-indigo-500" />
+                    {isHebrew ? '4) שמור חיבור (רק שמירה סוגרת)' : '4) Save connection (only save closes)'}
+                  </li>
+                </ol>
+              </div>
+            )}
             {/* Dynamic Form Fields based on Integration ID */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-3">
               {integration.id === 'gemini' && (
@@ -498,7 +773,10 @@ export function Integrations() {
                 <>
                   <div className="sm:col-span-2">
                     <button
-                      onClick={() => handleGoogleConnect(false)}
+                      onClick={() => {
+                        patchFlowState('google', { integrated: false, tested: false });
+                        void handleGoogleConnect(false);
+                      }}
                       className="w-full flex items-center justify-center gap-2 bg-blue-500 text-white py-2 rounded-lg font-bold hover:bg-blue-600 transition-all shadow-sm hover:shadow-md active:scale-[0.98]"
                     >
                       <Megaphone className="w-4 h-4" />
@@ -507,14 +785,17 @@ export function Integrations() {
                   </div>
                   <div className="sm:col-span-2">
                     <button
-                      onClick={() => handleGoogleConnect(true)}
+                      onClick={() => {
+                        patchFlowState('google', { integrated: false, tested: false });
+                        void handleGoogleConnect(true);
+                      }}
                       className="w-full flex items-center justify-center gap-2 bg-white border border-blue-200 text-blue-700 py-2 rounded-lg font-bold hover:bg-blue-50 transition-all"
                     >
                       <ExternalLink className="w-4 h-4" />
                       {t('integrations.connectGoogleDifferent')}
                     </button>
                   </div>
-                  {isConnected && (
+                  {(isFlowStructured ? flowState.integrated : isConnected) && (
                     <div className="sm:col-span-2">
                       <button
                         onClick={handleGoogleDiscovery}
@@ -526,7 +807,7 @@ export function Integrations() {
                       </button>
                     </div>
                   )}
-                  {isConnected && (
+                  {(isFlowStructured ? flowState.integrated : isConnected) && (
                     <>
                       <div>
                         <label className="block text-[10px] font-bold text-gray-500 mb-1 uppercase tracking-wider">{t('integrations.adsAccountId')}</label>
@@ -553,22 +834,109 @@ export function Integrations() {
                 <>
                   <div className="sm:col-span-2">
                     <button
-                      onClick={handleMetaConnect}
+                      onClick={() => {
+                        patchFlowState('meta', { integrated: false, tested: false });
+                        void handleMetaConnect();
+                      }}
                       className="w-full flex items-center justify-center gap-2 bg-blue-600 text-white py-2 rounded-lg font-bold hover:bg-blue-700 transition-all shadow-sm hover:shadow-md active:scale-[0.98]"
                     >
                       <Facebook className="w-4 h-4" />
                       {isConnected ? t('integrations.reconnectMeta') : t('integrations.connectMeta')}
                     </button>
                   </div>
-                  {isConnected && (
+                  {(isFlowStructured ? flowState.integrated : isConnected) && (
                     <>
+                      <div className="sm:col-span-2">
+                        <button
+                          onClick={() => {
+                            void handleMetaAssetsLoad();
+                          }}
+                          disabled={metaAssetsLoading}
+                          className="w-full flex items-center justify-center gap-2 bg-indigo-50 text-indigo-700 py-2 rounded-lg font-bold hover:bg-indigo-100 transition-all border border-indigo-100 disabled:opacity-60"
+                        >
+                          {metaAssetsLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
+                          {isHebrew ? 'טען נכסים קיימים מ‑Meta (שלב 2)' : 'Load existing Meta assets (step 2)'}
+                        </button>
+                      </div>
                       <div>
                         <label className="block text-[10px] font-bold text-gray-500 mb-1 uppercase tracking-wider">{t('integrations.adsAccountId')}</label>
-                        <input type="text" placeholder="act_123456789" className="w-full px-3 py-1.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-xs text-left" dir="ltr" value={formValues.metaAdsId || ""} onChange={(e) => handleInputChange('metaAdsId', e.target.value)} />
+                        {metaAssets?.adAccounts?.length ? (
+                          <select
+                            className="w-full px-3 py-1.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-xs bg-white"
+                            value={formValues.metaAdsId || ''}
+                            onChange={(e) => handleInputChange('metaAdsId', e.target.value)}
+                          >
+                            <option value="">{isHebrew ? 'בחר חשבון מודעות' : 'Select ads account'}</option>
+                            {metaAssets.adAccounts.map((account) => (
+                              <option key={account.id} value={account.id}>
+                                {account.name} (act_{account.id})
+                              </option>
+                            ))}
+                          </select>
+                        ) : (
+                          <input type="text" placeholder="act_123456789" className="w-full px-3 py-1.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-xs text-left" dir="ltr" value={formValues.metaAdsId || ""} onChange={(e) => handleInputChange('metaAdsId', e.target.value)} />
+                        )}
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-bold text-gray-500 mb-1 uppercase tracking-wider">{t('integrations.businessId')}</label>
+                        {metaAssets?.businesses?.length ? (
+                          <select
+                            className="w-full px-3 py-1.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-xs bg-white"
+                            value={formValues.businessId || ''}
+                            onChange={(e) => handleInputChange('businessId', e.target.value)}
+                          >
+                            <option value="">{isHebrew ? 'בחר Business Manager' : 'Select Business Manager'}</option>
+                            {metaAssets.businesses.map((business) => (
+                              <option key={business.id} value={business.id}>
+                                {business.name} ({business.id})
+                              </option>
+                            ))}
+                          </select>
+                        ) : (
+                          <input type="text" placeholder="112233445566778" className="w-full px-3 py-1.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-xs text-left" dir="ltr" value={formValues.businessId || ""} onChange={(e) => handleInputChange('businessId', e.target.value)} />
+                        )}
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-bold text-gray-500 mb-1 uppercase tracking-wider">
+                          {isHebrew ? 'חשבון הודעות' : 'Messaging account'}
+                        </label>
+                        {metaAssets?.messageAccounts?.length ? (
+                          <select
+                            className="w-full px-3 py-1.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-xs bg-white"
+                            value={formValues.messageAccountId || ''}
+                            onChange={(e) => handleInputChange('messageAccountId', e.target.value)}
+                          >
+                            <option value="">{isHebrew ? 'בחר חשבון הודעות' : 'Select messaging account'}</option>
+                            {metaAssets.messageAccounts.map((account) => (
+                              <option key={account.id} value={account.id}>
+                                {account.name} ({account.id})
+                              </option>
+                            ))}
+                          </select>
+                        ) : (
+                          <input type="text" placeholder={isHebrew ? "מזהה דף/חשבון הודעות" : "Page/messaging account ID"} className="w-full px-3 py-1.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-xs text-left" dir="ltr" value={formValues.messageAccountId || ""} onChange={(e) => handleInputChange('messageAccountId', e.target.value)} />
+                        )}
                       </div>
                       <div>
                         <label className="block text-[10px] font-bold text-gray-500 mb-1 uppercase tracking-wider">{t('integrations.pixelId')}</label>
-                        <input type="text" placeholder="1234567890" className="w-full px-3 py-1.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-xs text-left" dir="ltr" value={formValues.pixelId || ""} onChange={(e) => handleInputChange('pixelId', e.target.value)} />
+                        {metaAssets?.pixels?.length ? (
+                          <select
+                            className="w-full px-3 py-1.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-xs bg-white"
+                            value={formValues.pixelId || ''}
+                            onChange={(e) => handleInputChange('pixelId', e.target.value)}
+                          >
+                            <option value="">{isHebrew ? 'בחר Pixel' : 'Select Pixel'}</option>
+                            {metaAssets.pixels
+                              .filter((pixel) => !formValues.metaAdsId || pixel.adAccountId === formValues.metaAdsId)
+                              .map((pixel) => (
+                                <option key={`${pixel.adAccountId || 'any'}-${pixel.id}`} value={pixel.id}>
+                                  {pixel.name} ({pixel.id})
+                                </option>
+                              ))}
+                          </select>
+                        ) : (
+                          <input type="text" placeholder="1234567890" className="w-full px-3 py-1.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-xs text-left" dir="ltr" value={formValues.pixelId || ""} onChange={(e) => handleInputChange('pixelId', e.target.value)} />
+                        )}
                       </div>
                       <div className="sm:col-span-2">
                         <label className="block text-[10px] font-bold text-gray-500 mb-1 uppercase tracking-wider">{t('integrations.accessToken')}</label>
@@ -583,14 +951,17 @@ export function Integrations() {
                 <>
                   <div className="sm:col-span-2">
                     <button
-                      onClick={handleTikTokConnect}
+                      onClick={() => {
+                        patchFlowState('tiktok', { integrated: false, tested: false });
+                        void handleTikTokConnect();
+                      }}
                       className="w-full flex items-center justify-center gap-2 bg-black text-white py-2 rounded-lg font-bold hover:bg-gray-900 transition-all shadow-sm hover:shadow-md active:scale-[0.98]"
                     >
                       <Video className="w-4 h-4" />
                       {isConnected ? t('integrations.reconnectTikTok') : t('integrations.connectTikTok')}
                     </button>
                   </div>
-                  {isConnected && (
+                  {(isFlowStructured ? flowState.integrated : isConnected) && (
                     <>
                       <div>
                         <label className="block text-[10px] font-bold text-gray-500 mb-1 uppercase tracking-wider">{t('integrations.advertiserId')}</label>
@@ -641,7 +1012,38 @@ export function Integrations() {
             </div>
 
             <div className="flex items-center gap-2 pt-3 border-t border-gray-100">
-              {!isConnected ? (
+              {isFlowStructured ? (
+                <>
+                  <button
+                    onClick={() => handleTest(integration.id)}
+                    disabled={testingId === integration.id || !canRunTest}
+                    className="flex-1 bg-indigo-50 text-indigo-600 px-3 py-2 rounded-lg text-xs font-bold hover:bg-indigo-100 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                  >
+                    {testingId === integration.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
+                    {isHebrew ? 'בדיקת חיבור (שלב 3)' : 'Test connection (step 3)'}
+                  </button>
+                  <button
+                    onClick={() => handleSave(integration.id)}
+                    disabled={!canSaveConnection}
+                    className="flex-1 bg-white border border-gray-200 text-gray-700 px-3 py-2 rounded-lg text-xs font-bold hover:bg-gray-50 transition-all shadow-sm flex items-center justify-center gap-2 disabled:opacity-50"
+                  >
+                    {isConnecting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />}
+                    {isHebrew ? 'שמור חיבור (שלב 4)' : 'Save connection (step 4)'}
+                  </button>
+                  {isConnected && (
+                    <button
+                      onClick={() => {
+                        handleToggle(integration.id);
+                      }}
+                      disabled={isConnecting}
+                      className="px-3 py-2 bg-red-50 text-red-600 hover:bg-red-100 rounded-lg text-xs font-bold transition-colors flex items-center justify-center gap-2"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      {t('integrations.disconnect')}
+                    </button>
+                  )}
+                </>
+              ) : !isConnected ? (
                 <button
                   onClick={() => handleSave(integration.id)}
                   disabled={isConnecting}
@@ -671,7 +1073,6 @@ export function Integrations() {
                   <button
                     onClick={() => {
                       handleToggle(integration.id);
-                      setExpandedId(null);
                     }}
                     disabled={isConnecting}
                     className="px-3 py-2 bg-red-50 text-red-600 hover:bg-red-100 rounded-lg text-xs font-bold transition-colors flex items-center justify-center gap-2"
