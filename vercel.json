@@ -1,4 +1,5 @@
 {
+  "buildCommand": "npm run build && npm run next:build",
   "rewrites": [
     {
       "source": "/((?!api/).*)",

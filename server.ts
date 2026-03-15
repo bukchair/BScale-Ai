@@ -123,9 +123,9 @@ async function startServer() {
 
   // TikTok OAuth Routes
   app.get("/api/auth/tiktok/url", (req, res) => {
-    const appId = process.env.TIKTOK_APP_ID;
+    const appId = process.env.TIKTOK_CLIENT_KEY;
     const redirectUri = process.env.TIKTOK_REDIRECT_URI || `${req.protocol}://${req.get("host")}/api/auth/tiktok/callback`;
-    
+
     if (!appId) {
       return res.status(500).json({ message: "TikTok App ID not configured" });
     }
@@ -154,8 +154,8 @@ async function startServer() {
 
     try {
       const response = await axios.post("https://business-api.tiktok.com/open_api/v1.3/oauth2/access_token/", {
-        app_id: process.env.TIKTOK_APP_ID,
-        secret: process.env.TIKTOK_SECRET,
+        app_id: process.env.TIKTOK_CLIENT_KEY,
+        secret: process.env.TIKTOK_CLIENT_SECRET,
         auth_code: auth_code
       });
 
