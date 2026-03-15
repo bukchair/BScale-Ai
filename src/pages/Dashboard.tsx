@@ -65,11 +65,17 @@ export function Dashboard() {
     const googleConnection = connections.find(c => c.id === 'google');
     const metaConnection = connections.find(c => c.id === 'meta');
     const wooConnection = connections.find(c => c.id === 'woocommerce');
+    const tiktokConnection = connections.find(c => c.id === 'tiktok');
     const accessToken = googleConnection?.settings?.googleAccessToken;
     const propertyId = googleConnection?.settings?.ga4PropertyId || googleConnection?.settings?.ga4Id;
     const siteUrl = googleConnection?.settings?.gscSiteUrl;
+    const isGoogleConnected = googleConnection?.status === 'connected';
+    const isMetaConnected = metaConnection?.status === 'connected';
+    const isTikTokConnected = tiktokConnection?.status === 'connected';
+    const isWooConnectedNow = wooConnection?.status === 'connected';
+    const hasAnyConnectedPlatform = isGoogleConnected || isMetaConnected || isTikTokConnected || isWooConnectedNow;
 
-    if (!googleConnection || googleConnection.status !== 'connected') {
+    if (!hasAnyConnectedPlatform) {
       setGa4LiveData(null);
       setGa4Error(null);
       setGscTotals(null);
@@ -97,99 +103,109 @@ export function Dashboard() {
       let syncedAdSpendTotal = 0;
 
       try {
-        if (!accessToken) {
+        if (!isGoogleConnected) {
           if (!isCancelled) {
             setGa4LiveData(null);
-            setGa4Error(
-              isHebrew
-                ? 'חיבור Google קיים אך חסר Access Token פעיל. בצע Reconnect ל-Google.'
-                : 'Google is connected but missing an active access token. Please reconnect Google.'
-            );
+            setGa4Error(null);
             setGscTotals(null);
           }
         } else {
-          try {
-            // 1) Google sync (GA4/GSC + Google Ads for revenue window spend).
-            const ga4Data = await fetchGA4LiveData(accessToken, propertyId || undefined, resolvedRange);
-            if (!isCancelled) {
-              setGa4LiveData(ga4Data);
-              setGa4Error(null);
-            }
-
-            const normalizePropertyId = (value: unknown) =>
-              typeof value === 'string' ? value.replace(/^properties\//i, '').trim() : '';
-            const usedPropertyId = normalizePropertyId(ga4Data?.propertyIdUsed);
-            const currentPropertyId = normalizePropertyId(propertyId);
-
-            // Auto-heal GA4 setting when server had to use a different accessible property.
-            if (
-              usedPropertyId &&
-              usedPropertyId !== currentPropertyId &&
-              !ga4AutoSyncInFlightRef.current &&
-              lastSyncedGa4PropertyRef.current !== usedPropertyId
-            ) {
-              ga4AutoSyncInFlightRef.current = true;
-              lastSyncedGa4PropertyRef.current = usedPropertyId;
-              const googleSettings = { ...(googleConnection.settings || {}) };
-              void updateConnectionSettings(
-                'google',
-                {
-                  ...googleSettings,
-                  ga4PropertyId: usedPropertyId,
-                  ga4Id: usedPropertyId,
-                },
-                { silent: true }
-              ).finally(() => {
-                ga4AutoSyncInFlightRef.current = false;
-              });
-            }
-          } catch (err) {
-            console.error("Failed to load GA4 live data:", err);
+          if (!accessToken) {
             if (!isCancelled) {
               setGa4LiveData(null);
-              setGa4Error(err instanceof Error ? err.message : t('common.error'));
-            }
-          }
-  
-          try {
-            if (siteUrl) {
-              const gscData = await fetchGSCData(accessToken, siteUrl, resolvedRange);
-              const rows = gscData.rows || [];
-              const clicks = rows.reduce((sum: number, row: any) => sum + Number(row.clicks || 0), 0);
-              const impressions = rows.reduce((sum: number, row: any) => sum + Number(row.impressions || 0), 0);
-              const weightedPosition = rows.reduce((sum: number, row: any) => sum + (Number(row.position || 0) * Number(row.impressions || 0)), 0);
-              const position = impressions > 0 ? weightedPosition / impressions : 0;
-              const ctr = impressions > 0 ? (clicks / impressions) * 100 : 0;
-  
-              if (!isCancelled) {
-                setGscTotals({ clicks, impressions, position, ctr });
-              }
-            }
-          } catch (err) {
-            console.error("Failed to load Search Console data:", err);
-            if (!isCancelled) {
+              setGa4Error(
+                isHebrew
+                  ? 'חיבור Google קיים אך חסר Access Token פעיל. בצע Reconnect ל-Google.'
+                  : 'Google is connected but missing an active access token. Please reconnect Google.'
+              );
               setGscTotals(null);
             }
-          }
+          } else {
+            try {
+              // Google sync (GA4/GSC + Google Ads) runs independently from other platforms.
+              const ga4Data = await fetchGA4LiveData(accessToken, propertyId || undefined, resolvedRange);
+              if (!isCancelled) {
+                setGa4LiveData(ga4Data);
+                setGa4Error(null);
+              }
 
-          try {
-            const googleAdsId = googleConnection?.settings?.googleAdsId || '';
-            if (googleAdsId) {
-              const googleCampaigns = await fetchGoogleCampaigns(accessToken, googleAdsId, undefined, resolvedRange);
-              syncedAdSpendTotal += googleCampaigns.reduce(
-                (sum, campaign) => sum + parseCurrencyNumber(campaign?.spend),
-                0
-              );
+              const normalizePropertyId = (value: unknown) =>
+                typeof value === 'string' ? value.replace(/^properties\//i, '').trim() : '';
+              const usedPropertyId = normalizePropertyId(ga4Data?.propertyIdUsed);
+              const currentPropertyId = normalizePropertyId(propertyId);
+
+              // Auto-heal GA4 setting when server had to use a different accessible property.
+              if (
+                usedPropertyId &&
+                usedPropertyId !== currentPropertyId &&
+                !ga4AutoSyncInFlightRef.current &&
+                lastSyncedGa4PropertyRef.current !== usedPropertyId
+              ) {
+                ga4AutoSyncInFlightRef.current = true;
+                lastSyncedGa4PropertyRef.current = usedPropertyId;
+                const googleSettings = { ...(googleConnection?.settings || {}) };
+                void updateConnectionSettings(
+                  'google',
+                  {
+                    ...googleSettings,
+                    ga4PropertyId: usedPropertyId,
+                    ga4Id: usedPropertyId,
+                  },
+                  { silent: true }
+                ).finally(() => {
+                  ga4AutoSyncInFlightRef.current = false;
+                });
+              }
+            } catch (err) {
+              console.error("Failed to load GA4 live data:", err);
+              if (!isCancelled) {
+                setGa4LiveData(null);
+                setGa4Error(err instanceof Error ? err.message : t('common.error'));
+              }
             }
-          } catch (googleCampaignErr) {
-            console.warn('Failed to sync Google Ads campaigns during overview sync:', googleCampaignErr);
+  
+            try {
+              if (siteUrl) {
+                const gscData = await fetchGSCData(accessToken, siteUrl, resolvedRange);
+                const rows = gscData.rows || [];
+                const clicks = rows.reduce((sum: number, row: any) => sum + Number(row.clicks || 0), 0);
+                const impressions = rows.reduce((sum: number, row: any) => sum + Number(row.impressions || 0), 0);
+                const weightedPosition = rows.reduce((sum: number, row: any) => sum + (Number(row.position || 0) * Number(row.impressions || 0)), 0);
+                const position = impressions > 0 ? weightedPosition / impressions : 0;
+                const ctr = impressions > 0 ? (clicks / impressions) * 100 : 0;
+    
+                if (!isCancelled) {
+                  setGscTotals({ clicks, impressions, position, ctr });
+                }
+              } else if (!isCancelled) {
+                setGscTotals(null);
+              }
+            } catch (err) {
+              console.error("Failed to load Search Console data:", err);
+              if (!isCancelled) {
+                setGscTotals(null);
+              }
+            }
+
+            try {
+              const googleAdsId = googleConnection?.settings?.googleAdsId || '';
+              if (googleAdsId) {
+                const googleCampaigns = await fetchGoogleCampaigns(accessToken, googleAdsId, undefined, resolvedRange);
+                syncedAdSpendTotal += googleCampaigns.reduce(
+                  (sum, campaign) => sum + parseCurrencyNumber(campaign?.spend),
+                  0
+                );
+              }
+            } catch (googleCampaignErr) {
+              console.warn('Failed to sync Google Ads campaigns during overview sync:', googleCampaignErr);
+            }
           }
         }
 
-        // 2) Meta sync before WooCommerce.
+        // Meta sync runs independently.
         try {
           const metaToken = metaConnection?.settings?.metaToken;
-          if (metaConnection?.status === 'connected' && metaToken) {
+          if (isMetaConnected && metaToken) {
             let metaAdsId =
               metaConnection.settings?.metaAdsId ||
               metaConnection.settings?.adAccountId ||
@@ -217,12 +233,11 @@ export function Dashboard() {
           console.warn('Failed to sync Meta campaigns during overview sync:', metaErr);
         }
 
-        // 3) TikTok sync before WooCommerce.
+        // TikTok sync runs independently.
         try {
-          const tiktokConnection = connections.find(c => c.id === 'tiktok');
           const tiktokToken = tiktokConnection?.settings?.tiktokToken;
           const tiktokAdvertiserId = tiktokConnection?.settings?.tiktokAdvertiserId;
-          if (tiktokConnection?.status === 'connected' && tiktokToken && tiktokAdvertiserId) {
+          if (isTikTokConnected && tiktokToken && tiktokAdvertiserId) {
             const tiktokCampaigns = await fetchTikTokCampaigns(tiktokToken, tiktokAdvertiserId);
             syncedAdSpendTotal += tiktokCampaigns.reduce(
               (sum, campaign) =>
@@ -237,7 +252,7 @@ export function Dashboard() {
         if (isCancelled) return;
         setOverviewSyncStage('woocommerce');
 
-        // Stage 2: WooCommerce sync runs only after Google + Meta + TikTok stage.
+        // WooCommerce sync always runs independently after ad-platform sync stage.
         try {
           if (
             wooConnection?.status === 'connected' &&
