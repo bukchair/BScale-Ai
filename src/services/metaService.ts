@@ -87,26 +87,45 @@ export async function fetchMetaCampaigns(
 ) {
   await ensureManagedApiSession(accessToken);
 
-  const query = new URLSearchParams();
-  if (adAccountId) query.set('ad_account_id', adAccountId);
-  if (startDate) query.set('start_date', startDate);
-  if (endDate) query.set('end_date', endDate);
+  const loadCampaigns = async (candidateAccountId?: string) => {
+    const query = new URLSearchParams();
+    if (candidateAccountId) query.set('ad_account_id', candidateAccountId);
+    if (startDate) query.set('start_date', startDate);
+    if (endDate) query.set('end_date', endDate);
 
-  const response = await fetch(`${API_BASE}/api/connections/meta/campaigns?${query.toString()}`, {
-    headers: {
-      'Authorization': `Bearer ${accessToken}`
+    const response = await fetch(`${API_BASE}/api/connections/meta/campaigns?${query.toString()}`, {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+      cache: 'no-store',
+    });
+
+    const payload = await response.json().catch(() => null);
+    return { response, payload };
+  };
+
+  let { response, payload } = await loadCampaigns(adAccountId);
+  if (!response.ok && adAccountId) {
+    const message = String((payload as any)?.message || '').toLowerCase();
+    const hasStaleAccountError =
+      message.includes('unsupported get request') ||
+      message.includes('does not exist') ||
+      message.includes('unknown path components') ||
+      message.includes('cannot access ad account') ||
+      message.includes('permission');
+
+    // Retry once without forcing a possibly stale account id.
+    if (hasStaleAccountError) {
+      ({ response, payload } = await loadCampaigns(undefined));
     }
-  });
-  
-  if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.message || 'Failed to fetch Meta campaigns');
   }
-  
-  const data = await response.json();
-  
-  // Meta API returns data in a 'data' array
-  return data.data.map((c: any) => {
+
+  if (!response.ok) {
+    throw new Error((payload as any)?.message || 'Failed to fetch Meta campaigns');
+  }
+
+  const campaigns = Array.isArray((payload as any)?.data) ? (payload as any).data : [];
+  return campaigns.map((c: any) => {
     const insights = c.insights?.data?.[0] || {};
     const spend = parseFloat(insights.spend || 0) || 0;
     const actions = Array.isArray(insights.actions) ? insights.actions : [];
