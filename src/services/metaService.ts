@@ -244,7 +244,16 @@ export async function fetchMetaCampaigns(
       throw new Error(message);
     }
 
-    const campaigns = Array.isArray((payload as any)?.data) ? (payload as any).data : [];
+    let campaigns = Array.isArray((payload as any)?.data) ? (payload as any).data : [];
+    if (campaigns.length === 0 && adAccountId) {
+      // Retry once without forcing account ID to avoid stale/incorrect UI-selected accounts.
+      const fallbackResult = await loadCampaigns(undefined);
+      if (fallbackResult.response.ok) {
+        campaigns = Array.isArray((fallbackResult.payload as any)?.data)
+          ? (fallbackResult.payload as any).data
+          : campaigns;
+      }
+    }
     const mapped = campaigns.map((c: any) => {
     const insights = c.insights?.data?.[0] || {};
     const spend = parseFloat(insights.spend || 0) || 0;

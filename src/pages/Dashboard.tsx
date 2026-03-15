@@ -46,6 +46,12 @@ type CampaignSummary = {
   platformBreakdown: Array<{ platform: 'Google' | 'Meta' | 'TikTok'; count: number }>;
 };
 
+type PlatformRevenueSummary = {
+  meta: { spend: number; attributedRevenue: number };
+  google: { spend: number; attributedRevenue: number };
+  tiktok: { spend: number; attributedRevenue: number };
+};
+
 const DEMO_GA4_STATS = { activeNow: 42, totalUsers: 1247 };
 const DEMO_GSC_STATS = { clicks: 3842, impressions: 48200, avgPosition: 14.3, ctr: 7.97 };
 
@@ -252,6 +258,8 @@ const COPY = {
     revenueCard: 'הכנסות',
     totalRevenue: 'סה"כ הכנסות',
     totalSpend: 'סה"כ הוצאות פרסום',
+    metaSpend: 'הוצאות Meta',
+    metaRevenue: 'הכנסה מיוחסת Meta',
     netProfit: 'רווח נקי',
     roas: 'ROAS',
     noFinanceData: 'עדיין אין נתונים חיים להכנסות או הוצאות פרסום לטווח התאריכים שנבחר.',
@@ -301,6 +309,8 @@ const COPY = {
     revenueCard: 'Revenue',
     totalRevenue: 'Total revenue',
     totalSpend: 'Total ad spend',
+    metaSpend: 'Meta spend',
+    metaRevenue: 'Meta attributed revenue',
     netProfit: 'Net profit',
     roas: 'ROAS',
     noFinanceData: 'No live revenue or ad spend data for the selected date range yet.',
@@ -350,6 +360,8 @@ const COPY = {
     revenueCard: 'Доход',
     totalRevenue: 'Общий доход',
     totalSpend: 'Расходы на рекламу',
+    metaSpend: 'Расходы Meta',
+    metaRevenue: 'Доход, атрибутированный Meta',
     netProfit: 'Чистая прибыль',
     roas: 'ROAS',
     noFinanceData: 'Пока нет live данных по доходу или расходам за выбранный период.',
@@ -399,6 +411,8 @@ const COPY = {
     revenueCard: 'Receita',
     totalRevenue: 'Receita total',
     totalSpend: 'Gasto total em anúncios',
+    metaSpend: 'Gasto Meta',
+    metaRevenue: 'Receita atribuída ao Meta',
     netProfit: 'Lucro líquido',
     roas: 'ROAS',
     noFinanceData: 'Ainda não há dados ao vivo de receita ou gasto no período selecionado.',
@@ -448,6 +462,8 @@ const COPY = {
     revenueCard: 'Revenus',
     totalRevenue: 'Revenu total',
     totalSpend: 'Dépenses publicitaires',
+    metaSpend: 'Dépense Meta',
+    metaRevenue: 'Revenu attribué à Meta',
     netProfit: 'Bénéfice net',
     roas: 'ROAS',
     noFinanceData: 'Aucune donnée en direct de revenu ou de dépense pour la période sélectionnée.',
@@ -529,11 +545,18 @@ export function Dashboard() {
   const [gscStats, setGscStats] = useState(DEMO_GSC_STATS);
   const [recentOrders, setRecentOrders] = useState<WooCommerceOrder[]>(DEMO_RECENT_ORDERS);
   const [campaignSummary, setCampaignSummary] = useState<CampaignSummary>(DEMO_CAMPAIGN_SUMMARY);
+  const [platformRevenue, setPlatformRevenue] = useState<PlatformRevenueSummary>({
+    meta: { spend: 0, attributedRevenue: 0 },
+    google: { spend: 0, attributedRevenue: 0 },
+    tiktok: { spend: 0, attributedRevenue: 0 },
+  });
   const [financialAvailability, setFinancialAvailability] = useState({
     revenue: false,
     spend: false,
     netProfit: false,
     roas: false,
+    metaSpend: false,
+    metaRevenue: false,
   });
 
   const [isGa4UsingDemo, setIsGa4UsingDemo] = useState(true);
@@ -548,6 +571,8 @@ export function Dashboard() {
       spend: false,
       netProfit: false,
       roas: false,
+      metaSpend: false,
+      metaRevenue: false,
     });
 
     let cancelled = false;
@@ -584,15 +609,24 @@ export function Dashboard() {
       const google = connections.find((c) => c.id === 'google' && c.status === 'connected');
       const meta = connections.find((c) => c.id === 'meta' && c.status === 'connected');
       const tiktok = connections.find((c) => c.id === 'tiktok' && c.status === 'connected');
+      const isMetaConnected = Boolean(meta);
 
       let liveRevenue = 0;
       let liveSpend = 0;
+      let metaSpend = 0;
+      let metaAttributedRevenue = 0;
+      let googleSpend = 0;
+      let googleAttributedRevenue = 0;
+      let tiktokSpend = 0;
+      let tiktokAttributedRevenue = 0;
       let hasGa4Live = false;
       let hasGscLive = false;
       let hasOrdersLive = false;
       let hasCampaignsLive = false;
       let hasRevenueLive = false;
       let hasSpendLive = false;
+      let hasMetaSpendLive = false;
+      let hasMetaRevenueLive = false;
       let ga4Live = DEMO_GA4_STATS;
       let ga4SnapshotLoaded = false;
       let gscLive = DEMO_GSC_STATS;
@@ -737,6 +771,7 @@ export function Dashboard() {
           );
           googleCampaigns.forEach((campaign: any) => {
             const spend = moneyFromUnknown(campaign.spend);
+            const conversionValue = moneyFromUnknown(campaign.conversionValue);
             const roasValue = moneyFromUnknown(campaign.roas);
             campaignRows.push({
               id: campaign.id,
@@ -747,6 +782,8 @@ export function Dashboard() {
               roas: roasValue,
             });
             liveSpend += spend;
+            googleSpend += spend;
+            googleAttributedRevenue += conversionValue;
           });
           if (googleCampaigns.length > 0) {
             hasSpendLive = true;
@@ -764,9 +801,15 @@ export function Dashboard() {
         meta?.settings?.metaAdAccountId;
       if (metaToken) {
         try {
-          const metaCampaigns = await fetchMetaCampaigns(metaToken, metaAdsId || undefined);
+          const metaCampaigns = await fetchMetaCampaigns(
+            metaToken,
+            metaAdsId || undefined,
+            startIsoDateOnly,
+            endIsoDateOnly
+          );
           metaCampaigns.forEach((campaign: any) => {
             const spend = moneyFromUnknown(campaign.spend);
+            const conversionValue = moneyFromUnknown(campaign.conversionValue);
             const roasValue = moneyFromUnknown(campaign.roas);
             campaignRows.push({
               id: campaign.id,
@@ -777,13 +820,13 @@ export function Dashboard() {
               roas: roasValue,
             });
             liveSpend += spend;
+            metaSpend += spend;
+            metaAttributedRevenue += conversionValue;
           });
-          if (metaCampaigns.length > 0) {
-            hasSpendLive = true;
-          }
-          if (metaCampaigns.length > 0) {
-            hasCampaignsLive = true;
-          }
+          hasMetaSpendLive = true;
+          hasMetaRevenueLive = true;
+          if (metaCampaigns.length > 0) hasSpendLive = true;
+          if (metaCampaigns.length > 0) hasCampaignsLive = true;
         } catch (error) {
           const message = error instanceof Error ? error.message : String(error);
           if (!isMetaRateLimitMessage(message)) {
@@ -805,6 +848,12 @@ export function Dashboard() {
             const spend = moneyFromUnknown(
               campaign.stat_cost ?? campaign.spend ?? campaign.cost ?? campaign.metrics?.spend
             );
+            const conversionValue = moneyFromUnknown(
+              campaign.conversionValue ??
+                campaign.stat_conversion_value ??
+                campaign.total_conversion_value ??
+                campaign.metrics?.conversionValue
+            );
             const roasValue = moneyFromUnknown(
               campaign.roas ?? campaign.stat_roas ?? campaign.metrics?.roas
             );
@@ -817,6 +866,8 @@ export function Dashboard() {
               roas: roasValue,
             });
             liveSpend += spend;
+            tiktokSpend += spend;
+            tiktokAttributedRevenue += conversionValue;
           });
           const hasTikTokCampaignRows = (Array.isArray(tiktokCampaigns) ? tiktokCampaigns.length : 0) > 0;
           if (hasTikTokCampaignRows) {
@@ -844,6 +895,13 @@ export function Dashboard() {
         spend: hasSpendLive,
         netProfit: hasRevenueLive && hasSpendLive,
         roas: hasRevenueLive && hasSpendLive && finalSpend > 0,
+        metaSpend: isMetaConnected ? hasMetaSpendLive : false,
+        metaRevenue: isMetaConnected ? hasMetaRevenueLive : false,
+      });
+      setPlatformRevenue({
+        meta: { spend: metaSpend, attributedRevenue: metaAttributedRevenue },
+        google: { spend: googleSpend, attributedRevenue: googleAttributedRevenue },
+        tiktok: { spend: tiktokSpend, attributedRevenue: tiktokAttributedRevenue },
       });
 
       const hasAnyLiveData =
@@ -1117,6 +1175,31 @@ export function Dashboard() {
                 {financialAvailability.roas ? `${safeRoas}x` : '—'}
               </span>
             </div>
+            {connections.some((c) => c.id === 'meta' && c.status === 'connected') && (
+              <>
+                <div className="my-1 border-t border-gray-100" />
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-gray-500 inline-flex items-center gap-1.5">
+                    {text.metaSpend}
+                    <SourceTag live={financialAvailability.metaSpend} />
+                  </span>
+                  <span className="font-bold text-red-600">
+                    {financialAvailability.metaSpend ? formatCurrency(platformRevenue.meta.spend) : '—'}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-gray-500 inline-flex items-center gap-1.5">
+                    {text.metaRevenue}
+                    <SourceTag live={financialAvailability.metaRevenue} />
+                  </span>
+                  <span className="font-bold text-emerald-700">
+                    {financialAvailability.metaRevenue
+                      ? formatCurrency(platformRevenue.meta.attributedRevenue)
+                      : '—'}
+                  </span>
+                </div>
+              </>
+            )}
             {!financialAvailability.revenue && !financialAvailability.spend && (
               <p className="text-xs text-gray-500">{text.noFinanceData}</p>
             )}

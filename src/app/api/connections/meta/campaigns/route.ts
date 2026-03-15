@@ -150,15 +150,17 @@ const getInsightRows = (parsed: unknown): Array<Record<string, unknown>> => {
   return Array.isArray(rows) ? rows : [];
 };
 
+const hasCampaignUsableEmbeddedInsights = (campaign: Record<string, unknown>) => {
+  const insights = (campaign as { insights?: { data?: Array<Record<string, unknown>> } }).insights;
+  const row = Array.isArray(insights?.data) && insights.data.length > 0 ? insights.data[0] : null;
+  if (!row || typeof row !== 'object') return false;
+  // A row that only contains spend/actions is not enough for campaign table metrics.
+  const metricKeys = ['impressions', 'clicks', 'reach', 'ctr', 'cpc', 'cpm', 'frequency'];
+  return metricKeys.some((key) => Object.prototype.hasOwnProperty.call(row, key));
+};
+
 const hasUsableEmbeddedInsights = (campaigns: Array<Record<string, unknown>>) =>
-  campaigns.some((campaign) => {
-    const insights = (campaign as { insights?: { data?: Array<Record<string, unknown>> } }).insights;
-    const row = Array.isArray(insights?.data) && insights.data.length > 0 ? insights.data[0] : null;
-    if (!row || typeof row !== 'object') return false;
-    // A row that only contains spend/actions is not enough for campaign table metrics.
-    const metricKeys = ['impressions', 'clicks', 'reach', 'ctr', 'cpc', 'cpm', 'frequency'];
-    return metricKeys.some((key) => Object.prototype.hasOwnProperty.call(row, key));
-  });
+  campaigns.length > 0 && campaigns.every((campaign) => hasCampaignUsableEmbeddedInsights(campaign));
 
 const getBearerToken = (request: Request): string => {
   const auth = request.headers.get('authorization') || '';
@@ -354,19 +356,29 @@ export async function GET(request: Request) {
     };
 
     const attemptCampaignLoad = async (accountId: string) => {
-      // Strategy order (keep low call count to avoid rate-limit): full query -> minimal.
+      // Strategy order: full query -> drop effective_status -> minimal.
       const attempts: Array<{
         includeDateRange?: boolean;
         includeInsights?: boolean;
         includeEffectiveStatus?: boolean;
       }> = [
         { includeDateRange: true, includeInsights: true, includeEffectiveStatus: true },
+        { includeDateRange: true, includeInsights: false, includeEffectiveStatus: false },
         { includeDateRange: false, includeInsights: false, includeEffectiveStatus: false },
       ];
       let lastResult: Awaited<ReturnType<typeof loadCampaigns>> | null = null;
       for (const attempt of attempts) {
         lastResult = await loadCampaigns(accountId, attempt);
         if (lastResult.response.ok) {
+          const rows = getCampaignRows(lastResult.parsed);
+          const isRestrictiveAttempt =
+            attempt.includeEffectiveStatus !== false ||
+            attempt.includeDateRange !== false ||
+            attempt.includeInsights !== false;
+          if (rows.length === 0 && isRestrictiveAttempt) {
+            // Retry with less restrictive query before deciding there are no campaigns.
+            continue;
+          }
           return lastResult;
         }
         const message = extractErrorMessage(lastResult.response.status, lastResult.parsed).toLowerCase();
