@@ -321,6 +321,48 @@ export function Campaigns() {
     return 0;
   };
 
+  const normalizeCampaignStatus = (value: unknown): string => {
+    const raw = String(value || '').trim();
+    if (!raw) return 'Unknown';
+    const normalized = raw.toLowerCase();
+    if (normalized === 'draft') return 'Draft';
+    if (normalized.includes('scheduled')) return 'Scheduled';
+    if (
+      normalized.includes('active') ||
+      normalized === 'enabled' ||
+      normalized.includes('serving')
+    ) {
+      return 'Active';
+    }
+    if (normalized.includes('paused') || normalized.includes('disable')) return 'Paused';
+    if (
+      normalized.includes('removed') ||
+      normalized.includes('deleted') ||
+      normalized.includes('archived')
+    ) {
+      return 'Removed';
+    }
+    if (
+      normalized.includes('pending') ||
+      normalized.includes('review') ||
+      normalized.includes('learning')
+    ) {
+      return 'Pending';
+    }
+    if (normalized.includes('error') || normalized.includes('fail')) return 'Error';
+    return 'Unknown';
+  };
+
+  const getStatusBadgeClass = (status: string) => {
+    if (status === 'Active') return 'bg-green-100 text-green-800';
+    if (status === 'Scheduled' || status === 'Pending') return 'bg-indigo-100 text-indigo-800';
+    if (status === 'Draft') return 'bg-slate-100 text-slate-700';
+    if (status === 'Paused') return 'bg-yellow-100 text-yellow-800';
+    if (status === 'Removed') return 'bg-rose-100 text-rose-800';
+    if (status === 'Error') return 'bg-red-100 text-red-800';
+    return 'bg-gray-100 text-gray-700';
+  };
+
   const formatPercent = (value: unknown, fractionDigits = 2) => {
     const numeric = toAmount(value);
     return `${numeric.toFixed(fractionDigits)}%`;
@@ -668,7 +710,8 @@ export function Campaigns() {
     .filter(campaign => {
       const matchesSearch = campaign.name.toLowerCase().includes(searchQuery.toLowerCase());
       const matchesPlatform = platformFilter === 'All' || campaign.platform === platformFilter;
-      const matchesStatus = statusFilter === 'All' || campaign.status === statusFilter;
+      const matchesStatus =
+        statusFilter === 'All' || normalizeCampaignStatus(campaign.status) === statusFilter;
       return matchesSearch && matchesPlatform && matchesStatus;
     })
     .sort((a, b) => {
@@ -678,6 +721,9 @@ export function Campaigns() {
       if (sortField === 'spend' || sortField === 'cpa' || sortField === 'roas') {
         valA = toAmount(valA);
         valB = toAmount(valB);
+      } else if (sortField === 'status') {
+        valA = normalizeCampaignStatus(a.status).toLowerCase();
+        valB = normalizeCampaignStatus(b.status).toLowerCase();
       } else {
         valA = String(valA || '').toLowerCase();
         valB = String(valB || '').toLowerCase();
@@ -689,7 +735,7 @@ export function Campaigns() {
     });
 
   const platforms = ['All', ...new Set(allCampaigns.map(c => c.platform))];
-  const statuses = ['All', ...new Set(allCampaigns.map(c => c.status))];
+  const statuses = ['All', ...new Set(allCampaigns.map(c => normalizeCampaignStatus(c.status)))];
   const groupedCampaigns = useMemo(() => {
     const grouped = filteredAndSortedCampaigns.reduce<Record<string, any[]>>((acc, campaign) => {
       const key = campaign.platform || (isHebrew ? 'ללא פלטפורמה' : 'Unknown platform');
@@ -907,24 +953,13 @@ export function Campaigns() {
                           </td>
                           <td className="px-4 py-2.5 text-sm">
                             {(() => {
-                              const rawStatus = String(campaign.status || '').toUpperCase();
-                              const isActiveStatus = rawStatus.includes('ACTIVE');
-                              const isPausedStatus = rawStatus.includes('PAUSED');
-                              const isScheduledStatus = rawStatus.includes('SCHEDULED') || rawStatus.includes('PENDING');
+                              const unifiedStatus = normalizeCampaignStatus(campaign.status);
                               return (
                             <span className={cn(
                               "inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium",
-                                  isActiveStatus
-                                ? "bg-green-100 text-green-800"
-                                    : isScheduledStatus
-                                ? "bg-indigo-100 text-indigo-800"
-                                      : campaign.status === 'Draft'
-                                ? "bg-slate-100 text-slate-700"
-                                        : isPausedStatus
-                                          ? "bg-yellow-100 text-yellow-800"
-                                          : "bg-gray-100 text-gray-700"
+                                  getStatusBadgeClass(unifiedStatus)
                             )}>
-                                  {String(campaign.status || 'Unknown')}
+                                  {unifiedStatus}
                             </span>
                               );
                             })()}
