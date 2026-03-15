@@ -1123,6 +1123,11 @@ export function Integrations({ userProfile }: { userProfile?: { role?: string; s
                         {metaAssetsError && (
                           <p className="mt-1 text-[11px] text-red-600">{metaAssetsError}</p>
                         )}
+                        <p className="mt-1 text-[10px] text-gray-500">
+                          {isHebrew
+                            ? 'אם רשימת חשבונות ההודעות ריקה, לחץ Reconnect ואשר גם הרשאות Pages.'
+                            : 'If messaging accounts are empty, click Reconnect and approve Page permissions as well.'}
+                        </p>
                       </div>
                       <div>
                         <label className="block text-[10px] font-bold text-gray-500 mb-1 uppercase tracking-wider">

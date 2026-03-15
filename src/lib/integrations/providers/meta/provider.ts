@@ -39,6 +39,8 @@ export class MetaProvider implements IntegrationProvider {
     'ads_read',
     'ads_management',
     'business_management',
+    'pages_show_list',
+    'pages_read_engagement',
   ] as const;
   private readonly capabilities: readonly ProviderCapability[] = [
     'ACCOUNT_DISCOVERY',

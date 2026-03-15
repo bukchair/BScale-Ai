@@ -11,6 +11,7 @@ type MetaGraphError = {
 type MetaBusiness = { id?: string; name?: string };
 type MetaPage = { id?: string; name?: string };
 type MetaPixel = { id?: string; name?: string };
+type MetaWhatsAppAccount = { id?: string; name?: string };
 
 const META_GRAPH_VERSION = 'v21.0';
 const META_GRAPH_BASE = `https://graph.facebook.com/${META_GRAPH_VERSION}`;
@@ -20,6 +21,20 @@ const toAccountResource = (value: string) => {
   const trimmed = normalizeMetaAccountId(value);
   if (!trimmed) return '';
   return `act_${trimmed}`;
+};
+
+const pushUniqueAccount = (
+  map: Map<string, { id: string; name: string }>,
+  candidate: { id?: string; name?: string },
+  fallbackPrefix: string
+) => {
+  const id = String(candidate?.id || '').trim();
+  if (!id) return;
+  if (map.has(id)) return;
+  map.set(id, {
+    id,
+    name: String(candidate?.name || `${fallbackPrefix} ${id}`).trim(),
+  });
 };
 
 const fetchMetaGraph = async <T>(path: string) => {
@@ -69,19 +84,59 @@ export async function GET() {
       );
     }
 
+    const messageAccountsMap = new Map<string, { id: string; name: string }>();
+
     const messageResponse = await fetchMetaGraph<{ data?: MetaPage[] }>(
       `/me/accounts?fields=id,name&limit=200&access_token=${encodeURIComponent(accessToken)}`
     );
-    const messageAccounts = (messageResponse.data?.data || [])
-      .filter((item) => item?.id)
-      .map((item) => ({
-        id: String(item.id).trim(),
-        name: String(item.name || item.id).trim(),
-      }));
+    for (const account of messageResponse.data?.data || []) {
+      pushUniqueAccount(messageAccountsMap, account, 'Page');
+    }
     if (!messageResponse.ok) {
       warnings.push(
         messageResponse.data?.error?.message ||
           `Failed to load Meta messaging accounts (${messageResponse.status}).`
+      );
+    }
+
+    for (const business of businesses) {
+      const businessPages = await fetchMetaGraph<{ data?: MetaPage[] }>(
+        `/${encodeURIComponent(business.id)}/owned_pages?fields=id,name&limit=200&access_token=${encodeURIComponent(
+          accessToken
+        )}`
+      );
+      if (businessPages.ok) {
+        for (const page of businessPages.data?.data || []) {
+          pushUniqueAccount(messageAccountsMap, page, 'Page');
+        }
+      } else {
+        warnings.push(
+          businessPages.data?.error?.message ||
+            `Failed to load business pages for ${business.id} (${businessPages.status}).`
+        );
+      }
+
+      const businessWhatsApp = await fetchMetaGraph<{ data?: MetaWhatsAppAccount[] }>(
+        `/${encodeURIComponent(
+          business.id
+        )}/owned_whatsapp_business_accounts?fields=id,name&limit=200&access_token=${encodeURIComponent(accessToken)}`
+      );
+      if (businessWhatsApp.ok) {
+        for (const waba of businessWhatsApp.data?.data || []) {
+          const id = String(waba?.id || '').trim();
+          if (!id || messageAccountsMap.has(id)) continue;
+          messageAccountsMap.set(id, {
+            id,
+            name: `${String(waba?.name || `WhatsApp ${id}`).trim()} (WhatsApp)`,
+          });
+        }
+      }
+    }
+
+    const messageAccounts = Array.from(messageAccountsMap.values());
+    if (!messageAccounts.length) {
+      warnings.push(
+        'No messaging accounts were found. Reconnect Meta and approve Page permissions, then make sure at least one Facebook Page or WhatsApp business account is linked.'
       );
     }
 
