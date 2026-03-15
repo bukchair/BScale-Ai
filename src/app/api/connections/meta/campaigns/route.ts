@@ -80,6 +80,24 @@ const extractErrorMessage = (status: number, parsed: unknown) => {
   return objectPayload.error?.message || objectPayload.message || `Meta API request failed (${status}).`;
 };
 
+const getCampaignRows = (parsed: unknown): Array<Record<string, unknown>> => {
+  if (!parsed || typeof parsed !== 'object') return [];
+  const rows = (parsed as { data?: Array<Record<string, unknown>> }).data;
+  return Array.isArray(rows) ? rows : [];
+};
+
+const getInsightRows = (parsed: unknown): Array<Record<string, unknown>> => {
+  if (!parsed || typeof parsed !== 'object') return [];
+  const rows = (parsed as { data?: Array<Record<string, unknown>> }).data;
+  return Array.isArray(rows) ? rows : [];
+};
+
+const hasEmbeddedInsights = (campaigns: Array<Record<string, unknown>>) =>
+  campaigns.some((campaign) => {
+    const insights = (campaign as { insights?: { data?: unknown[] } }).insights;
+    return Array.isArray(insights?.data) && insights.data.length > 0;
+  });
+
 const getBearerToken = (request: Request): string => {
   const auth = request.headers.get('authorization') || '';
   if (!auth.toLowerCase().startsWith('bearer ')) return '';
@@ -203,6 +221,61 @@ export async function GET(request: Request) {
       return { response, parsed };
     };
 
+    const loadCampaignInsights = async (accountId: string) => {
+      const resource = toAccountResource(accountId);
+      const fieldsVariants = [
+        'campaign_id,spend,impressions,reach,clicks,ctr,cpc,cpm,frequency,actions,action_values,purchase_roas,roas',
+        'campaign_id,spend,impressions,reach,clicks,ctr,cpc,cpm,actions,action_values',
+        'campaign_id,spend,impressions,reach,clicks,ctr,cpc,cpm',
+        'campaign_id,spend,impressions,clicks',
+      ];
+
+      let lastResponse: Response | null = null;
+      let lastParsed: unknown = null;
+
+      for (const fields of fieldsVariants) {
+        const graphUrl = new URL(`${META_GRAPH_BASE}/${resource}/insights`);
+        graphUrl.searchParams.set('level', 'campaign');
+        graphUrl.searchParams.set('limit', '500');
+        graphUrl.searchParams.set('fields', fields);
+        if (startDate && endDate) {
+          graphUrl.searchParams.set(
+            'time_range',
+            JSON.stringify({
+              since: startDate,
+              until: endDate,
+            })
+          );
+        }
+        graphUrl.searchParams.set('access_token', accessToken);
+
+        const response = await fetch(graphUrl.toString());
+        const raw = await response.text();
+        let parsed: unknown = {};
+        try {
+          parsed = raw ? JSON.parse(raw) : {};
+        } catch {
+          parsed = { message: raw || 'Meta insights returned non-JSON response.' };
+        }
+
+        lastResponse = response;
+        lastParsed = parsed;
+        if (response.ok) {
+          return { response, parsed };
+        }
+
+        const message = extractErrorMessage(response.status, parsed).toLowerCase();
+        if (!message.includes('invalid parameter')) {
+          break;
+        }
+      }
+
+      return {
+        response: lastResponse as Response,
+        parsed: lastParsed,
+      };
+    };
+
     const attemptCampaignLoad = async (accountId: string) => {
       // Strategy order: full query -> no date -> no insights -> minimal
       const attempts: Array<{
@@ -287,7 +360,53 @@ export async function GET(request: Request) {
       return NextResponse.json({ message }, { status: response.status });
     }
 
-    return NextResponse.json(parsed, { status: 200 });
+    const campaigns = getCampaignRows(parsed);
+    let enrichedCampaigns = campaigns;
+    let insightsFallbackUsed = false;
+
+    // If campaign payload has no embedded insights (or partial), enrich via account insights endpoint.
+    if (campaigns.length > 0 && !hasEmbeddedInsights(campaigns)) {
+      try {
+        const insightsResult = await loadCampaignInsights(resolvedAccountId);
+        if (insightsResult.response.ok) {
+          const insightRows = getInsightRows(insightsResult.parsed);
+          const byCampaignId = new Map<string, Record<string, unknown>>();
+          for (const row of insightRows) {
+            const campaignId = String(row.campaign_id || '').trim();
+            if (!campaignId) continue;
+            byCampaignId.set(campaignId, row);
+          }
+
+          enrichedCampaigns = campaigns.map((campaign) => {
+            const campaignId = String(campaign.id || '').trim();
+            const insightRow = byCampaignId.get(campaignId);
+            if (!insightRow) return campaign;
+            return {
+              ...campaign,
+              insights: { data: [insightRow] },
+            };
+          });
+          insightsFallbackUsed = true;
+        }
+      } catch {
+        // Keep base campaigns list if enrichment fails.
+      }
+    }
+
+    return NextResponse.json(
+      {
+        data: enrichedCampaigns,
+        meta: {
+          adAccountId: toAccountResource(resolvedAccountId),
+          insightsFallbackUsed,
+          dateRange: {
+            startDate: startDate || null,
+            endDate: endDate || null,
+          },
+        },
+      },
+      { status: 200 }
+    );
   } catch (error) {
     return NextResponse.json(
       { message: error instanceof Error ? error.message : 'Failed to fetch Meta campaigns.' },

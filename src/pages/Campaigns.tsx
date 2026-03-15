@@ -290,6 +290,18 @@ export function Campaigns() {
     return 0;
   };
 
+  const formatPercent = (value: unknown, fractionDigits = 2) => {
+    const numeric = toAmount(value);
+    return `${numeric.toFixed(fractionDigits)}%`;
+  };
+
+  const formatDateTime = (value: unknown) => {
+    if (typeof value !== 'string' || !value.trim()) return '—';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return value;
+    return date.toLocaleDateString(language === 'he' ? 'he-IL' : 'en-US');
+  };
+
   const fetchRecommendations = async () => {
     setLoading(true);
     try {
@@ -759,11 +771,28 @@ export function Campaigns() {
                   <span className="text-xs text-gray-500">{campaigns.length}</span>
                 </div>
                 <div className="overflow-x-auto">
+                  {(() => {
+                    const isMetaGroup = platformName.toLowerCase() === 'meta';
+                    return (
                   <table className="min-w-full divide-y divide-gray-200">
                     <thead className="bg-white">
                       <tr>
                         <th className="px-4 py-2 text-start text-[11px] font-bold text-gray-500 uppercase tracking-wide">{t('campaigns.campaignName')}</th>
                         <th className="px-4 py-2 text-start text-[11px] font-bold text-gray-500 uppercase tracking-wide">{t('campaigns.status')}</th>
+                        {isMetaGroup && (
+                          <>
+                            <th className="px-4 py-2 text-start text-[11px] font-bold text-gray-500 uppercase tracking-wide">Objective</th>
+                            <th className="px-4 py-2 text-start text-[11px] font-bold text-gray-500 uppercase tracking-wide">Impr.</th>
+                            <th className="px-4 py-2 text-start text-[11px] font-bold text-gray-500 uppercase tracking-wide">Clicks</th>
+                            <th className="px-4 py-2 text-start text-[11px] font-bold text-gray-500 uppercase tracking-wide">CTR</th>
+                            <th className="px-4 py-2 text-start text-[11px] font-bold text-gray-500 uppercase tracking-wide">CPC</th>
+                            <th className="px-4 py-2 text-start text-[11px] font-bold text-gray-500 uppercase tracking-wide">CPM</th>
+                            <th className="px-4 py-2 text-start text-[11px] font-bold text-gray-500 uppercase tracking-wide">Reach</th>
+                            <th className="px-4 py-2 text-start text-[11px] font-bold text-gray-500 uppercase tracking-wide">Freq.</th>
+                            <th className="px-4 py-2 text-start text-[11px] font-bold text-gray-500 uppercase tracking-wide">Conv.</th>
+                            <th className="px-4 py-2 text-start text-[11px] font-bold text-gray-500 uppercase tracking-wide">Conv. Value</th>
+                          </>
+                        )}
                         <th className="px-4 py-2 text-start text-[11px] font-bold text-gray-500 uppercase tracking-wide">{t('campaigns.spend')}</th>
                         <th className="px-4 py-2 text-start text-[11px] font-bold text-gray-500 uppercase tracking-wide">{t('campaigns.roas')}</th>
                         <th className="px-4 py-2 text-start text-[11px] font-bold text-gray-500 uppercase tracking-wide">{t('campaigns.cpa')}</th>
@@ -772,21 +801,67 @@ export function Campaigns() {
                     <tbody className="bg-white divide-y divide-gray-100">
                       {campaigns.map((campaign) => (
                         <tr key={`campaign-row-${platformName}-${campaign.id}`}>
-                          <td className="px-4 py-2.5 text-sm font-medium text-gray-900 max-w-[280px] whitespace-normal break-words">{campaign.name}</td>
+                          <td className="px-4 py-2.5 text-sm font-medium text-gray-900 max-w-[320px] whitespace-normal break-words">
+                            <div>{campaign.name}</div>
+                            {isMetaGroup && (
+                              <div className="mt-1 space-y-0.5 text-[11px] font-normal text-gray-500">
+                                <div>
+                                  ID: <span dir="ltr">{campaign.campaignId || campaign.id || '—'}</span>
+                                  {campaign.accountId ? (
+                                    <>
+                                      {' '}| Acc: <span dir="ltr">{campaign.accountId}</span>
+                                    </>
+                                  ) : null}
+                                </div>
+                                <div>
+                                  {isHebrew ? 'התחלה' : 'Start'}: {formatDateTime(campaign.startTime)} |{' '}
+                                  {isHebrew ? 'סיום' : 'End'}: {formatDateTime(campaign.stopTime)}
+                                </div>
+                                <div>
+                                  {isHebrew ? 'תקציב יומי' : 'Daily'}: {formatCurrency(toAmount(campaign.dailyBudget))} |{' '}
+                                  {isHebrew ? 'תקציב כולל' : 'Lifetime'}: {formatCurrency(toAmount(campaign.lifetimeBudget))}
+                                </div>
+                              </div>
+                            )}
+                          </td>
                           <td className="px-4 py-2.5 text-sm">
+                            {(() => {
+                              const rawStatus = String(campaign.status || '').toUpperCase();
+                              const isActiveStatus = rawStatus.includes('ACTIVE');
+                              const isPausedStatus = rawStatus.includes('PAUSED');
+                              const isScheduledStatus = rawStatus.includes('SCHEDULED') || rawStatus.includes('PENDING');
+                              return (
                             <span className={cn(
                               "inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium",
-                              campaign.status === 'Active'
+                                  isActiveStatus
                                 ? "bg-green-100 text-green-800"
-                                : campaign.status === 'Scheduled'
+                                    : isScheduledStatus
                                 ? "bg-indigo-100 text-indigo-800"
-                                : campaign.status === 'Draft'
+                                      : campaign.status === 'Draft'
                                 ? "bg-slate-100 text-slate-700"
-                                : "bg-yellow-100 text-yellow-800"
+                                        : isPausedStatus
+                                          ? "bg-yellow-100 text-yellow-800"
+                                          : "bg-gray-100 text-gray-700"
                             )}>
-                              {campaign.status}
+                                  {String(campaign.status || 'Unknown')}
                             </span>
+                              );
+                            })()}
                           </td>
+                          {isMetaGroup && (
+                            <>
+                              <td className="px-4 py-2.5 whitespace-nowrap text-sm text-gray-600">{campaign.objective || '—'}</td>
+                              <td className="px-4 py-2.5 whitespace-nowrap text-sm text-gray-600">{toAmount(campaign.impressions).toLocaleString()}</td>
+                              <td className="px-4 py-2.5 whitespace-nowrap text-sm text-gray-600">{toAmount(campaign.clicks).toLocaleString()}</td>
+                              <td className="px-4 py-2.5 whitespace-nowrap text-sm text-gray-600">{formatPercent(campaign.ctr)}</td>
+                              <td className="px-4 py-2.5 whitespace-nowrap text-sm text-gray-600">{formatCurrency(toAmount(campaign.cpc))}</td>
+                              <td className="px-4 py-2.5 whitespace-nowrap text-sm text-gray-600">{formatCurrency(toAmount(campaign.cpm))}</td>
+                              <td className="px-4 py-2.5 whitespace-nowrap text-sm text-gray-600">{toAmount(campaign.reach).toLocaleString()}</td>
+                              <td className="px-4 py-2.5 whitespace-nowrap text-sm text-gray-600">{toAmount(campaign.frequency).toFixed(2)}</td>
+                              <td className="px-4 py-2.5 whitespace-nowrap text-sm text-gray-600">{toAmount(campaign.conversions).toLocaleString()}</td>
+                              <td className="px-4 py-2.5 whitespace-nowrap text-sm text-gray-600">{formatCurrency(toAmount(campaign.conversionValue))}</td>
+                            </>
+                          )}
                           <td className="px-4 py-2.5 whitespace-nowrap text-sm text-gray-600">{formatCurrency(toAmount(campaign.spend))}</td>
                           <td className="px-4 py-2.5 whitespace-nowrap text-sm text-gray-600">{toAmount(campaign.roas).toFixed(2)}x</td>
                           <td className="px-4 py-2.5 whitespace-nowrap text-sm text-gray-600">{formatCurrency(toAmount(campaign.cpa))}</td>
@@ -794,6 +869,8 @@ export function Campaigns() {
                       ))}
                     </tbody>
                   </table>
+                    );
+                  })()}
                 </div>
               </div>
             ))

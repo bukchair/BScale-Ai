@@ -128,6 +128,15 @@ export async function fetchMetaCampaigns(
   return campaigns.map((c: any) => {
     const insights = c.insights?.data?.[0] || {};
     const spend = parseFloat(insights.spend || 0) || 0;
+    const impressions = parseFloat(insights.impressions || 0) || 0;
+    const clicks = parseFloat(insights.clicks || 0) || 0;
+    const reach = parseFloat(insights.reach || 0) || 0;
+    const ctr =
+      parseFloat(insights.ctr || 0) ||
+      (impressions > 0 ? (clicks / impressions) * 100 : 0);
+    const cpc = parseFloat(insights.cpc || 0) || (clicks > 0 ? spend / clicks : 0);
+    const cpm = parseFloat(insights.cpm || 0) || (impressions > 0 ? (spend / impressions) * 1000 : 0);
+    const frequency = parseFloat(insights.frequency || 0) || (reach > 0 ? impressions / reach : 0);
     const actions = Array.isArray(insights.actions) ? insights.actions : [];
     const actionValues = Array.isArray(insights.action_values) ? insights.action_values : [];
     const conversionActionTypes = new Set([
@@ -167,7 +176,28 @@ export async function fetchMetaCampaigns(
       id: c.id,
       name: c.name,
       platform: 'Meta',
-      status: c.status === 'ACTIVE' ? 'Active' : 'Paused',
+      status:
+        c.effective_status ||
+        c.configured_status ||
+        c.status ||
+        (c.status === 'ACTIVE' ? 'Active' : 'Paused'),
+      objective: c.objective || '',
+      buyingType: c.buying_type || '',
+      accountId: c.account_id || '',
+      campaignId: c.id || '',
+      startTime: c.start_time || '',
+      stopTime: c.stop_time || '',
+      createdTime: c.created_time || '',
+      updatedTime: c.updated_time || '',
+      dailyBudget: parseFloat(c.daily_budget || 0) || 0,
+      lifetimeBudget: parseFloat(c.lifetime_budget || 0) || 0,
+      reach,
+      impressions,
+      clicks,
+      ctr,
+      cpc,
+      cpm,
+      frequency,
       spend,
       roas: Number.isFinite(roas) ? roas.toFixed(2) : '0.00',
       cpa,
