@@ -1,0 +1,5 @@
+{
+  "$schema": "https://cursor.com/schemas/environment.json",
+  "install": "npm ci --include=dev --no-audit --no-fund && npx --yes tsc --version",
+  "start": "echo 'Cloud environment ready'"
+}
