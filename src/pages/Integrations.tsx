@@ -231,6 +231,7 @@ export function Integrations({ userProfile }: { userProfile?: { role?: string; s
   const [metaAssets, setMetaAssets] = useState<MetaAssetsPayload | null>(null);
   const [metaAssetsLoading, setMetaAssetsLoading] = useState(false);
   const [metaAssetsError, setMetaAssetsError] = useState<string | null>(null);
+  const [reinstallingManagedPlatform, setReinstallingManagedPlatform] = useState<'google' | 'meta' | null>(null);
   const [isWizardOpen, setIsWizardOpen] = useState(false);
   const [wizardStep, setWizardStep] = useState<WizardStep>(1);
   const [wizardPlatform, setWizardPlatform] = useState<WizardPlatform>('google');
@@ -659,6 +660,49 @@ export function Integrations({ userProfile }: { userProfile?: { role?: string; s
     }
   };
 
+  const handleReinstallManagedConnection = async (platform: 'google' | 'meta') => {
+    if (blockIfReadOnly()) return;
+
+    const confirmMessage =
+      platform === 'google'
+        ? isHebrew
+          ? 'לבצע התקנה מחדש לחיבור Google? הפעולה תנתק את החיבור הנוכחי (Ads/GA4/GSC/Gmail) ותפתח התחברות מחדש.'
+          : 'Re-install Google connection? This will disconnect the current Google link (Ads/GA4/GSC/Gmail) and start OAuth again.'
+        : isHebrew
+        ? 'לבצע התקנה מחדש לחיבור Meta? הפעולה תנתק את החיבור הנוכחי ותפתח התחברות מחדש.'
+        : 'Re-install Meta connection? This will disconnect the current Meta link and start OAuth again.';
+
+    if (!window.confirm(confirmMessage)) return;
+
+    setError(null);
+    setSuccess(null);
+    setReinstallingManagedPlatform(platform);
+    try {
+      await clearConnectionSettings(platform);
+      setExpandedId(null);
+      setFormValues({});
+
+      if (platform === 'google') {
+        await startManagedOAuth('google-ads', 'Failed to start Google authentication');
+      } else {
+        await startManagedOAuth('meta', 'Failed to start Meta authentication');
+      }
+    } catch (err) {
+      setToast({
+        message:
+          err instanceof Error && err.message
+            ? err.message
+            : isHebrew
+            ? 'התקנה מחדש נכשלה. נסה שוב.'
+            : 'Re-install failed. Please try again.',
+        type: 'error',
+      });
+      setTimeout(() => setToast(null), 3000);
+    } finally {
+      setReinstallingManagedPlatform(null);
+    }
+  };
+
   React.useEffect(() => {
     const url = new URL(window.location.href);
     const connected = url.searchParams.get('connected');
@@ -1028,6 +1072,25 @@ export function Integrations({ userProfile }: { userProfile?: { role?: string; s
                     </button>
                   </div>
                   {isConnected && (
+                    <div className="sm:col-span-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          void handleReinstallManagedConnection('google');
+                        }}
+                        disabled={reinstallingManagedPlatform === 'google' || isConnecting}
+                        className="w-full inline-flex items-center justify-center gap-2 py-1.5 border border-amber-200 text-amber-700 bg-amber-50 rounded-lg text-xs font-bold hover:bg-amber-100 disabled:opacity-60 disabled:cursor-not-allowed"
+                      >
+                        {reinstallingManagedPlatform === 'google' ? (
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        ) : (
+                          <RotateCcw className="w-3.5 h-3.5" />
+                        )}
+                        {isHebrew ? 'התקנה מחדש ל-Google (ניתוק + חיבור)' : 'Re-install Google (disconnect + reconnect)'}
+                      </button>
+                    </div>
+                  )}
+                  {isConnected && (
                     <>
                       {(() => {
                         const managedAccounts = parseManagedGoogleAdsAccounts(formValues.googleAdsAccounts);
@@ -1111,6 +1174,25 @@ export function Integrations({ userProfile }: { userProfile?: { role?: string; s
                       {isConnected ? "Reconnect Meta Ads" : "Connect with Meta Ads"}
                     </button>
                   </div>
+                  {isConnected && (
+                    <div className="sm:col-span-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          void handleReinstallManagedConnection('meta');
+                        }}
+                        disabled={reinstallingManagedPlatform === 'meta' || isConnecting}
+                        className="w-full inline-flex items-center justify-center gap-2 py-1.5 border border-amber-200 text-amber-700 bg-amber-50 rounded-lg text-xs font-bold hover:bg-amber-100 disabled:opacity-60 disabled:cursor-not-allowed"
+                      >
+                        {reinstallingManagedPlatform === 'meta' ? (
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        ) : (
+                          <RotateCcw className="w-3.5 h-3.5" />
+                        )}
+                        {isHebrew ? 'התקנה מחדש ל-Meta (ניתוק + חיבור)' : 'Re-install Meta (disconnect + reconnect)'}
+                      </button>
+                    </div>
+                  )}
                   {isConnected && (
                     <>
                       <div className="sm:col-span-2">
