@@ -55,6 +55,40 @@ const parseManagedGoogleAdsAccounts = (raw: string | undefined): ManagedGoogleAd
   }
 };
 
+const getActiveAccountSummary = (integration: Connection): string | null => {
+  const settings = integration.settings || {};
+
+  if (integration.id === 'google') {
+    const managedAccounts = parseManagedGoogleAdsAccounts(settings.googleAdsAccounts);
+    const selected = managedAccounts.find((account) => account.isSelected) || managedAccounts[0];
+    if (selected?.externalAccountId) {
+      const formatted = formatGoogleAdsAccountId(selected.externalAccountId);
+      return selected.name ? `${selected.name} (${formatted})` : formatted;
+    }
+    if (settings.googleAdsId) {
+      return formatGoogleAdsAccountId(settings.googleAdsId);
+    }
+    return null;
+  }
+
+  if (integration.id === 'meta') {
+    const id = String(settings.metaAdsId || '').trim();
+    return id || null;
+  }
+
+  if (integration.id === 'tiktok') {
+    const id = String(settings.tiktokAdvertiserId || '').trim();
+    return id || null;
+  }
+
+  if (integration.id === 'woocommerce' || integration.id === 'shopify') {
+    const storeUrl = String(settings.storeUrl || '').trim();
+    return storeUrl || null;
+  }
+
+  return null;
+};
+
 const iconMap: Record<string, React.ElementType> = {
   'gemini': Sparkles,
   'openai': Zap,
@@ -1218,6 +1252,7 @@ export function Integrations({ userProfile }: { userProfile?: { role?: string; s
     const isExpanded = expandedId === integration.id;
     const supportsWizard = Object.prototype.hasOwnProperty.call(WIZARD_FIELDS, integration.id);
     const brand = brandStyles[integration.id] || { bg: 'bg-gray-500', text: 'text-white', border: 'border-gray-200', lightBg: 'bg-gray-50' };
+    const activeAccountSummary = getActiveAccountSummary(integration);
     
     return (
       <motion.div 
@@ -1259,6 +1294,14 @@ export function Integrations({ userProfile }: { userProfile?: { role?: string; s
                     <span className="inline-flex items-center text-xs font-medium text-gray-400 bg-gray-50 px-2 py-0.5 rounded-lg">{t('integrations.disconnected')}</span>
                   )}
                 </div>
+                {isConnected && activeAccountSummary ? (
+                  <p className="mt-1 text-[11px] text-gray-600 truncate">
+                    <span className="font-semibold text-gray-700">
+                      {isHebrew ? 'חשבון פעיל:' : 'Active account:'}
+                    </span>{' '}
+                    <span className="font-medium">{activeAccountSummary}</span>
+                  </p>
+                ) : null}
               </div>
             </div>
 
