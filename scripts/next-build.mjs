@@ -29,6 +29,41 @@ function runPrismaMigrateDeploy() {
   return runCommand('prisma', ['migrate', 'deploy']);
 }
 
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function runPrismaMigrateDeployWithRetry() {
+  const maxAttempts = 4;
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    try {
+      if (attempt > 1) {
+        console.log(`Retrying prisma migrate deploy (${attempt}/${maxAttempts})...`);
+      }
+      await runPrismaMigrateDeploy();
+      return true;
+    } catch (error) {
+      const isLastAttempt = attempt === maxAttempts;
+      if (isLastAttempt) {
+        console.warn('Prisma migrate deploy failed after retries. Continuing build without blocking deploy.');
+        console.warn(
+          'Run "npx prisma migrate deploy" manually after deploy if schema changes are still pending.'
+        );
+        return false;
+      }
+      const backoffMs = attempt * 5000;
+      console.warn(
+        `prisma migrate deploy failed on attempt ${attempt}/${maxAttempts}. Waiting ${Math.round(
+          backoffMs / 1000
+        )}s before retry...`,
+        error instanceof Error ? error.message : String(error)
+      );
+      await sleep(backoffMs);
+    }
+  }
+  return false;
+}
+
 function runCommand(command, args) {
   return new Promise((resolve, reject) => {
     const nextBin = process.platform === 'win32' ? 'npx.cmd' : 'npx';
@@ -56,7 +91,7 @@ let originalAppSource = '';
 try {
   if (process.env.DATABASE_URL) {
     console.log('Applying Prisma migrations (deploy)...');
-    await runPrismaMigrateDeploy();
+    await runPrismaMigrateDeployWithRetry();
   } else {
     console.warn('DATABASE_URL not set; skipping prisma migrate deploy.');
     if (process.env.NODE_ENV === 'production') {
