@@ -7,12 +7,28 @@ import { GoogleGenAI } from "@google/genai";
 
 export type AIKeys = { gemini?: string; openai?: string; claude?: string };
 
+function normalizeProviderKey(value: string | undefined): string {
+  const trimmed = String(value || '').trim();
+  if (!trimmed) return '';
+  const lower = trimmed.toLowerCase();
+  if (
+    lower === 'server-managed' ||
+    lower === 'undefined' ||
+    lower === 'null' ||
+    lower === 'none' ||
+    lower.startsWith('your_')
+  ) {
+    return '';
+  }
+  return trimmed;
+}
+
 export function getAIKeysFromConnections(
   connections: { id: string; settings?: Record<string, string> }[]
 ): AIKeys {
-  const gemini = connections.find((c) => c.id === "gemini")?.settings?.apiKey?.trim();
-  const openai = connections.find((c) => c.id === "openai")?.settings?.apiKey?.trim();
-  const claude = connections.find((c) => c.id === "claude")?.settings?.apiKey?.trim();
+  const gemini = normalizeProviderKey(connections.find((c) => c.id === "gemini")?.settings?.apiKey);
+  const openai = normalizeProviderKey(connections.find((c) => c.id === "openai")?.settings?.apiKey);
+  const claude = normalizeProviderKey(connections.find((c) => c.id === "claude")?.settings?.apiKey);
   return { gemini, openai, claude };
 }
 
@@ -94,10 +110,15 @@ export async function requestJSON<T = unknown>(
   keys: AIKeys
 ): Promise<{ data: T; provider: string }> {
   const errors: string[] = [];
+  const normalizedKeys: AIKeys = {
+    gemini: normalizeProviderKey(keys.gemini),
+    openai: normalizeProviderKey(keys.openai),
+    claude: normalizeProviderKey(keys.claude),
+  };
 
-  if (keys.gemini) {
+  if (normalizedKeys.gemini) {
     try {
-      const text = await tryGemini(prompt, keys.gemini);
+      const text = await tryGemini(prompt, normalizedKeys.gemini);
       const data = parseJsonSafe<T>(text, null as unknown as T);
       if (data != null) return { data, provider: "gemini" };
     } catch (e) {
@@ -105,9 +126,9 @@ export async function requestJSON<T = unknown>(
     }
   }
 
-  if (keys.openai) {
+  if (normalizedKeys.openai) {
     try {
-      const text = await tryOpenAI(prompt, keys.openai);
+      const text = await tryOpenAI(prompt, normalizedKeys.openai);
       const data = parseJsonSafe<T>(text, null as unknown as T);
       if (data != null) return { data, provider: "openai" };
     } catch (e) {
@@ -115,9 +136,9 @@ export async function requestJSON<T = unknown>(
     }
   }
 
-  if (keys.claude) {
+  if (normalizedKeys.claude) {
     try {
-      const text = await tryClaude(prompt, keys.claude);
+      const text = await tryClaude(prompt, normalizedKeys.claude);
       const data = parseJsonSafe<T>(text, null as unknown as T);
       if (data != null) return { data, provider: "claude" };
     } catch (e) {
@@ -133,5 +154,9 @@ export async function requestJSON<T = unknown>(
 
 /** Check if at least one AI key is configured */
 export function hasAnyAIKey(keys: AIKeys): boolean {
-  return !!(keys.gemini || keys.openai || keys.claude);
+  return !!(
+    normalizeProviderKey(keys.gemini) ||
+    normalizeProviderKey(keys.openai) ||
+    normalizeProviderKey(keys.claude)
+  );
 }

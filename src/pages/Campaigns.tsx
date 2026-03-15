@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { getOptimizationRecommendations, getAIKeysFromConnections } from '../lib/gemini';
+import { getOptimizationRecommendations, getAIKeysFromConnections, hasAnyAIKey } from '../lib/gemini';
 import { CheckCircle2, AlertCircle, Loader2, Zap, Mail, Target, ImagePlus, Trash2, Clock3, CalendarClock, PlusCircle, Check } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { useLanguage } from '../contexts/LanguageContext';
@@ -294,16 +294,21 @@ export function Campaigns() {
     setLoading(true);
     try {
       const aiKeys = getAIKeysFromConnections(connections);
-      const dataToAnalyze = realCampaigns.length > 0 ? realCampaigns : mockCampaignData;
-      const dataStr = JSON.stringify(dataToAnalyze);
-      const res = await getOptimizationRecommendations(dataStr, aiKeys);
-      if (res?.recommendations) {
-        setRecommendations(res.recommendations);
+      if (!hasAnyAIKey(aiKeys)) {
+        setRecommendations([]);
+      } else {
+        const dataToAnalyze = realCampaigns.length > 0 ? realCampaigns : mockCampaignData;
+        const dataStr = JSON.stringify(dataToAnalyze);
+        const res = await getOptimizationRecommendations(dataStr, aiKeys);
+        if (res?.recommendations) {
+          setRecommendations(res.recommendations);
+        }
       }
     } catch (error) {
       console.error("Failed to fetch recommendations", error);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   const syncTikTokData = async () => {

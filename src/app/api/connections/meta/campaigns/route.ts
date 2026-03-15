@@ -157,17 +157,29 @@ export async function GET(request: Request) {
       );
     }
 
-    const loadCampaigns = async (accountId: string, includeDateRange = true) => {
+    const loadCampaigns = async (
+      accountId: string,
+      options?: {
+        includeDateRange?: boolean;
+        includeInsights?: boolean;
+        includeEffectiveStatus?: boolean;
+      }
+    ) => {
+      const includeDateRange = options?.includeDateRange !== false;
+      const includeInsights = options?.includeInsights !== false;
+      const includeEffectiveStatus = options?.includeEffectiveStatus !== false;
       const resource = toAccountResource(accountId);
       const graphUrl = new URL(`${META_GRAPH_BASE}/${resource}/campaigns`);
-      graphUrl.searchParams.set(
-        'fields',
-        'id,name,status,objective,start_time,stop_time,insights{spend,inline_link_click_ctr,purchase_roas,roas,actions,action_values}'
-      );
-      graphUrl.searchParams.set(
-        'effective_status',
-        JSON.stringify(['ACTIVE', 'PAUSED', 'ARCHIVED', 'WITH_ISSUES', 'DELETED'])
-      );
+      const baseFields = 'id,name,status,objective,start_time,stop_time';
+      const insightsFields =
+        'insights{spend,inline_link_click_ctr,purchase_roas,roas,actions,action_values}';
+      graphUrl.searchParams.set('fields', includeInsights ? `${baseFields},${insightsFields}` : baseFields);
+      if (includeEffectiveStatus) {
+        graphUrl.searchParams.set(
+          'effective_status',
+          JSON.stringify(['ACTIVE', 'PAUSED', 'ARCHIVED', 'WITH_ISSUES', 'DELETED'])
+        );
+      }
       graphUrl.searchParams.set('limit', '200');
       if (includeDateRange && startDate && endDate) {
         graphUrl.searchParams.set(
@@ -191,19 +203,35 @@ export async function GET(request: Request) {
       return { response, parsed };
     };
 
-    let result = await loadCampaigns(resolvedAccountId, true);
+    const attemptCampaignLoad = async (accountId: string) => {
+      // Strategy order: full query -> no date -> no insights -> minimal
+      const attempts: Array<{
+        includeDateRange?: boolean;
+        includeInsights?: boolean;
+        includeEffectiveStatus?: boolean;
+      }> = [
+        { includeDateRange: true, includeInsights: true, includeEffectiveStatus: true },
+        { includeDateRange: false, includeInsights: true, includeEffectiveStatus: true },
+        { includeDateRange: false, includeInsights: false, includeEffectiveStatus: true },
+        { includeDateRange: false, includeInsights: false, includeEffectiveStatus: false },
+      ];
+      let lastResult: Awaited<ReturnType<typeof loadCampaigns>> | null = null;
+      for (const attempt of attempts) {
+        lastResult = await loadCampaigns(accountId, attempt);
+        if (lastResult.response.ok) {
+          return lastResult;
+        }
+        const message = extractErrorMessage(lastResult.response.status, lastResult.parsed).toLowerCase();
+        if (!message.includes('invalid parameter')) {
+          return lastResult;
+        }
+      }
+      return lastResult as Awaited<ReturnType<typeof loadCampaigns>>;
+    };
+
+    let result = await attemptCampaignLoad(resolvedAccountId);
     let response = result.response;
     let parsed = result.parsed;
-
-    // If Meta rejects date filters for the selected account/currency timezone combo, retry once without time_range.
-    if (!response.ok && startDate && endDate) {
-      const firstErrorMessage = extractErrorMessage(response.status, parsed);
-      if (firstErrorMessage.toLowerCase().includes('invalid parameter')) {
-        result = await loadCampaigns(resolvedAccountId, false);
-        response = result.response;
-        parsed = result.parsed;
-      }
-    }
 
     // If the account id sent by client is stale/invalid, auto-fallback to a valid managed account.
     if (managedConnection && managedUserId && !response.ok) {
@@ -247,17 +275,9 @@ export async function GET(request: Request) {
           normalizeMetaAccountId(fallbackAccountId) !== normalizeMetaAccountId(resolvedAccountId)
         ) {
           resolvedAccountId = fallbackAccountId;
-          result = await loadCampaigns(resolvedAccountId, true);
+          result = await attemptCampaignLoad(resolvedAccountId);
           response = result.response;
           parsed = result.parsed;
-          if (!response.ok && startDate && endDate) {
-            const fallbackMessage = extractErrorMessage(response.status, parsed);
-            if (fallbackMessage.toLowerCase().includes('invalid parameter')) {
-              result = await loadCampaigns(resolvedAccountId, false);
-              response = result.response;
-              parsed = result.parsed;
-            }
-          }
         }
       }
     }

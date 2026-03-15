@@ -16,7 +16,6 @@ function getEnvApiKey(): string | undefined {
 function getAI(apiKey?: string) {
   const key = apiKey?.trim() || getEnvApiKey();
   if (!key) {
-    console.warn("GEMINI_API_KEY is not defined and no API key was passed. AI features will not work.");
     return null;
   }
   return new GoogleGenAI({ apiKey: key });
