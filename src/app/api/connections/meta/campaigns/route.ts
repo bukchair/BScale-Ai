@@ -80,6 +80,16 @@ const extractErrorMessage = (status: number, parsed: unknown) => {
   return objectPayload.error?.message || objectPayload.message || `Meta API request failed (${status}).`;
 };
 
+const isMetaRateLimitError = (message: string) => {
+  const normalized = String(message || '').toLowerCase();
+  return (
+    normalized.includes('too many calls') ||
+    normalized.includes('rate limit') ||
+    normalized.includes('rate-limiting') ||
+    normalized.includes('ad-account') && normalized.includes('wait a bit')
+  );
+};
+
 const getCampaignRows = (parsed: unknown): Array<Record<string, unknown>> => {
   if (!parsed || typeof parsed !== 'object') return [];
   const rows = (parsed as { data?: Array<Record<string, unknown>> }).data;
@@ -223,69 +233,44 @@ export async function GET(request: Request) {
 
     const loadCampaignInsights = async (accountId: string) => {
       const resource = toAccountResource(accountId);
-      const fieldsVariants = [
-        'campaign_id,spend,impressions,reach,clicks,ctr,cpc,cpm,frequency,actions,action_values,purchase_roas,roas',
-        'campaign_id,spend,impressions,reach,clicks,ctr,cpc,cpm,actions,action_values',
-        'campaign_id,spend,impressions,reach,clicks,ctr,cpc,cpm',
-        'campaign_id,spend,impressions,clicks',
-      ];
+      const graphUrl = new URL(`${META_GRAPH_BASE}/${resource}/insights`);
+      graphUrl.searchParams.set('level', 'campaign');
+      graphUrl.searchParams.set('limit', '500');
+      graphUrl.searchParams.set(
+        'fields',
+        'campaign_id,spend,impressions,reach,clicks,ctr,cpc,cpm,frequency,actions,action_values,purchase_roas,roas'
+      );
+      if (startDate && endDate) {
+        graphUrl.searchParams.set(
+          'time_range',
+          JSON.stringify({
+            since: startDate,
+            until: endDate,
+          })
+        );
+      }
+      graphUrl.searchParams.set('access_token', accessToken);
 
-      let lastResponse: Response | null = null;
-      let lastParsed: unknown = null;
-
-      for (const fields of fieldsVariants) {
-        const graphUrl = new URL(`${META_GRAPH_BASE}/${resource}/insights`);
-        graphUrl.searchParams.set('level', 'campaign');
-        graphUrl.searchParams.set('limit', '500');
-        graphUrl.searchParams.set('fields', fields);
-        if (startDate && endDate) {
-          graphUrl.searchParams.set(
-            'time_range',
-            JSON.stringify({
-              since: startDate,
-              until: endDate,
-            })
-          );
-        }
-        graphUrl.searchParams.set('access_token', accessToken);
-
-        const response = await fetch(graphUrl.toString());
-        const raw = await response.text();
-        let parsed: unknown = {};
-        try {
-          parsed = raw ? JSON.parse(raw) : {};
-        } catch {
-          parsed = { message: raw || 'Meta insights returned non-JSON response.' };
-        }
-
-        lastResponse = response;
-        lastParsed = parsed;
-        if (response.ok) {
-          return { response, parsed };
-        }
-
-        const message = extractErrorMessage(response.status, parsed).toLowerCase();
-        if (!message.includes('invalid parameter')) {
-          break;
-        }
+      const response = await fetch(graphUrl.toString());
+      const raw = await response.text();
+      let parsed: unknown = {};
+      try {
+        parsed = raw ? JSON.parse(raw) : {};
+      } catch {
+        parsed = { message: raw || 'Meta insights returned non-JSON response.' };
       }
 
-      return {
-        response: lastResponse as Response,
-        parsed: lastParsed,
-      };
+      return { response, parsed };
     };
 
     const attemptCampaignLoad = async (accountId: string) => {
-      // Strategy order: full query -> no date -> no insights -> minimal
+      // Strategy order (keep low call count to avoid rate-limit): full query -> minimal.
       const attempts: Array<{
         includeDateRange?: boolean;
         includeInsights?: boolean;
         includeEffectiveStatus?: boolean;
       }> = [
         { includeDateRange: true, includeInsights: true, includeEffectiveStatus: true },
-        { includeDateRange: false, includeInsights: true, includeEffectiveStatus: true },
-        { includeDateRange: false, includeInsights: false, includeEffectiveStatus: true },
         { includeDateRange: false, includeInsights: false, includeEffectiveStatus: false },
       ];
       let lastResult: Awaited<ReturnType<typeof loadCampaigns>> | null = null;
@@ -357,7 +342,8 @@ export async function GET(request: Request) {
 
     if (!response.ok) {
       const message = extractErrorMessage(response.status, parsed);
-      return NextResponse.json({ message }, { status: response.status });
+      const status = isMetaRateLimitError(message) ? 429 : response.status;
+      return NextResponse.json({ message }, { status });
     }
 
     const campaigns = getCampaignRows(parsed);
@@ -387,6 +373,12 @@ export async function GET(request: Request) {
             };
           });
           insightsFallbackUsed = true;
+        } else {
+          const insightsError = extractErrorMessage(insightsResult.response.status, insightsResult.parsed);
+          if (isMetaRateLimitError(insightsError)) {
+            // Keep campaign rows without insights when account is temporarily rate-limited.
+            insightsFallbackUsed = false;
+          }
         }
       } catch {
         // Keep base campaigns list if enrichment fails.

@@ -393,8 +393,12 @@ export function Campaigns() {
 
   useEffect(() => {
     let cancelled = false;
+    let lastSyncAt = 0;
     const syncAll = async () => {
       if (cancelled) return;
+      const now = Date.now();
+      if (now - lastSyncAt < 60_000) return;
+      lastSyncAt = now;
       setIsSyncing(true);
       try {
         await Promise.all([syncTikTokData(), syncMetaData(), syncGoogleData()]);
@@ -409,7 +413,7 @@ export function Campaigns() {
 
     const intervalId = window.setInterval(() => {
       void syncAll();
-    }, 45_000);
+    }, 120_000);
 
     const handleFocus = () => {
       void syncAll();

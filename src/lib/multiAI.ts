@@ -6,6 +6,8 @@
 import { GoogleGenAI } from "@google/genai";
 
 export type AIKeys = { gemini?: string; openai?: string; claude?: string };
+const GEMINI_NOT_FOUND_COOLDOWN_MS = 10 * 60 * 1000;
+let geminiBlockedUntil = 0;
 
 function normalizeProviderKey(value: string | undefined): string {
   const trimmed = String(value || '').trim();
@@ -46,6 +48,9 @@ function parseJsonSafe<T>(text: string, fallback: T): T {
 }
 
 async function tryGemini(prompt: string, apiKey: string): Promise<string> {
+  if (Date.now() < geminiBlockedUntil) {
+    throw new Error("Gemini temporarily disabled after repeated 404 responses.");
+  }
   const ai = new GoogleGenAI({ apiKey });
   const response = await ai.models.generateContent({
     model: "gemini-2.0-flash",
@@ -53,6 +58,16 @@ async function tryGemini(prompt: string, apiKey: string): Promise<string> {
     config: { responseMimeType: "application/json" },
   });
   return (response as any).text ?? "";
+}
+
+function isGeminiNotFoundError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error || '');
+  const lower = message.toLowerCase();
+  return (
+    lower.includes('404') ||
+    lower.includes('not found') ||
+    lower.includes('models/gemini-2.0-flash')
+  );
 }
 
 async function tryOpenAI(prompt: string, apiKey: string): Promise<string> {
@@ -122,6 +137,9 @@ export async function requestJSON<T = unknown>(
       const data = parseJsonSafe<T>(text, null as unknown as T);
       if (data != null) return { data, provider: "gemini" };
     } catch (e) {
+      if (isGeminiNotFoundError(e)) {
+        geminiBlockedUntil = Date.now() + GEMINI_NOT_FOUND_COOLDOWN_MS;
+      }
       errors.push(`Gemini: ${e instanceof Error ? e.message : String(e)}`);
     }
   }

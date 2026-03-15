@@ -16,6 +16,50 @@ const API_BASE = (() => {
   }
 })();
 
+const META_CACHE_PREFIX = 'bscale:meta-campaigns:';
+const META_RATE_LIMIT_COOLDOWN_MS = 3 * 60 * 1000;
+let metaRateLimitedUntil = 0;
+
+const isMetaRateLimitMessage = (message: string) => {
+  const normalized = String(message || '').toLowerCase();
+  return (
+    normalized.includes('too many calls') ||
+    normalized.includes('rate limit') ||
+    normalized.includes('rate-limiting') ||
+    (normalized.includes('ad-account') && normalized.includes('wait a bit'))
+  );
+};
+
+const buildMetaCacheKey = (adAccountId?: string, startDate?: string, endDate?: string) =>
+  `${META_CACHE_PREFIX}${String(adAccountId || 'selected')}|${String(startDate || 'none')}|${String(endDate || 'none')}`;
+
+const loadCachedMetaCampaigns = (cacheKey: string) => {
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = window.localStorage.getItem(cacheKey);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as { items?: any[] };
+    return Array.isArray(parsed.items) ? parsed.items : null;
+  } catch {
+    return null;
+  }
+};
+
+const saveCachedMetaCampaigns = (cacheKey: string, items: any[]) => {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.setItem(
+      cacheKey,
+      JSON.stringify({
+        savedAt: Date.now(),
+        items,
+      })
+    );
+  } catch {
+    // ignore storage quota errors
+  }
+};
+
 const ensureManagedApiSession = async (accessToken: string) => {
   if (accessToken !== 'server-managed') return;
   const user =
@@ -86,6 +130,12 @@ export async function fetchMetaCampaigns(
   endDate?: string
 ) {
   await ensureManagedApiSession(accessToken);
+  const cacheKey = buildMetaCacheKey(adAccountId, startDate, endDate);
+
+  if (Date.now() < metaRateLimitedUntil) {
+    const cached = loadCachedMetaCampaigns(cacheKey);
+    if (cached) return cached;
+  }
 
   const loadCampaigns = async (candidateAccountId?: string) => {
     const query = new URLSearchParams();
@@ -121,11 +171,19 @@ export async function fetchMetaCampaigns(
   }
 
   if (!response.ok) {
-    throw new Error((payload as any)?.message || 'Failed to fetch Meta campaigns');
+    const message = String((payload as any)?.message || 'Failed to fetch Meta campaigns');
+    if (isMetaRateLimitMessage(message)) {
+      metaRateLimitedUntil = Date.now() + META_RATE_LIMIT_COOLDOWN_MS;
+      const cached = loadCachedMetaCampaigns(cacheKey);
+      if (cached) {
+        return cached;
+      }
+    }
+    throw new Error(message);
   }
 
   const campaigns = Array.isArray((payload as any)?.data) ? (payload as any).data : [];
-  return campaigns.map((c: any) => {
+  const mapped = campaigns.map((c: any) => {
     const insights = c.insights?.data?.[0] || {};
     const spend = parseFloat(insights.spend || 0) || 0;
     const impressions = parseFloat(insights.impressions || 0) || 0;
@@ -205,4 +263,7 @@ export async function fetchMetaCampaigns(
       conversionValue,
     };
   });
+
+  saveCachedMetaCampaigns(cacheKey, mapped);
+  return mapped;
 }
