@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Plug, CheckCircle2, ShoppingCart, BarChart2, Mail, Search, Megaphone, Video, Facebook, AlertCircle, Loader2, X, Store, HelpCircle, ChevronDown, ChevronUp, Sparkles, Settings2, Key, Link as LinkIcon, Trash2, Plus, ExternalLink } from 'lucide-react';
+import { Plug, CheckCircle2, ShoppingCart, Search, Megaphone, Video, Facebook, AlertCircle, Loader2, X, Store, HelpCircle, Sparkles, Settings2, Key, Link as LinkIcon, Trash2, Plus, ExternalLink } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
 import { useConnections, Connection } from '../contexts/ConnectionsContext';
@@ -554,7 +554,7 @@ export function Integrations() {
 
     window.addEventListener('message', handleMessage);
     return () => window.removeEventListener('message', handleMessage);
-  }, [formValues, isHebrew, syncGoogleServices, t]);
+  }, [isHebrew, syncGoogleServices, t]);
 
   React.useEffect(() => {
     void syncGoogleServices();
@@ -963,14 +963,23 @@ export function Integrations() {
                                   className="px-2.5 py-1.5 text-[10px] font-bold rounded-md bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-60 flex items-center gap-1"
                                 >
                                   {isBusy ? <Loader2 className="w-3 h-3 animate-spin" /> : <Megaphone className="w-3 h-3" />}
-                                  {isRowConnected
-                                    ? isHebrew
-                                      ? 'Reconnect'
-                                      : 'Reconnect'
-                                    : isHebrew
-                                    ? 'Connect'
-                                    : 'Connect'}
+                                  {isRowConnected ? 'Reconnect' : 'Connect'}
                                 </button>
+                                {row.slug === 'ga4' && (
+                                  <button
+                                    type="button"
+                                    disabled={ga4ValidationLoading}
+                                    onClick={() => void handleValidateGa4Property()}
+                                    className="px-2.5 py-1.5 text-[10px] font-bold rounded-md border border-indigo-200 text-indigo-700 hover:bg-indigo-50 disabled:opacity-60 flex items-center gap-1"
+                                  >
+                                    {ga4ValidationLoading ? (
+                                      <Loader2 className="w-3 h-3 animate-spin" />
+                                    ) : (
+                                      <CheckCircle2 className="w-3 h-3" />
+                                    )}
+                                    {isHebrew ? 'טסט GA4' : 'Test GA4'}
+                                  </button>
+                                )}
                                 <button
                                   type="button"
                                   disabled={isBusy}
@@ -1344,6 +1353,7 @@ export function Integrations() {
     const Icon = iconMap[integration.id] || Plug;
     const isExpanded = expandedId === integration.id;
     const brand = brandStyles[integration.id] || { bg: 'bg-gray-500', text: 'text-white', border: 'border-gray-200', lightBg: 'bg-gray-50' };
+    const googleSubConnections = integration.id === 'google' ? integration.subConnections || [] : [];
     
     return (
       <motion.div 
@@ -1384,6 +1394,27 @@ export function Integrations() {
                     <span className="text-[9px] font-bold text-gray-400 uppercase tracking-tighter">{t('integrations.disconnected')}</span>
                   )}
                 </div>
+                {integration.id === 'google' && googleSubConnections.length > 0 && !isExpanded && (
+                  <div className="mt-1.5 flex flex-wrap items-center gap-1">
+                    {googleSubConnections.map((sub) => (
+                      <span
+                        key={`google-mini-${sub.id}`}
+                        className={cn(
+                          "inline-flex items-center rounded-full px-1.5 py-0.5 text-[9px] font-bold uppercase",
+                          sub.status === 'connected'
+                            ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                            : sub.status === 'connecting'
+                            ? "bg-blue-50 text-blue-700 border border-blue-200"
+                            : sub.status === 'error'
+                            ? "bg-red-50 text-red-700 border border-red-200"
+                            : "bg-gray-50 text-gray-600 border border-gray-200"
+                        )}
+                      >
+                        {sub.name}
+                      </span>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
 

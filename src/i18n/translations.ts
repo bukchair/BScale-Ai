@@ -275,7 +275,7 @@ export const translations = {
         },
         google: {
           name: "Google Ecosystem",
-          desc: "Connect all Google services at once. Includes Ads, Analytics 4, Search Console, and Gmail for reports."
+          desc: "One Google block with 4 independent service connections: Ads, Analytics 4, Search Console, and Gmail."
         },
         meta: {
           name: "Meta (Ads, Pixel)",
@@ -301,8 +301,8 @@ export const translations = {
       },
       google: {
         step1: "Ads ID (10 digits)",
-        step2: "Measurement ID from GA4",
-        step3: "Click Save to finish"
+        step2: "GA4 Property ID (numeric property ID, not Measurement ID)",
+        step3: "Click Test GA4 Property ID and then Save"
       },
       meta: {
         step1: "Click 'Connect with Meta Ads' below",
@@ -345,7 +345,7 @@ export const translations = {
           step3: "Paste the key in API Key field and click Save & Connect."
         },
         google: {
-          step1: "Connect Google in popup, then click Scan Google resources to auto-fill IDs.",
+          step1: "Connect each Google service separately in the Google block (Ads / GA4 / Search Console / Gmail).",
           step2: "Google Ads Customer ID (10 digits):",
           step3: "GA4 Property ID (Admin):",
           step4: "Search Console Site URL:"
@@ -942,7 +942,7 @@ export const translations = {
         },
         google: {
           name: "Google Ecosystem",
-          desc: "חבר את כל שירותי גוגל בבת אחת. כולל Ads, Analytics 4, Search Console ו-Gmail לדוחות."
+          desc: "בלוק Google אחד עם 4 שירותים עצמאיים: Ads, Analytics 4, Search Console ו‑Gmail."
         },
         meta: {
           name: "Meta (Ads, Pixel)",
@@ -968,8 +968,8 @@ export const translations = {
       },
       google: {
         step1: "מזהה Ads (10 ספרות)",
-        step2: "Measurement ID מ-GA4",
-        step3: "לחץ שמור לסיום"
+        step2: "GA4 Property ID (מזהה נכס מספרי, לא Measurement ID)",
+        step3: "לחץ על בדיקת GA4 Property ID ואז שמור"
       },
       meta: {
         step1: "לחץ על 'התחבר עם Meta Ads' למטה",
@@ -1012,7 +1012,7 @@ export const translations = {
           step3: "הדבק את המפתח בשדה API Key ולחץ שמור והתחבר."
         },
         google: {
-          step1: "התחבר ל-Google בחלון הקופץ, ואז לחץ על סרוק משאבי Google למילוי מזהים אוטומטי.",
+          step1: "התחבר לכל שירות Google בנפרד בתוך בלוק Google (Ads / GA4 / Search Console / Gmail).",
           step2: "מזהה לקוח Google Ads (10 ספרות):",
           step3: "מזהה נכס GA4 (Admin):",
           step4: "כתובת אתר ב-Search Console:"

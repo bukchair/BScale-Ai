@@ -161,7 +161,6 @@ const applyGoogleServiceSnapshot = (
 
 export function ConnectionsProvider({ children }: { children: ReactNode }) {
   const [connections, setConnections] = useState<Connection[]>(initialConnections);
-  const [isLoading, setIsLoading] = useState(true);
 
   const syncGoogleServices = useCallback(async () => {
     const user = auth.currentUser;
@@ -195,12 +194,10 @@ export function ConnectionsProvider({ children }: { children: ReactNode }) {
             setConnections(initialConnections);
             void syncGoogleServices();
           }
-          setIsLoading(false);
         });
         return () => unsubscribeSnapshot();
       } else {
         setConnections(initialConnections);
-        setIsLoading(false);
       }
     });
 
