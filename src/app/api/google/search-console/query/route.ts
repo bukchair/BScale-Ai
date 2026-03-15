@@ -3,6 +3,7 @@ import { requireAuthenticatedUser } from '@/src/lib/auth/session';
 import { googleLegacyBridge } from '@/src/lib/integrations/services/google-legacy-bridge';
 
 const SEARCH_CONSOLE_API = 'https://searchconsole.googleapis.com/webmasters/v3';
+const DATE_PARAM_REGEX = /^\d{4}-\d{2}-\d{2}$/;
 
 const toErrorMessage = (status: number, raw: string, parsed: unknown) => {
   if (parsed && typeof parsed === 'object') {
@@ -25,6 +26,11 @@ const dateDaysAgo = (days: number) => {
   return date.toISOString().slice(0, 10);
 };
 
+const normalizeDateParam = (value: string | null) => {
+  const trimmed = (value || '').trim();
+  return DATE_PARAM_REGEX.test(trimmed) ? trimmed : '';
+};
+
 export async function GET(request: Request) {
   try {
     const user = await requireAuthenticatedUser();
@@ -34,6 +40,8 @@ export async function GET(request: Request) {
     );
     const url = new URL(request.url);
     const querySiteUrl = (url.searchParams.get('site_url') || '').trim();
+    const startDateParam = normalizeDateParam(url.searchParams.get('start_date'));
+    const endDateParam = normalizeDateParam(url.searchParams.get('end_date'));
     const fallbackSiteUrl =
       connection.connectedAccounts.find((account) => account.isSelected)?.externalAccountId ||
       connection.connectedAccounts[0]?.externalAccountId ||
@@ -53,8 +61,8 @@ export async function GET(request: Request) {
           'content-type': 'application/json',
         },
         body: JSON.stringify({
-          startDate: dateDaysAgo(30),
-          endDate: dateDaysAgo(1),
+          startDate: startDateParam || dateDaysAgo(30),
+          endDate: endDateParam || dateDaysAgo(1),
           dimensions: ['query'],
           rowLimit: 50,
         }),

@@ -1,10 +1,13 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useLanguage } from '../contexts/LanguageContext';
-import { Search, AlertTriangle, TrendingUp, TrendingDown, Filter, Download, Zap, CheckCircle2, XCircle } from 'lucide-react';
+import { Search, AlertTriangle, TrendingUp, Filter, Download, Zap, CheckCircle2, XCircle } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { useCurrency } from '../contexts/CurrencyContext';
+import { useConnections } from '../contexts/ConnectionsContext';
+import { useDateRangeBounds } from '../contexts/DateRangeContext';
+import { fetchGoogleSearchTerms, fetchGSCData } from '../services/googleService';
 
-const searchTerms = [
+const demoSearchTerms = [
   { term: 'נעלי ריצה זולות', clicks: 145, cost: 320, conversions: 0, roas: 0, source: 'Google Ads', status: 'review' },
   { term: 'נעלי הריצה הטובות ביותר 2024', clicks: 320, cost: 850, conversions: 12, roas: 4.2, source: 'Google Ads', status: 'optimal' },
   { type: 'organic', term: 'איך להתחיל לרוץ', impressions: 4500, clicks: 320, position: 4.2, source: 'GSC', status: 'opportunity' },
@@ -12,10 +15,29 @@ const searchTerms = [
   { type: 'organic', term: 'נעלי ריצה קרובות אלי', impressions: 1200, clicks: 45, position: 8.5, source: 'GSC', status: 'improve' },
 ];
 
+type SearchTermRow = {
+  term: string;
+  clicks: number;
+  cost?: number;
+  conversions?: number;
+  roas?: number;
+  source: 'Google Ads' | 'GSC';
+  status: 'review' | 'optimal' | 'opportunity' | 'negative_candidate' | 'improve';
+  impressions?: number;
+  position?: number;
+};
+
 export function SearchAnalysis() {
   const { t, dir } = useLanguage();
   const [activeTab, setActiveTab] = useState<'all' | 'ads' | 'organic' | 'negative'>('all');
   const { format: formatCurrency } = useCurrency();
+  const { connections } = useConnections();
+  const bounds = useDateRangeBounds();
+  const [searchTerms, setSearchTerms] = useState<SearchTermRow[]>(demoSearchTerms as SearchTermRow[]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [syncError, setSyncError] = useState<string | null>(null);
+  const startDateIso = useMemo(() => bounds.startDate.toISOString().slice(0, 10), [bounds.startDate]);
+  const endDateIso = useMemo(() => bounds.endDate.toISOString().slice(0, 10), [bounds.endDate]);
 
   const negativeKeywords = [
     { id: 1, term: 'חינם', matchType: 'רחב', campaign: 'כל הקמפיינים', addedDate: '2024-03-01' },
@@ -23,12 +45,113 @@ export function SearchAnalysis() {
     { id: 3, term: 'יד שניה', matchType: 'מדויק', campaign: 'נעלי נשים', addedDate: '2024-03-10' },
   ];
 
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadSearchTerms = async () => {
+      const googleConnection = connections.find((connection) => connection.id === 'google');
+      if (googleConnection?.status !== 'connected') {
+        setSearchTerms(demoSearchTerms as SearchTermRow[]);
+        setSyncError(null);
+        setIsLoading(false);
+        return;
+      }
+
+      const token = googleConnection.settings?.googleAccessToken || 'server-managed';
+      const customerId =
+        googleConnection.settings?.googleAdsId ||
+        googleConnection.settings?.customerId ||
+        googleConnection.settings?.googleCustomerId ||
+        undefined;
+      const loginCustomerId = googleConnection.settings?.loginCustomerId || undefined;
+      const siteUrl = googleConnection.settings?.siteUrl || googleConnection.settings?.gscSiteUrl || undefined;
+
+      setIsLoading(true);
+      setSyncError(null);
+
+      const [adsResult, gscResult] = await Promise.allSettled([
+        fetchGoogleSearchTerms(token, customerId, loginCustomerId, startDateIso, endDateIso),
+        fetchGSCData(token, siteUrl, startDateIso, endDateIso),
+      ]);
+
+      if (cancelled) return;
+
+      const nextTerms: SearchTermRow[] = [];
+      const errors: string[] = [];
+
+      if (adsResult.status === 'fulfilled') {
+        nextTerms.push(...(adsResult.value as SearchTermRow[]));
+      } else {
+        errors.push(adsResult.reason instanceof Error ? adsResult.reason.message : 'Google Ads sync failed.');
+      }
+
+      if (gscResult.status === 'fulfilled') {
+        const gscRows = Array.isArray(gscResult.value?.rows) ? gscResult.value.rows : [];
+        gscRows.forEach((row: any) => {
+          const term = String(row?.keys?.[0] || '').trim();
+          if (!term) return;
+          const impressions = Number(row?.impressions || 0);
+          const clicks = Number(row?.clicks || 0);
+          const position = Number(row?.position || 0);
+          const ctr = impressions > 0 ? clicks / impressions : 0;
+
+          const status: SearchTermRow['status'] =
+            position > 10 ? 'improve' : impressions >= 500 && ctr < 0.025 ? 'opportunity' : 'optimal';
+
+          nextTerms.push({
+            term,
+            impressions,
+            clicks,
+            position,
+            source: 'GSC',
+            status,
+          });
+        });
+      } else {
+        errors.push(gscResult.reason instanceof Error ? gscResult.reason.message : 'GSC sync failed.');
+      }
+
+      nextTerms.sort((a, b) => (b.clicks || 0) - (a.clicks || 0));
+      setSearchTerms(nextTerms);
+      setSyncError(errors.length ? errors.join(' | ') : null);
+      setIsLoading(false);
+    };
+
+    void loadSearchTerms();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [connections, startDateIso, endDateIso]);
+
+  const filteredTerms = useMemo(
+    () =>
+      searchTerms.filter(
+        (row) =>
+          activeTab === 'all' ||
+          (activeTab === 'ads' && row.source === 'Google Ads') ||
+          (activeTab === 'organic' && row.source === 'GSC')
+      ),
+    [activeTab, searchTerms]
+  );
+
+  const estimatedMonthlySavings = useMemo(
+    () =>
+      searchTerms
+        .filter((row) => row.source === 'Google Ads' && row.status === 'negative_candidate')
+        .reduce((sum, row) => sum + Number(row.cost || 0), 0) * 0.6,
+    [searchTerms]
+  );
+
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">{t('nav.searchAnalysis')}</h1>
           <p className="text-sm text-gray-500 mt-1">{t('search.subtitle')}</p>
+          <p className="text-xs text-indigo-600 mt-1" dir="ltr">
+            {startDateIso} → {endDateIso}
+          </p>
         </div>
         <div className="flex items-center gap-2">
           <button className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 text-gray-700 rounded-xl hover:bg-gray-50 transition-colors text-sm font-bold shadow-sm">
@@ -41,6 +164,12 @@ export function SearchAnalysis() {
           </button>
         </div>
       </div>
+
+      {syncError ? (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-700">
+          {syncError}
+        </div>
+      ) : null}
 
       {/* AI Insights */}
       <div className="bg-gradient-to-br from-indigo-900 via-purple-900 to-indigo-800 rounded-2xl shadow-lg p-1 relative overflow-hidden">
@@ -75,7 +204,7 @@ export function SearchAnalysis() {
             <div className="bg-black/20 rounded-xl p-6 border border-white/10 flex flex-col justify-center items-center text-center">
               <p className="text-sm text-indigo-200 mb-2">{t('search.monthlySavings')}</p>
               <p className="text-4xl font-black text-emerald-400" dir="ltr">
-                {formatCurrency(1760)}
+                {formatCurrency(estimatedMonthlySavings > 0 ? estimatedMonthlySavings : 1760)}
               </p>
               <button className="mt-6 px-6 py-2.5 bg-white text-indigo-900 font-bold rounded-xl hover:bg-indigo-50 transition-colors text-sm w-full shadow-lg">
                 {t('search.reviewAndApply')}
@@ -173,7 +302,7 @@ export function SearchAnalysis() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
-                {searchTerms.filter(t => activeTab === 'all' || (activeTab === 'ads' && t.source === 'Google Ads') || (activeTab === 'organic' && t.source === 'GSC')).map((term, idx) => (
+                {filteredTerms.map((term, idx) => (
                   <tr key={idx} className="hover:bg-gray-50 transition-colors">
                     <td className="px-6 py-4 font-bold text-gray-900">
                       <div className="flex items-center gap-2">
@@ -249,6 +378,23 @@ export function SearchAnalysis() {
                     </td>
                   </tr>
                 ))}
+                {!isLoading && filteredTerms.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="px-6 py-10 text-center text-sm text-gray-500">
+                      {t('campaigns.noCampaigns')}
+                    </td>
+                  </tr>
+                ) : null}
+                {isLoading ? (
+                  <tr>
+                    <td colSpan={6} className="px-6 py-10 text-center text-sm text-indigo-600">
+                      <span className="inline-flex items-center gap-2 font-bold">
+                        <span className="inline-block h-3 w-3 animate-pulse rounded-full bg-indigo-500" />
+                        {t('campaigns.syncLive')}
+                      </span>
+                    </td>
+                  </tr>
+                ) : null}
               </tbody>
             </table>
           </div>
