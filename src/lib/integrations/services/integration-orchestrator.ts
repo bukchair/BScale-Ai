@@ -6,7 +6,7 @@ import { rateLimitService } from '@/src/lib/integrations/services/rate-limit-ser
 import { connectionService } from '@/src/lib/integrations/services/connection-service';
 import { accountDiscoveryService } from '@/src/lib/integrations/services/account-discovery-service';
 import { syncService } from '@/src/lib/integrations/services/sync-service';
-import { IntegrationError, OAuthStateMismatchError } from '@/src/lib/integrations/core/errors';
+import { IntegrationError } from '@/src/lib/integrations/core/errors';
 
 export const integrationOrchestrator = {
   async listConnections(userId: string) {
@@ -122,13 +122,6 @@ export const integrationOrchestrator = {
 
       return result;
     } catch (error) {
-      if (error instanceof OAuthStateMismatchError) {
-        const existing = await connectionService.getByUserPlatform(userId, platform);
-        if (existing?.status === 'CONNECTED') {
-          return { connectionId: existing.id, status: existing.status };
-        }
-      }
-
       await auditService.log({
         userId,
         action: 'connect_failed',
@@ -300,12 +293,20 @@ export const integrationOrchestrator = {
     const connection = await connectionService.getByUserPlatform(userId, platform);
     if (!connection) return;
     const provider = providerFactory.get(platform);
+    await auditService.log({
+      userId,
+      action: 'disconnect_initiated',
+      platform,
+      connectionId: connection.id,
+    });
     await provider.disconnect(connection.id);
     await auditService.log({
       userId,
       action: 'disconnect',
       platform,
-      connectionId: connection.id,
+      details: {
+        disconnectedConnectionId: connection.id,
+      },
     });
   },
 

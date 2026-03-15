@@ -178,6 +178,11 @@ export class TikTokProvider implements IntegrationProvider {
     return merged;
   }
 
+  async getAccessTokenForConnection(connectionId: string): Promise<string> {
+    const { accessToken } = await this.getValidAccessToken(connectionId);
+    return accessToken;
+  }
+
   async testConnection(connectionId: string, accountId?: string): Promise<TestResult> {
     if (!this.supports('REPORTING_TEST')) {
       throw new UnsupportedCapabilityError(

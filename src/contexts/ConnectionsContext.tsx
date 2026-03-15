@@ -344,18 +344,22 @@ export function ConnectionsProvider({ children }: { children: ReactNode }) {
       if (connection.id === 'tiktok' && tiktok) {
         const selected =
           tiktok.accounts?.find((account) => account.isSelected) || tiktok.accounts?.[0] || null;
+        const mappedTikTokStatus = mapManagedStatusToLocal(tiktok.status);
         return {
           ...connection,
-          status: mapManagedStatusToLocal(tiktok.status),
+          status: mappedTikTokStatus,
           score:
-            mapManagedStatusToLocal(tiktok.status) === 'connected'
+            mappedTikTokStatus === 'connected'
               ? Math.max(connection.score || 0, 95)
               : connection.score,
           settings: {
             ...(connection.settings || {}),
             tiktokAdvertiserId:
               selected?.externalAccountId || connection.settings?.tiktokAdvertiserId || '',
-            tiktokToken: connection.settings?.tiktokToken || (selected ? 'server-managed' : ''),
+            tiktokToken:
+              mappedTikTokStatus === 'connected' || mappedTikTokStatus === 'connecting'
+                ? 'server-managed'
+                : '',
           },
         };
       }
@@ -391,9 +395,20 @@ export function ConnectionsProvider({ children }: { children: ReactNode }) {
     }
 
     const accounts = Array.isArray(discoverPayload.data?.accounts) ? discoverPayload.data.accounts : [];
-    const accountIds = accounts
+    const selectedIds = accounts
+      .filter(
+        (account: { externalAccountId?: string; isSelected?: boolean; status?: string }) =>
+          Boolean(account?.isSelected) && account?.status !== 'ARCHIVED'
+      )
       .map((account: { externalAccountId?: string }) => String(account.externalAccountId || '').trim())
       .filter(Boolean);
+    const firstActiveId = accounts
+      .map((account: { externalAccountId?: string; status?: string }) => ({
+        id: String(account.externalAccountId || '').trim(),
+        status: account.status,
+      }))
+      .find((account) => account.id && account.status !== 'ARCHIVED')?.id;
+    const accountIds = selectedIds.length > 0 ? selectedIds : firstActiveId ? [firstActiveId] : [];
 
     if (!accountIds.length) return;
 
@@ -831,11 +846,24 @@ export function ConnectionsProvider({ children }: { children: ReactNode }) {
 
   const resetAllConnections = async () => {
     if (isWorkspaceReadOnly) return;
+    const managedPlatformsToDisconnect = Object.values(managedPlatformsByConnectionId)
+      .flat()
+      .filter((platformSlug): platformSlug is ManagedPlatformSlug => Boolean(platformSlug));
+    if (managedPlatformsToDisconnect.length > 0) {
+      await Promise.allSettled(
+        managedPlatformsToDisconnect.map(async (platformSlug) => {
+          await disconnectManagedConnection(platformSlug);
+        })
+      );
+    }
     const aiPart = connections.filter((c) => AI_CONNECTION_IDS.includes(c.id as any));
     const platformPart = initialConnections.filter((c) => PLATFORM_CONNECTION_IDS.includes(c.id as any));
     const fresh = [...aiPart, ...platformPart];
     setConnections(fresh);
     await persistUserConnections(fresh);
+    if (managedPlatformsToDisconnect.length > 0) {
+      await syncManagedConnectionsToLocal();
+    }
   };
 
   const migrateAiConnectionsFromUser = async (): Promise<{ success: boolean; message: string }> => {
@@ -895,16 +923,13 @@ export function ConnectionsProvider({ children }: { children: ReactNode }) {
         const fallbackAccountId =
           id === 'google' && connection.settings?.googleAdsId
             ? connection.settings.googleAdsId.replace(/-/g, '').trim()
+            : id === 'meta' && connection.settings?.metaAdsId
+            ? connection.settings.metaAdsId.replace(/^act_/i, '').trim()
+            : id === 'tiktok' && connection.settings?.tiktokAdvertiserId
+            ? connection.settings.tiktokAdvertiserId.trim()
             : undefined;
         const result = await postManagedTest(managedPlatformSlug, fallbackAccountId);
         await syncManagedConnectionsToLocal();
-        if (result.success) {
-          const updatedConnections = connections.map((c) =>
-            c.id === id ? { ...c, status: 'connected' as ConnectionStatus, score: c.score || 100 } : c
-          );
-          setConnections(updatedConnections);
-          await persistUserConnections(updatedConnections);
-        }
         return result;
       } catch (err) {
         const msg = err instanceof Error ? err.message : 'Managed connection test failed.';

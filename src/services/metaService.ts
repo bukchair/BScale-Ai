@@ -44,7 +44,7 @@ export async function fetchMetaAdAccounts(accessToken: string) {
   await ensureManagedApiSession(accessToken);
 
   if (accessToken === 'server-managed') {
-    const managedResponse = await fetch(`${API_BASE}/api/connections/meta/accounts`, {
+    const managedResponse = await fetch(`${API_BASE}/api/connections/meta/assets`, {
       method: 'GET',
       headers: {
         accept: 'application/json',
@@ -56,11 +56,13 @@ export async function fetchMetaAdAccounts(accessToken: string) {
       throw new Error(managedPayload?.message || 'Failed to fetch managed Meta ad accounts');
     }
 
-    const accounts = Array.isArray(managedPayload?.data?.accounts) ? managedPayload.data.accounts : [];
+    const accounts = Array.isArray(managedPayload?.data?.adAccounts)
+      ? managedPayload.data.adAccounts
+      : [];
     return accounts.map((account: any) => ({
-      id: account.externalAccountId,
-      account_id: account.externalAccountId,
-      name: account.name || account.externalAccountId,
+      id: account.id,
+      account_id: account.id,
+      name: account.name || account.id,
       currency: account.currency || undefined,
       timezone_name: account.timezone || undefined,
       status: account.status,
