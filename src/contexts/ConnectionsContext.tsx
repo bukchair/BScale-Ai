@@ -389,6 +389,33 @@ export function ConnectionsProvider({ children }: { children: ReactNode }) {
     };
   };
 
+  const disconnectManagedConnection = async (
+    platformSlug: 'google-ads' | 'meta' | 'tiktok'
+  ): Promise<void> => {
+    await ensureManagedApiSession();
+
+    let response = await fetch(`/api/connections/${platformSlug}/disconnect`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({}),
+    });
+
+    // Defensive fallback for edge proxy/method rewrite issues.
+    if (response.status === 405) {
+      response = await fetch(`/api/connections/${platformSlug}/disconnect`, {
+        method: 'GET',
+        headers: { accept: 'application/json' },
+        cache: 'no-store',
+      });
+    }
+
+    const text = await response.text();
+    const payload = parseManagedPayload(text);
+    if (!response.ok || !payload?.success) {
+      throw new Error(payload?.message || `Failed to disconnect ${platformSlug}.`);
+    }
+  };
+
   const syncManagedConnectionsToLocal = async () => {
     try {
       const managedConnections = await fetchManagedConnections();
@@ -705,11 +732,31 @@ export function ConnectionsProvider({ children }: { children: ReactNode }) {
 
   const clearConnectionSettings = async (id: string) => {
     if (isWorkspaceReadOnly) return;
+    const managedPlatformSlug = managedPlatformByConnectionId[id as Connection['id']];
+    if (managedPlatformSlug) {
+      await disconnectManagedConnection(managedPlatformSlug);
+    }
+
     const next = connections.map((c) =>
-      c.id === id ? { ...c, status: 'disconnected' as ConnectionStatus, score: undefined, settings: {} } : c
+      c.id === id
+        ? {
+            ...c,
+            status: 'disconnected' as ConnectionStatus,
+            score: undefined,
+            settings: {},
+            subConnections: c.subConnections?.map((sub) => ({
+              ...sub,
+              status: 'disconnected' as ConnectionStatus,
+              score: undefined,
+            })),
+          }
+        : c
     );
     setConnections(next);
     await persistConnections(next, id);
+    if (managedPlatformSlug) {
+      await syncManagedConnectionsToLocal();
+    }
   };
 
   const resetAllConnections = async () => {

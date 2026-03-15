@@ -187,7 +187,6 @@ export function Integrations({ userProfile }: { userProfile?: { role?: string; s
   const {
     connections,
     dataOwnerUid,
-    toggleConnection,
     updateConnectionSettings,
     clearConnectionSettings,
     resetAllConnections,
@@ -748,13 +747,30 @@ export function Integrations({ userProfile }: { userProfile?: { role?: string; s
     }
   };
 
-  const handleToggle = async (id: string, subId?: string) => {
+  const handleHardResetConnection = async (id: string) => {
     if (blockIfReadOnly()) return;
     setError(null);
+    setSuccess(null);
     try {
-      await toggleConnection(id, subId);
+      await clearConnectionSettings(id);
+      setExpandedId(null);
+      setFormValues({});
+      setToast({
+        message: isHebrew ? 'החיבור אופס בהצלחה.' : 'Connection reset successfully.',
+        type: 'success',
+      });
     } catch (err) {
-      setError({ id, message: t('common.error') });
+      setToast({
+        message:
+          err instanceof Error && err.message
+            ? err.message
+            : isHebrew
+            ? 'איפוס החיבור נכשל. נסה שוב.'
+            : 'Failed to reset connection. Please retry.',
+        type: 'error',
+      });
+    } finally {
+      setTimeout(() => setToast(null), 3000);
     }
   };
 
@@ -1105,14 +1121,25 @@ export function Integrations({ userProfile }: { userProfile?: { role?: string; s
 
             <div className="flex flex-wrap items-center gap-3 pt-4 border-t border-gray-100">
               {!isConnected ? (
-                <button
-                  onClick={() => handleSave(integration.id)}
-                  disabled={isConnecting}
-                  className="flex-1 min-w-0 sm:min-w-[140px] bg-indigo-600 text-white px-4 py-3 rounded-xl text-sm font-bold hover:bg-indigo-700 transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-2 disabled:opacity-50"
-                >
-                  {isConnecting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plug className="w-4 h-4" />}
-                  {t('integrations.saveAndConnect')}
-                </button>
+                <>
+                  <button
+                    onClick={() => handleSave(integration.id)}
+                    disabled={isConnecting}
+                    className="flex-1 min-w-0 sm:min-w-[140px] bg-indigo-600 text-white px-4 py-3 rounded-xl text-sm font-bold hover:bg-indigo-700 transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-2 disabled:opacity-50"
+                  >
+                    {isConnecting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plug className="w-4 h-4" />}
+                    {t('integrations.saveAndConnect')}
+                  </button>
+                  {isConnecting ? (
+                    <button
+                      onClick={() => handleHardResetConnection(integration.id)}
+                      className="px-4 py-3 bg-red-50 text-red-600 hover:bg-red-100 rounded-xl text-sm font-bold transition-colors flex items-center justify-center gap-2 border-2 border-red-100"
+                    >
+                      <RotateCcw className="w-4 h-4" />
+                      {isHebrew ? 'איפוס חיבור' : 'Reset connection'}
+                    </button>
+                  ) : null}
+                </>
               ) : (
                 <>
                   <button
@@ -1132,10 +1159,7 @@ export function Integrations({ userProfile }: { userProfile?: { role?: string; s
                     {t('integrations.testConnection')}
                   </button>
                   <button
-                    onClick={() => {
-                      handleToggle(integration.id);
-                      setExpandedId(null);
-                    }}
+                    onClick={() => handleHardResetConnection(integration.id)}
                     disabled={isConnecting}
                     className="px-4 py-3 bg-red-50 text-red-600 hover:bg-red-100 rounded-xl text-sm font-bold transition-colors flex items-center justify-center gap-2 border-2 border-red-100"
                   >
@@ -1342,9 +1366,8 @@ export function Integrations({ userProfile }: { userProfile?: { role?: string; s
                 )}
                 <button
                   onClick={() => handleExpand(integration)}
-                  disabled={isConnecting}
                   className={cn(
-                    "w-10 h-10 flex items-center justify-center rounded-xl transition-all duration-200 disabled:opacity-50 font-bold text-sm",
+                    "w-10 h-10 flex items-center justify-center rounded-xl transition-all duration-200 font-bold text-sm",
                     isConnected
                       ? "text-indigo-600 bg-indigo-50 hover:bg-indigo-100"
                       : hasError
