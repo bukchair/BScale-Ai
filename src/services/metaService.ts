@@ -2,8 +2,16 @@ const viteEnv =
   typeof import.meta !== 'undefined'
     ? ((import.meta as unknown as { env?: Record<string, unknown> }).env ?? undefined)
     : undefined;
-
-const API_BASE = (typeof viteEnv?.VITE_APP_URL === 'string' && viteEnv.VITE_APP_URL) || '';
+const configuredApiBase = (typeof viteEnv?.VITE_APP_URL === 'string' && viteEnv.VITE_APP_URL.trim()) || '';
+const API_BASE = (() => {
+  if (!configuredApiBase || typeof window === 'undefined') return '';
+  try {
+    const configuredOrigin = new URL(configuredApiBase, window.location.origin).origin;
+    return configuredOrigin === window.location.origin ? configuredOrigin : '';
+  } catch {
+    return '';
+  }
+})();
 
 export async function fetchMetaAdAccounts(accessToken: string) {
   const response = await fetch(`https://graph.facebook.com/v19.0/me/adaccounts?access_token=${accessToken}`);
@@ -18,7 +26,7 @@ export async function fetchMetaAdAccounts(accessToken: string) {
 }
 
 export async function fetchMetaCampaigns(accessToken: string, adAccountId: string) {
-  const response = await fetch(`${API_BASE}/api/meta/campaigns?ad_account_id=${adAccountId}`, {
+  const response = await fetch(`${API_BASE}/api/connections/meta/campaigns?ad_account_id=${adAccountId}`, {
     headers: {
       'Authorization': `Bearer ${accessToken}`
     }

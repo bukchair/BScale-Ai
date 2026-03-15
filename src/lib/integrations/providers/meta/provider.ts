@@ -207,6 +207,11 @@ export class MetaProvider implements IntegrationProvider {
     return discovered;
   }
 
+  async getAccessTokenForConnection(connectionId: string): Promise<string> {
+    const { accessToken } = await this.getValidAccessToken(connectionId);
+    return accessToken;
+  }
+
   async testConnection(connectionId: string, accountId?: string): Promise<TestResult> {
     const connection = await prisma.platformConnection.findUnique({
       where: { id: connectionId },

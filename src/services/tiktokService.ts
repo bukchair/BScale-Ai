@@ -2,8 +2,16 @@ const viteEnv =
   typeof import.meta !== 'undefined'
     ? ((import.meta as unknown as { env?: Record<string, unknown> }).env ?? undefined)
     : undefined;
-
-const API_BASE = (typeof viteEnv?.VITE_APP_URL === 'string' && viteEnv.VITE_APP_URL) || '';
+const configuredApiBase = (typeof viteEnv?.VITE_APP_URL === 'string' && viteEnv.VITE_APP_URL.trim()) || '';
+const API_BASE = (() => {
+  if (!configuredApiBase || typeof window === 'undefined') return '';
+  try {
+    const configuredOrigin = new URL(configuredApiBase, window.location.origin).origin;
+    return configuredOrigin === window.location.origin ? configuredOrigin : '';
+  } catch {
+    return '';
+  }
+})();
 
 export async function fetchTikTokCampaigns(accessToken: string, advertiserId: string) {
   const response = await fetch(`${API_BASE}/api/tiktok/campaigns?advertiser_id=${advertiserId}`, {
