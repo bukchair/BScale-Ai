@@ -262,12 +262,12 @@ const createMetaCampaign = async (
     form.set('objective', mapObjectiveToMeta((body.objective || 'sales') as ObjectiveType));
     form.set('status', activeNow ? 'ACTIVE' : 'PAUSED');
     form.set('special_ad_categories', '[]');
-    form.set('access_token', accessToken);
 
     const response = await fetch(`${META_GRAPH_BASE}/${accountResource}/campaigns`, {
       method: 'POST',
       headers: {
         'content-type': 'application/x-www-form-urlencoded',
+        authorization: `Bearer ${accessToken}`,
       },
       body: form.toString(),
     });

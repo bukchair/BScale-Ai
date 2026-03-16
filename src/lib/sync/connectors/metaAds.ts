@@ -18,9 +18,11 @@ export const metaAdsConnector = {
       'id,name,status,effective_status,objective,created_time,updated_time,start_time,stop_time,daily_budget,lifetime_budget'
     );
     url.searchParams.set('limit', '200');
-    url.searchParams.set('access_token', accessToken);
 
-    const response = await fetchWithRetry(url.toString(), { method: 'GET' });
+    const response = await fetchWithRetry(url.toString(), {
+      method: 'GET',
+      headers: { authorization: `Bearer ${accessToken}` },
+    });
     const payload = (await response.json().catch(() => ({}))) as { data?: Record<string, unknown>[] };
     const rows = Array.isArray(payload?.data) ? payload.data : [];
     return rows.map((row: Record<string, unknown>) => ({
@@ -59,10 +61,12 @@ export const metaAdsConnector = {
       })
     );
     url.searchParams.set('limit', '500');
-    url.searchParams.set('access_token', accessToken);
 
     type ActionRow = { action_type?: string; value?: string | number };
-    const response = await fetchWithRetry(url.toString(), { method: 'GET' });
+    const response = await fetchWithRetry(url.toString(), {
+      method: 'GET',
+      headers: { authorization: `Bearer ${accessToken}` },
+    });
     const payload = (await response.json().catch(() => ({}))) as { data?: Record<string, unknown>[] };
     const rows = Array.isArray(payload?.data) ? payload.data : [];
 

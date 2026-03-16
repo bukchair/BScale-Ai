@@ -2,15 +2,11 @@ import { NextResponse } from 'next/server';
 import { requireAuthenticatedUser } from '@/src/lib/auth/session';
 import { googleLegacyBridge } from '@/src/lib/integrations/services/google-legacy-bridge';
 import { GA4_DATA_API, GA4_ADMIN_API, GA4_MAX_PROPERTY_DISCOVERY_CANDIDATES } from '@/src/lib/constants/api-urls';
+import { toApiErrorMessage, normalizeDateParam } from '@/src/lib/utils/api-request-utils';
 const normalizePropertyId = (value: string) => value.replace(/^properties\//, '').trim();
 const normalizeMeasurementId = (value: string) => String(value || '').trim().toUpperCase();
 const isNumericPropertyId = (value: string) => /^\d+$/.test(value);
 const isMeasurementId = (value: string) => /^G-[A-Z0-9]+$/.test(value);
-const DATE_PARAM_REGEX = /^\d{4}-\d{2}-\d{2}$/;
-const normalizeDateParam = (value: string | null) => {
-  const trimmed = (value || '').trim();
-  return DATE_PARAM_REGEX.test(trimmed) ? trimmed : '';
-};
 
 const extractPropertyIdsFromSummaries = (parsed: unknown): string[] => {
   if (!parsed || typeof parsed !== 'object') return [];
@@ -27,20 +23,7 @@ const extractPropertyIdsFromSummaries = (parsed: unknown): string[] => {
   return [...new Set(ids)];
 };
 
-const toErrorMessage = (status: number, raw: string, parsed: unknown) => {
-  if (parsed && typeof parsed === 'object') {
-    const obj = parsed as Record<string, unknown>;
-    const rootError = obj.error;
-    if (rootError && typeof rootError === 'object') {
-      const msg = (rootError as Record<string, unknown>).message;
-      if (typeof msg === 'string' && msg.trim()) return msg;
-    }
-    const msg = obj.message;
-    if (typeof msg === 'string' && msg.trim()) return msg;
-  }
-  if (raw.trim()) return `GA4 request failed (${status}): ${raw.slice(0, 240)}`;
-  return `GA4 request failed (${status}).`;
-};
+const toErrorMessage = toApiErrorMessage;
 
 export async function GET(request: Request) {
   try {

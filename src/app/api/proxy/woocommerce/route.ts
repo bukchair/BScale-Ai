@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { requireAuthenticatedUser } from '@/src/lib/auth/session';
 
 type WooBody = {
   url?: string;
@@ -43,6 +44,12 @@ async function tryFetch(
 }
 
 export async function POST(request: Request) {
+  try {
+    await requireAuthenticatedUser();
+  } catch {
+    return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
+  }
+
   let body: WooBody;
   try {
     body = (await request.json()) as WooBody;

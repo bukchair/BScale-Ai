@@ -132,7 +132,9 @@ export async function fetchMetaAdAccounts(accessToken: string) {
     }));
   }
 
-  const response = await fetch(`https://graph.facebook.com/v19.0/me/adaccounts?access_token=${accessToken}`);
+  const response = await fetch('https://graph.facebook.com/v19.0/me/adaccounts', {
+    headers: { authorization: `Bearer ${accessToken}` },
+  });
   
   if (!response.ok) {
     const error = await response.json();

@@ -161,9 +161,10 @@ export class MetaProvider implements IntegrationProvider {
       'id,account_id,name,currency,timezone_name,account_status,business{id,name}'
     );
     url.searchParams.set('limit', '200');
-    url.searchParams.set('access_token', accessToken);
 
-    const response = await fetch(url);
+    const response = await fetch(url, {
+      headers: { authorization: `Bearer ${accessToken}` },
+    });
     const parsed = (await response.json()) as {
       data?: Array<{
         id?: string;
@@ -234,9 +235,10 @@ export class MetaProvider implements IntegrationProvider {
     url.searchParams.set('date_preset', 'last_7d');
     url.searchParams.set('fields', 'spend,impressions,clicks,ctr,cpc');
     url.searchParams.set('limit', '1');
-    url.searchParams.set('access_token', accessToken);
 
-    const response = await fetch(url);
+    const response = await fetch(url, {
+      headers: { authorization: `Bearer ${accessToken}` },
+    });
     const parsed = (await response.json()) as {
       data?: Array<{
         spend?: string;

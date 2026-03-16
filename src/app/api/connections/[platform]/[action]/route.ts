@@ -14,6 +14,7 @@ import {
 } from '@/src/lib/integrations/core/dtos';
 import { GMAIL_API_BASE, META_GRAPH_BASE, TIKTOK_API_BASE } from '@/src/lib/constants/api-urls';
 import { normalizeMetaAccountId, toMetaAccountResource } from '@/src/lib/integrations/utils/meta-utils';
+import { toApiErrorMessage as toErrorMessage } from '@/src/lib/utils/api-request-utils';
 
 type RouteContext = {
   params: Promise<{ platform: string; action: string }>;
@@ -21,21 +22,6 @@ type RouteContext = {
 
 const toBase64Url = (input: string) =>
   Buffer.from(input, 'utf8').toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-
-const toErrorMessage = (status: number, raw: string, parsed: unknown) => {
-  if (parsed && typeof parsed === 'object') {
-    const obj = parsed as Record<string, unknown>;
-    const rootError = obj.error;
-    if (rootError && typeof rootError === 'object') {
-      const msg = (rootError as Record<string, unknown>).message;
-      if (typeof msg === 'string' && msg.trim()) return msg;
-    }
-    const msg = obj.message;
-    if (typeof msg === 'string' && msg.trim()) return msg;
-  }
-  if (raw.trim()) return `Gmail send failed (${status}): ${raw.slice(0, 240)}`;
-  return `Gmail send failed (${status}).`;
-};
 
 const pushUniqueAccount = (
   map: Map<string, { id: string; name: string }>,

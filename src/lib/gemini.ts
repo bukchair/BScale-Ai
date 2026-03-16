@@ -9,7 +9,7 @@ export type AIKeysOrApiKey = AIKeys | string | undefined;
 
 function getEnvApiKey(): string | undefined {
   if (typeof process !== "undefined" && process.env?.GEMINI_API_KEY) return process.env.GEMINI_API_KEY;
-  if (typeof import.meta !== "undefined" && (import.meta as any).env?.VITE_GEMINI_API_KEY) return (import.meta as any).env.VITE_GEMINI_API_KEY;
+  if (typeof import.meta !== "undefined" && (import.meta as unknown as { env?: Record<string, unknown> }).env?.VITE_GEMINI_API_KEY) return String((import.meta as unknown as { env?: Record<string, unknown> }).env!.VITE_GEMINI_API_KEY);
   return undefined;
 }
 
@@ -100,7 +100,7 @@ export async function getOptimizationRecommendations(
     - "impact" must remain one of: High, Medium, Low.`;
 
   if (isAIKeys(apiKeyOrKeys) && hasAnyAIKey(apiKeyOrKeys)) {
-    return runWithMultiAI<{ recommendations?: any[] }>(prompt, apiKeyOrKeys);
+    return runWithMultiAI<{ recommendations?: Record<string, unknown>[] }>(prompt, apiKeyOrKeys);
   }
   const ai = getAI(typeof apiKeyOrKeys === "string" ? apiKeyOrKeys : undefined);
   if (!ai) return {};

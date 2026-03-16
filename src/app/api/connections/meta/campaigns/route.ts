@@ -4,6 +4,7 @@ import { connectionService } from '@/src/lib/integrations/services/connection-se
 import { MetaProvider } from '@/src/lib/integrations/providers/meta/provider';
 import { META_GRAPH_BASE } from '@/src/lib/constants/api-urls';
 import { normalizeMetaAccountId, toMetaAccountResource } from '@/src/lib/integrations/utils/meta-utils';
+import { normalizeDateParam } from '@/src/lib/utils/api-request-utils';
 const META_CACHE_TTL_MS = 5 * 60 * 1000;
 type MetaCampaignsPayload = {
   data: Array<Record<string, unknown>>;
@@ -24,11 +25,6 @@ const metaCampaignsCache = new Map<
     payload: MetaCampaignsPayload;
   }
 >();
-const DATE_PARAM_REGEX = /^\d{4}-\d{2}-\d{2}$/;
-const normalizeDateParam = (value: string | null) => {
-  const trimmed = (value || '').trim();
-  return DATE_PARAM_REGEX.test(trimmed) ? trimmed : '';
-};
 
 const getClampedDateRange = (url: URL) => {
   const todayIso = new Date().toISOString().split('T')[0];
@@ -53,8 +49,9 @@ const discoverMetaAccountIdsFromToken = async (accessToken: string) => {
     const discoverUrl = new URL(`${META_GRAPH_BASE}/me/adaccounts`);
     discoverUrl.searchParams.set('fields', 'account_id');
     discoverUrl.searchParams.set('limit', '5');
-    discoverUrl.searchParams.set('access_token', accessToken);
-    const discoverResponse = await fetch(discoverUrl.toString());
+    const discoverResponse = await fetch(discoverUrl.toString(), {
+      headers: { authorization: `Bearer ${accessToken}` },
+    });
     const discoverPayload = (await discoverResponse.json().catch(() => null)) as
       | { data?: Array<{ account_id?: string }> }
       | null;
@@ -294,9 +291,10 @@ export async function GET(request: Request) {
           })
         );
       }
-      graphUrl.searchParams.set('access_token', accessToken);
 
-      const response = await fetch(graphUrl.toString());
+      const response = await fetch(graphUrl.toString(), {
+        headers: { authorization: `Bearer ${accessToken}` },
+      });
       const raw = await response.text();
       let parsed: unknown = {};
       try {
@@ -333,9 +331,9 @@ export async function GET(request: Request) {
             })
           );
         }
-        graphUrl.searchParams.set('access_token', accessToken);
-
-        const response = await fetch(graphUrl.toString());
+        const response = await fetch(graphUrl.toString(), {
+          headers: { authorization: `Bearer ${accessToken}` },
+        });
         const raw = await response.text();
         let parsed: unknown = {};
         try {
@@ -388,9 +386,9 @@ export async function GET(request: Request) {
             })
           );
         }
-        graphUrl.searchParams.set('access_token', accessToken);
-
-        const response = await fetch(graphUrl.toString());
+        const response = await fetch(graphUrl.toString(), {
+          headers: { authorization: `Bearer ${accessToken}` },
+        });
         const raw = await response.text();
         let parsed: unknown = {};
         try {

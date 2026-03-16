@@ -135,12 +135,12 @@ const updateMetaCampaign = async (
   if (typeof body.dailyBudget === 'number' && Number.isFinite(body.dailyBudget) && body.dailyBudget > 0) {
     form.set('daily_budget', String(Math.round(body.dailyBudget * 100)));
   }
-  form.set('access_token', accessToken);
 
   const response = await fetch(`${META_GRAPH_BASE}/${campaignId}`, {
     method: 'POST',
     headers: {
       'content-type': 'application/x-www-form-urlencoded',
+      authorization: `Bearer ${accessToken}`,
     },
     body: form.toString(),
   });
