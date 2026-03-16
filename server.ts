@@ -580,9 +580,20 @@ async function startServer() {
     });
     app.use(vite.middlewares);
   } else {
-    // Serve static files from the 'dist' directory in production
+    // Initialize Next.js to serve API routes under src/app/api/
+    const { default: next } = await import('next');
+    const nextApp = next({ dev: false, dir: __dirname });
+    await nextApp.prepare();
+    const nextHandler = nextApp.getRequestHandler();
+
+    // Forward unhandled /api/* to Next.js (Express routes registered above take priority)
+    app.all('/api/*', (req, res) => nextHandler(req, res));
+    // Next.js static assets
+    app.all('/_next/*', (req, res) => nextHandler(req, res));
+
+    // Serve Vite SPA static files from 'dist'
     app.use(express.static(path.join(__dirname, "dist")));
-    
+
     // Handle SPA routing: serve index.html for any unknown paths
     app.get("*", (req, res) => {
       res.sendFile(path.join(__dirname, "dist", "index.html"));
