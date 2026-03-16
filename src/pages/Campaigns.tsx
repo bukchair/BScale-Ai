@@ -36,6 +36,14 @@ import { fetchMetaCampaigns, isMetaRateLimitMessage } from '../services/metaServ
 import { fetchGoogleCampaigns, sendGmailNotification } from '../services/googleService';
 import { fetchWooCommerceProducts } from '../services/woocommerceService';
 import { auth, onAuthStateChanged } from '../lib/firebase';
+import {
+  mapGoogleCampaignRowsToUnifiedLayer,
+  mapMetaCampaignRowsToUnifiedLayer,
+  mapTikTokCampaignRowsToUnifiedLayer,
+  replaceUnifiedPlatformSlice,
+  unifiedLayerToCampaignRows,
+} from '../lib/unified-data/mappers';
+import { createEmptyUnifiedDataLayer } from '../lib/unified-data/types';
 
 const mockCampaignData = [
   { id: 1, name: 'Summer Sale - Shoes', platform: 'Google', status: 'Active', spend: 1200, roas: 2.5, cpa: 45 },
@@ -280,6 +288,7 @@ export function Campaigns() {
   const [appliedRecs, setAppliedRecs] = useState<number[]>([]);
   const [expandedRecs, setExpandedRecs] = useState<number[]>([]);
   const [realCampaigns, setRealCampaigns] = useState<any[]>([]);
+  const [unifiedDataLayer, setUnifiedDataLayer] = useState(createEmptyUnifiedDataLayer);
   const CAMPAIGNS_CACHE_KEY = 'bscale:campaigns:realCampaigns:v1';
 
   useEffect(() => {
@@ -750,6 +759,17 @@ export function Campaigns() {
     });
   };
 
+  const applyUnifiedPlatformLayer = (platform: PlatformName, incomingLayer: ReturnType<typeof createEmptyUnifiedDataLayer>) => {
+    setUnifiedDataLayer((prev) => {
+      const next = replaceUnifiedPlatformSlice(prev, platform, incomingLayer);
+      const rows = unifiedLayerToCampaignRows(next);
+      if (rows.length > 0) {
+        setRealCampaigns(rows);
+      }
+      return next;
+    });
+  };
+
   const fetchRecommendations = async () => {
     setLoading(true);
     try {
@@ -796,8 +816,11 @@ export function Campaigns() {
           startDateIso,
           endDateIso
         );
-
-        setRealCampaigns(prev => [...prev.filter(c => c.platform !== 'TikTok'), ...campaigns]);
+        const unifiedLayer = mapTikTokCampaignRowsToUnifiedLayer(campaigns, {
+          accountExternalId: String(advertiserId),
+          dateRange: { startDate: startDateIso, endDate: endDateIso },
+        });
+        applyUnifiedPlatformLayer('TikTok', unifiedLayer);
       } catch (err) {
         console.error("Failed to sync TikTok data:", err);
       }
@@ -819,15 +842,15 @@ export function Campaigns() {
           startDateIso,
           endDateIso
         );
-
-        setRealCampaigns(prev => {
-          const existingMeta = prev.filter(c => c.platform === 'Meta');
-          if (campaigns.length === 0 && existingMeta.length > 0) {
-            return prev;
-          }
-          const mergedMeta = mergePlatformCampaignsPreferRich(existingMeta, campaigns, hasMetaMetrics);
-          return [...prev.filter(c => c.platform !== 'Meta'), ...mergedMeta];
+        const unifiedLayer = mapMetaCampaignRowsToUnifiedLayer(campaigns, {
+          accountExternalId: String(adAccountId || ''),
+          dateRange: { startDate: startDateIso, endDate: endDateIso },
         });
+        const mappedRows = unifiedLayerToCampaignRows(unifiedLayer);
+        const hasAnyMetaRow = mappedRows.some((row) => String(row?.platform || '') === 'Meta');
+        if (hasAnyMetaRow || campaigns.length === 0) {
+          applyUnifiedPlatformLayer('Meta', unifiedLayer);
+        }
         setMetaSyncNotice(null);
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
@@ -861,15 +884,11 @@ export function Campaigns() {
           startDateIso,
           endDateIso
         );
-
-        setRealCampaigns(prev => {
-          const existingGoogle = prev.filter(c => c.platform === 'Google');
-          if (campaigns.length === 0 && existingGoogle.length > 0) {
-            return prev;
-          }
-          const mergedGoogle = mergePlatformCampaignsPreferRich(existingGoogle, campaigns, hasGoogleMetrics);
-          return [...prev.filter(c => c.platform !== 'Google'), ...mergedGoogle];
+        const unifiedLayer = mapGoogleCampaignRowsToUnifiedLayer(campaigns, {
+          accountExternalId: String(customerId || ''),
+          dateRange: { startDate: startDateIso, endDate: endDateIso },
         });
+        applyUnifiedPlatformLayer('Google', unifiedLayer);
       } catch (err) {
         console.error("Failed to sync Google data:", err);
       }
