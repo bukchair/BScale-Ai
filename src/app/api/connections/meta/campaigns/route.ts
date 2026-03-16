@@ -58,6 +58,26 @@ const toAccountResource = (value: string) => {
   return `act_${normalized}`;
 };
 
+const discoverMetaAccountIdsFromToken = async (accessToken: string) => {
+  if (!accessToken || accessToken === 'server-managed') return [] as string[];
+  try {
+    const discoverUrl = new URL(`${META_GRAPH_BASE}/me/adaccounts`);
+    discoverUrl.searchParams.set('fields', 'account_id');
+    discoverUrl.searchParams.set('limit', '5');
+    discoverUrl.searchParams.set('access_token', accessToken);
+    const discoverResponse = await fetch(discoverUrl.toString());
+    const discoverPayload = (await discoverResponse.json().catch(() => null)) as
+      | { data?: Array<{ account_id?: string }> }
+      | null;
+    const ids = (discoverPayload?.data || [])
+      .map((row) => String(row?.account_id || '').trim())
+      .filter(Boolean);
+    return [...new Set(ids)];
+  } catch {
+    return [] as string[];
+  }
+};
+
 const pickSelectedAccountId = (
   connection: Awaited<ReturnType<typeof connectionService.getByUserPlatform>>
 ) =>
@@ -217,19 +237,8 @@ export async function GET(request: Request) {
 
     // Token-only mode fallback: discover first ad account directly from Meta API.
     if (!resolvedAccountId && accessToken && accessToken !== 'server-managed') {
-      try {
-        const discoverUrl = new URL(`${META_GRAPH_BASE}/me/adaccounts`);
-        discoverUrl.searchParams.set('fields', 'account_id');
-        discoverUrl.searchParams.set('limit', '1');
-        discoverUrl.searchParams.set('access_token', accessToken);
-        const discoverResponse = await fetch(discoverUrl.toString());
-        const discoverPayload = (await discoverResponse.json().catch(() => null)) as
-          | { data?: Array<{ account_id?: string }> }
-          | null;
-        resolvedAccountId = String(discoverPayload?.data?.[0]?.account_id || '').trim();
-      } catch {
-        // If discovery fails, we return explicit error below.
-      }
+      const discoveredAccountIds = await discoverMetaAccountIdsFromToken(accessToken);
+      resolvedAccountId = discoveredAccountIds[0] || '';
     }
 
     if (!resolvedAccountId) {
@@ -260,15 +269,23 @@ export async function GET(request: Request) {
         includeDateRange?: boolean;
         includeInsights?: boolean;
         includeEffectiveStatus?: boolean;
+        fieldPreset?: 'rich' | 'balanced' | 'minimal';
       }
     ) => {
       const includeDateRange = options?.includeDateRange !== false;
       const includeInsights = options?.includeInsights !== false;
       const includeEffectiveStatus = options?.includeEffectiveStatus !== false;
+      const fieldPreset = options?.fieldPreset || 'rich';
       const resource = toAccountResource(accountId);
       const graphUrl = new URL(`${META_GRAPH_BASE}/${resource}/campaigns`);
-      const baseFields =
-        'id,name,status,effective_status,configured_status,objective,buying_type,account_id,start_time,stop_time,created_time,updated_time,daily_budget,lifetime_budget,promoted_object,destination_type';
+      const fieldsByPreset: Record<'rich' | 'balanced' | 'minimal', string> = {
+        rich:
+          'id,name,status,effective_status,configured_status,objective,buying_type,account_id,start_time,stop_time,created_time,updated_time,daily_budget,lifetime_budget,promoted_object,destination_type',
+        balanced:
+          'id,name,status,effective_status,objective,buying_type,account_id,start_time,stop_time,created_time,updated_time,daily_budget,lifetime_budget',
+        minimal: 'id,name,status,effective_status,objective,account_id,daily_budget,lifetime_budget',
+      };
+      const baseFields = fieldsByPreset[fieldPreset];
       const insightsFields =
         'insights{spend,impressions,reach,clicks,ctr,cpc,cpm,frequency,inline_link_click_ctr,purchase_roas,roas,actions,action_values}';
       graphUrl.searchParams.set('fields', includeInsights ? `${baseFields},${insightsFields}` : baseFields);
@@ -417,10 +434,26 @@ export async function GET(request: Request) {
         includeDateRange?: boolean;
         includeInsights?: boolean;
         includeEffectiveStatus?: boolean;
+        fieldPreset?: 'rich' | 'balanced' | 'minimal';
       }> = [
-        { includeDateRange: true, includeInsights: true, includeEffectiveStatus: true },
-        { includeDateRange: true, includeInsights: false, includeEffectiveStatus: false },
-        { includeDateRange: false, includeInsights: false, includeEffectiveStatus: false },
+        {
+          includeDateRange: true,
+          includeInsights: true,
+          includeEffectiveStatus: true,
+          fieldPreset: 'rich',
+        },
+        {
+          includeDateRange: true,
+          includeInsights: false,
+          includeEffectiveStatus: false,
+          fieldPreset: 'balanced',
+        },
+        {
+          includeDateRange: false,
+          includeInsights: false,
+          includeEffectiveStatus: false,
+          fieldPreset: 'minimal',
+        },
       ];
       let lastResult: Awaited<ReturnType<typeof loadCampaigns>> | null = null;
       for (const attempt of attempts) {
@@ -448,6 +481,33 @@ export async function GET(request: Request) {
     let result = await attemptCampaignLoad(resolvedAccountId);
     let response = result.response;
     let parsed = result.parsed;
+
+    // Token-only mode fallback: recover from stale/invalid ad account ID by trying discovered accounts.
+    if (!managedConnection && !response.ok && accessToken && accessToken !== 'server-managed') {
+      const firstErrorMessage = extractErrorMessage(response.status, parsed);
+      if (isRecoverableAccountError(response.status, firstErrorMessage)) {
+        const discoveredAccountIds = await discoverMetaAccountIdsFromToken(accessToken);
+        for (const candidateAccountId of discoveredAccountIds) {
+          if (
+            normalizeMetaAccountId(candidateAccountId) === normalizeMetaAccountId(resolvedAccountId)
+          ) {
+            continue;
+          }
+          const nextResult = await attemptCampaignLoad(candidateAccountId);
+          result = nextResult;
+          response = nextResult.response;
+          parsed = nextResult.parsed;
+          if (response.ok) {
+            resolvedAccountId = candidateAccountId;
+            break;
+          }
+          const retryError = extractErrorMessage(response.status, parsed);
+          if (!isRecoverableAccountError(response.status, retryError)) {
+            break;
+          }
+        }
+      }
+    }
 
     // If the account id sent by client is stale/invalid, auto-fallback to a valid managed account.
     if (managedConnection && managedUserId && !response.ok) {

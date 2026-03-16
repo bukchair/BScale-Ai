@@ -216,7 +216,9 @@ export async function fetchMetaCampaigns(
         message.includes('does not exist') ||
         message.includes('unknown path components') ||
         message.includes('cannot access ad account') ||
-        message.includes('permission');
+        message.includes('permission') ||
+        message.includes('invalid parameter') ||
+        message.includes('nonexisting field');
 
       // Retry once without forcing a possibly stale account id.
       if (hasStaleAccountError) {
