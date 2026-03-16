@@ -1693,8 +1693,10 @@ export function Campaigns() {
 
   const filteredAndSortedCampaigns = allCampaigns
     .filter(campaign => {
-      const matchesSearch = campaign.name.toLowerCase().includes(searchQuery.toLowerCase());
-      const matchesPlatform = platformFilter === 'All' || campaign.platform === platformFilter;
+      const campaignName = String(campaign?.name || campaign?.campaignName || '');
+      const campaignPlatform = String(campaign?.platform || '');
+      const matchesSearch = campaignName.toLowerCase().includes(searchQuery.toLowerCase());
+      const matchesPlatform = platformFilter === 'All' || campaignPlatform === platformFilter;
       const matchesStatus =
         statusFilter === 'All' || normalizeCampaignStatus(campaign.status) === statusFilter;
       return matchesSearch && matchesPlatform && matchesStatus;
@@ -1852,7 +1854,7 @@ export function Campaigns() {
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-100">
-                    {filteredAndSortedCampaigns.map((campaign) => {
+                    {filteredAndSortedCampaigns.map((campaign, index) => {
                       const unifiedStatus = normalizeCampaignStatus(campaign.status);
                       const platform = String(campaign.platform || '');
                       const metaFacebookSpend = toAmount(campaign?.metaChannels?.facebook?.spend);
@@ -1879,10 +1881,12 @@ export function Campaigns() {
                       const canEdit = isEditablePlatformCampaign(campaign);
 
                       return (
-                        <tr key={`campaign-row-${platform}-${campaign.id}`}>
+                        <tr
+                          key={`campaign-row-${platform}-${String(campaign?.campaignId || campaign?.id || campaign?.name || index)}`}
+                        >
                           <td className="px-4 py-2.5 text-sm font-medium text-gray-900">
-                            <div className="max-w-[220px] truncate" title={String(campaign.name || '')}>
-                              {campaign.name}
+                            <div className="max-w-[220px] truncate" title={String(campaign?.name || campaign?.campaignName || '')}>
+                              {campaign?.name || campaign?.campaignName || (isHebrew ? 'ללא שם' : 'Unnamed')}
                             </div>
                             {hasMetaChannels && (
                               <div className="mt-1 flex flex-wrap gap-1">
