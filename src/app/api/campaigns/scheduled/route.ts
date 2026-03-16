@@ -14,11 +14,11 @@ type WeeklySchedule = Record<string, Record<DayKey, number[]>>;
 
 type CreateScheduledCampaignBody = {
   campaignName?: string;
+  shortTitle?: string;
+  brief?: string;
   objective?: ObjectiveType;
   platforms?: PlatformName[];
   weeklySchedule?: WeeklySchedule;
-  shortTitle?: string;
-  brief?: string;
   audiences?: string[];
   contentType?: string;
   productType?: string;
@@ -393,38 +393,64 @@ export async function POST(request: Request) {
   try {
     const user = await requireAuthenticatedUser();
     const body = (await request.json().catch(() => null)) as CreateScheduledCampaignBody | null;
-    if (!body?.campaignName || !Array.isArray(body.platforms) || body.platforms.length === 0) {
+    const resolvedCampaignName = sanitizeName(
+      String(
+        body?.campaignName ||
+          body?.shortTitle ||
+          body?.brief?.slice(0, 80) ||
+          'BScale Campaign'
+      )
+    );
+    if (!resolvedCampaignName) {
       return NextResponse.json(
         {
           success: false,
-          message: 'campaignName and platforms are required.',
+          message: 'campaignName (or shortTitle) is required.',
         },
         { status: 400 }
       );
     }
 
-    const platforms = body.platforms.filter(
+    let platforms = (Array.isArray(body?.platforms) ? body?.platforms : []).filter(
       (platform): platform is PlatformName =>
         platform === 'Google' || platform === 'Meta' || platform === 'TikTok'
     );
     if (!platforms.length) {
+      const [googleConnection, metaConnection, tiktokConnection] = await Promise.all([
+        connectionService.getByUserPlatform(user.id, 'GOOGLE_ADS'),
+        connectionService.getByUserPlatform(user.id, 'META'),
+        connectionService.getByUserPlatform(user.id, 'TIKTOK'),
+      ]);
+      platforms = [
+        googleConnection?.status === 'CONNECTED' ? 'Google' : null,
+        metaConnection?.status === 'CONNECTED' ? 'Meta' : null,
+        tiktokConnection?.status === 'CONNECTED' ? 'TikTok' : null,
+      ].filter((value): value is PlatformName => Boolean(value));
+    }
+    if (!platforms.length) {
       return NextResponse.json(
         {
           success: false,
-          message: 'No valid platforms were provided.',
+          message: 'No connected ad platforms were provided.',
         },
         { status: 400 }
       );
     }
 
+    const normalizedBody: CreateScheduledCampaignBody = {
+      ...(body || {}),
+      campaignName: resolvedCampaignName,
+      platforms,
+    };
+
     const results: PlatformCreateResult[] = [];
     for (const platform of platforms) {
       if (platform === 'Google') {
-        results.push(await createGoogleCampaign(user.id, body));
+        results.push(await createGoogleCampaign(user.id, normalizedBody));
       } else if (platform === 'Meta') {
-        results.push(await createMetaCampaign(user.id, body));
+        results.push(await createMetaCampaign(user.id, normalizedBody));
       } else if (platform === 'TikTok') {
-        results.push(await createTikTokCampaign(user.id, body));
+        results.push(await createTikTokCampaign(user.id, normalizedBody));
       }
     }
 

@@ -188,7 +188,9 @@ export function Campaigns() {
       ? 'הכנס כותרת קצרה והמערכת תציע קהלים, מטרה, סוג תוכן, סוג מוצר/שירות ושעות ביצוע מומלצות.'
       : 'Enter a short title and the system suggests audiences, objective, content type, product/service type, and recommended hours.',
     shortTitle: isHebrew ? 'כותרת קצרה' : 'Short title',
-    analyzeWithAi: isHebrew ? 'נתח עם AI' : 'Analyze with AI',
+    createSmartAd: isHebrew ? 'צור מודעה חכמה' : 'Create smart ad',
+    smartAdRunning: isHebrew ? 'AI מעבד את המודעה...' : 'AI is processing the ad...',
+    smartAdDuration: isHebrew ? 'זמן עיבוד' : 'Processing time',
     aiAudienceFromConnections: isHebrew
       ? 'קהלים חכמים מנותחים מנתוני החיבורים הפעילים'
       : 'Smart audiences analyzed from connected platform data',
@@ -274,6 +276,7 @@ export function Campaigns() {
       ? 'בחירת מוצר ממלאת אוטומטית את התיאור לפי מידע המוצר, וניתן לערוך חופשי.'
       : 'Selecting a product auto-fills the description from product data and remains editable.',
     wooImportProduct: isHebrew ? 'ייבא מוצר לקמפיין' : 'Import product to campaign',
+    wooImportInSmartWindow: isHebrew ? 'ייבוא מוצר ל‑AI מתוך WooCommerce' : 'Import WooCommerce product into AI',
     wooImportSuccess: isHebrew
       ? 'פרטי המוצר יובאו בהצלחה מ-WooCommerce.'
       : 'Product details imported successfully from WooCommerce.',
@@ -372,6 +375,8 @@ export function Campaigns() {
   const [aiAudienceProvider, setAiAudienceProvider] = useState<string>('');
   const [aiGeneratedAudienceNames, setAiGeneratedAudienceNames] = useState<string[]>([]);
   const [aiRecommendedHoursByPlatform, setAiRecommendedHoursByPlatform] = useState<Record<string, number[]>>({});
+  const [smartAdRunStartedAt, setSmartAdRunStartedAt] = useState<number | null>(null);
+  const [smartAdElapsedMs, setSmartAdElapsedMs] = useState(0);
   const [isCreatingCampaign, setIsCreatingCampaign] = useState(false);
   const [publishResults, setPublishResults] = useState<Array<{ platform: string; ok: boolean; message: string; campaignId?: string }>>([]);
   const [editingCampaign, setEditingCampaign] = useState<EditCampaignDraft | null>(null);
@@ -400,6 +405,23 @@ export function Campaigns() {
     [connections]
   );
   const isWooConnected = Boolean(wooConnection);
+
+  useEffect(() => {
+    if (!aiAudienceLoading || !smartAdRunStartedAt) return;
+    const intervalId = window.setInterval(() => {
+      setSmartAdElapsedMs(Date.now() - smartAdRunStartedAt);
+    }, 250);
+    return () => window.clearInterval(intervalId);
+  }, [aiAudienceLoading, smartAdRunStartedAt]);
+
+  const formatSmartElapsed = (elapsedMs: number) => {
+    const totalSeconds = Math.max(0, Math.floor(elapsedMs / 1000));
+    const minutes = Math.floor(totalSeconds / 60)
+      .toString()
+      .padStart(2, '0');
+    const seconds = (totalSeconds % 60).toString().padStart(2, '0');
+    return `${minutes}:${seconds}`;
+  };
 
   const objectiveOptions: Array<{ value: ObjectiveType; label: string }> = [
     { value: 'sales', label: isHebrew ? 'מכירות' : 'Sales' },
@@ -514,6 +536,18 @@ export function Campaigns() {
       .join('\n');
   };
 
+  const aiProcessingBrief = useMemo(() => {
+    const baseBrief = campaignBrief.trim();
+    const productBrief =
+      useWooProductData && wooPublishScope === 'product' && selectedWooProduct
+        ? buildWooProductBrief(selectedWooProduct)
+        : '';
+    if (!productBrief) return baseBrief;
+    if (!baseBrief) return productBrief;
+    if (baseBrief.includes(productBrief)) return baseBrief;
+    return `${baseBrief}\n\n${isHebrew ? 'נתוני מוצר מ-WooCommerce:' : 'WooCommerce product data:'}\n${productBrief}`;
+  }, [campaignBrief, useWooProductData, wooPublishScope, selectedWooProduct, isHebrew]);
+
   const importWooProductToBuilder = (
     product: WooCampaignProduct,
     options?: { overwriteExisting?: boolean; notify?: boolean }
@@ -564,7 +598,7 @@ export function Campaigns() {
     }
     setSelectedPlatforms((prev) => {
       const filtered = prev.filter((p) => connectedAdPlatforms.includes(p));
-      return filtered.length ? filtered : [connectedAdPlatforms[0]];
+      return filtered.length ? filtered : [...connectedAdPlatforms];
     });
     setSelectedSchedulePlatform((prev) => (connectedAdPlatforms.includes(prev) ? prev : connectedAdPlatforms[0]));
     setRulePlatform((prev) =>
@@ -1381,7 +1415,10 @@ export function Campaigns() {
   };
 
   const handleAutoAudienceAndStrategy = async () => {
+    const runStartedAt = Date.now();
     setBuilderMessage(null);
+    setSmartAdRunStartedAt(runStartedAt);
+    setSmartAdElapsedMs(0);
     setAiAudienceLoading(true);
     try {
       const aiKeys = getAIKeysFromConnections(connections);
@@ -1438,7 +1475,11 @@ export function Campaigns() {
           }
         : null;
 
-      const fallbackTitle = shortTitleInput.trim() || inferredWooTitle || campaignNameInput.trim();
+      const fallbackTitle =
+        shortTitleInput.trim() ||
+        inferredWooTitle ||
+        selectedWooProduct?.name ||
+        campaignNameInput.trim();
 
       const contextPayload = {
         shortTitle: fallbackTitle,
@@ -1448,12 +1489,13 @@ export function Campaigns() {
           contentType,
           productType,
           serviceTypeInput,
-          campaignBrief,
+          campaignBrief: aiProcessingBrief,
         },
         connectedPlatforms: connectedAdPlatforms,
         selectedPlatforms,
         campaignData: realCampaigns.slice(0, 120),
         wooContext,
+        aiInputText: aiProcessingBrief,
         platformTextRules,
       };
 
@@ -1578,6 +1620,7 @@ export function Campaigns() {
     } catch (error) {
       setBuilderMessage(error instanceof Error ? error.message : 'AI generation failed.');
     } finally {
+      setSmartAdElapsedMs(Date.now() - runStartedAt);
       setAiAudienceLoading(false);
     }
   };
@@ -1661,17 +1704,19 @@ export function Campaigns() {
           ? 'French'
           : 'English';
       const contextPayload = {
-        shortTitle: shortTitleInput.trim() || campaignNameInput.trim(),
+        shortTitle:
+          shortTitleInput.trim() || selectedWooProduct?.name || inferredWooTitle || campaignNameInput.trim(),
         currentForm: {
           campaignNameInput,
           objective,
           contentType,
           productType,
           serviceTypeInput,
-          campaignBrief,
+          campaignBrief: aiProcessingBrief,
         },
         connectedPlatforms: connectedAdPlatforms,
         selectedPlatforms,
+        aiInputText: aiProcessingBrief,
       };
       const strategyResult = await getCampaignBuilderSuggestions(
         JSON.stringify(contextPayload),
@@ -1709,7 +1754,19 @@ export function Campaigns() {
   const handleCreateScheduledCampaign = async () => {
     setBuilderMessage(null);
     setPublishResults([]);
-    if (!campaignNameInput.trim() || selectedPlatforms.length === 0) {
+    const resolvedPlatforms = (
+      (selectedPlatforms.length > 0 ? selectedPlatforms : connectedAdPlatforms).filter((platform) =>
+        connectedAdPlatforms.includes(platform)
+      ) as PlatformName[]
+    );
+    const resolvedCampaignName =
+      campaignNameInput.trim() ||
+      shortTitleInput.trim() ||
+      inferredWooTitle ||
+      selectedWooProduct?.name ||
+      '';
+
+    if (!resolvedCampaignName || resolvedPlatforms.length === 0) {
       setBuilderMessage(text.requireFields);
       return;
     }
@@ -1738,14 +1795,14 @@ export function Campaigns() {
           'content-type': 'application/json',
         },
         body: JSON.stringify({
-          campaignName: campaignNameInput.trim(),
+          campaignName: resolvedCampaignName,
           shortTitle: shortTitleInput.trim(),
           objective,
           contentType,
           productType,
           serviceType: serviceTypeInput.trim(),
           brief: campaignBrief.trim(),
-          platforms: selectedPlatforms,
+          platforms: resolvedPlatforms,
           audiences: selectedAudiences,
           timeRules,
           weeklySchedule,
@@ -1785,12 +1842,12 @@ export function Campaigns() {
       }
       setPublishResults(results);
 
-      const created = selectedPlatforms.map((platform) => {
+      const created = resolvedPlatforms.map((platform) => {
         const activeHours = getActiveSlotsCount(platform);
         const platformResult = results.find((item: any) => String(item?.platform || '') === platform);
         return {
           id: `live-${platform}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-          name: campaignNameInput.trim(),
+          name: resolvedCampaignName,
           platform,
           status:
             platformResult?.ok === true
@@ -1820,7 +1877,7 @@ export function Campaigns() {
 
       const successCount = results.filter((item: any) => item?.ok).length;
       setBuilderMessage(
-        successCount === selectedPlatforms.length
+        successCount === resolvedPlatforms.length
           ? text.publishedOk
           : successCount > 0
             ? text.publishedPartial
@@ -2246,7 +2303,7 @@ export function Campaigns() {
               {text.smartWindowTitle}
             </h4>
             <p className="text-xs text-indigo-700 mb-3">{text.smartWindowSubtitle}</p>
-            <div className="grid grid-cols-1 md:grid-cols-[1fr_auto_auto] gap-2 items-start">
+            <div className="grid grid-cols-1 md:grid-cols-[1fr_auto] gap-2 items-start">
               <input
                 value={shortTitleInput}
                 onChange={(e) => setShortTitleInput(e.target.value)}
@@ -2256,22 +2313,63 @@ export function Campaigns() {
               <button
                 type="button"
                 onClick={handleAutoAudienceAndStrategy}
-                disabled={aiAudienceLoading || !shortTitleInput.trim()}
+                disabled={aiAudienceLoading || (!shortTitleInput.trim() && !campaignNameInput.trim())}
                 className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-md bg-indigo-600 text-white font-bold text-sm hover:bg-indigo-700 disabled:opacity-50"
               >
                 {aiAudienceLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
-                {text.analyzeWithAi}
-              </button>
-              <button
-                type="button"
-                onClick={handleGeneratePlatformAdCopies}
-                disabled={aiAudienceLoading || (!shortTitleInput.trim() && !campaignNameInput.trim())}
-                className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-md border border-indigo-300 bg-white text-indigo-700 font-bold text-sm hover:bg-indigo-50 disabled:opacity-50"
-              >
-                {aiAudienceLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Zap className="w-4 h-4" />}
-                {text.analyzePlatformAds}
+                {text.createSmartAd}
               </button>
             </div>
+            {(aiAudienceLoading || smartAdElapsedMs > 0) && (
+              <p className="mt-2 text-[11px] text-indigo-700 inline-flex items-center gap-1.5">
+                <Clock3 className="w-3.5 h-3.5" />
+                {aiAudienceLoading ? text.smartAdRunning : text.smartAdDuration}:{' '}
+                <span className="font-bold">{formatSmartElapsed(smartAdElapsedMs)}</span>
+              </p>
+            )}
+            {isWooConnected && (
+              <div className="mt-3 rounded-md border border-indigo-200 bg-white px-3 py-2.5">
+                <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+                  <p className="text-[11px] font-bold text-indigo-900">{text.wooImportInSmartWindow}</p>
+                  <div className="flex items-center gap-2 sm:ml-auto">
+                    <select
+                      value={selectedWooProductId}
+                      onChange={(e) => {
+                        const nextId = e.target.value;
+                        setUseWooProductData(true);
+                        setWooPublishScope('product');
+                        setSelectedWooProductId(nextId);
+                      }}
+                      className="min-w-[210px] rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-xs"
+                      disabled={wooLoading || wooProducts.length === 0}
+                    >
+                      {!selectedWooProductId && <option value="">{text.wooChooseProduct}</option>}
+                      {wooProducts.map((product) => (
+                        <option key={`smart-woo-product-${product.id}`} value={String(product.id)}>
+                          {product.name}
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (!selectedWooProduct) return;
+                        setUseWooProductData(true);
+                        setWooPublishScope('product');
+                        importWooProductToBuilder(selectedWooProduct, {
+                          overwriteExisting: true,
+                          notify: true,
+                        });
+                      }}
+                      disabled={!selectedWooProduct || wooLoading}
+                      className="inline-flex items-center rounded-md border border-indigo-300 px-2.5 py-1.5 text-[11px] font-bold text-indigo-700 hover:bg-indigo-50 disabled:opacity-60"
+                    >
+                      {text.wooImportProduct}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
             {aiAudienceProvider && (
               <p className="mt-2 text-[11px] text-indigo-700">
                 {text.aiAudienceFromConnections} · {aiAudienceProvider}
@@ -2868,7 +2966,7 @@ export function Campaigns() {
             <button
               type="button"
               onClick={handleCreateScheduledCampaign}
-              disabled={selectedPlatforms.length === 0 || isCreatingCampaign}
+              disabled={connectedAdPlatforms.length === 0 || isCreatingCampaign}
               className="inline-flex items-center gap-2 px-4 py-2 rounded-md bg-indigo-600 text-white font-bold text-sm hover:bg-indigo-700 disabled:opacity-50"
             >
               {isCreatingCampaign ? <Loader2 className="w-4 h-4 animate-spin" /> : <Target className="w-4 h-4" />}
