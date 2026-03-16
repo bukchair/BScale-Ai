@@ -24,9 +24,8 @@ WORKDIR /app
 ENV NODE_ENV=production
 ENV PORT=8080
 
-# Install all deps (vite is required at runtime by server.ts import)
 COPY package*.json ./
-RUN npm ci
+RUN npm ci --omit=dev
 
 # Copy build artifacts
 COPY --from=builder /app/dist ./dist
@@ -36,7 +35,6 @@ COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
 # Copy runtime source files
 COPY server.ts .
 COPY tsconfig*.json ./
-COPY src/ ./src/
 COPY prisma/ ./prisma/
 COPY public/ ./public/
 COPY next.config.* ./
