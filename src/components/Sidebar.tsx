@@ -20,6 +20,7 @@ import {
   LogOut,
   Mail,
   LifeBuoy,
+  ChevronDown,
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { useLanguage } from '../contexts/LanguageContext';
@@ -46,6 +47,7 @@ export function Sidebar({ activeTab, setActiveTab, isOpen, setIsOpen, userProfil
   const currentUser = auth.currentUser;
   const isAdmin = userProfile?.role === 'admin';
   const canViewLeads = userProfile?.role === 'admin';
+  const [openSubmenus, setOpenSubmenus] = useState<Record<string, boolean>>({});
   const supportLabel =
     language === 'he'
       ? 'תמיכה טכנית'
@@ -64,6 +66,13 @@ export function Sidebar({ activeTab, setActiveTab, isOpen, setIsOpen, userProfil
     } catch (error) {
       console.error("Logout error:", error);
     }
+  };
+
+  const toggleSubmenu = (itemId: string) => {
+    setOpenSubmenus((prev) => ({
+      ...prev,
+      [itemId]: !prev[itemId],
+    }));
   };
 
   const navGroups = [
@@ -162,33 +171,66 @@ export function Sidebar({ activeTab, setActiveTab, isOpen, setIsOpen, userProfil
                 {group.items.map((item) => {
                   const Icon = item.icon;
                   const hasChildren = Array.isArray(item.children) && item.children.length > 0;
+                  const isSubmenuOpen = Boolean(openSubmenus[item.id]);
                   const isChildActive = hasChildren
                     ? item.children!.some((child) => child.id === activeTab)
                     : false;
                   return (
                     <div key={item.id}>
-                      <button
-                        onClick={() => {
-                          setActiveTab(item.id);
-                          setIsOpen(false);
-                        }}
-                        className={cn(
-                          "flex items-center w-full px-3 py-2 text-sm font-medium rounded-lg transition-colors",
-                          activeTab === item.id || isChildActive
-                            ? "bg-indigo-50 dark:bg-indigo-500/10 text-indigo-700 dark:text-indigo-400"
-                            : "text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-white/5 hover:text-gray-900 dark:hover:text-white"
+                      <div className={cn(
+                        "flex items-center gap-1 rounded-lg",
+                        activeTab === item.id || isChildActive
+                          ? "bg-indigo-50 dark:bg-indigo-500/10"
+                          : ""
+                      )}>
+                        <button
+                          onClick={() => {
+                            setActiveTab(item.id);
+                            setIsOpen(false);
+                          }}
+                          className={cn(
+                            "flex items-center flex-1 min-w-0 px-3 py-2 text-sm font-medium rounded-lg transition-colors",
+                            activeTab === item.id || isChildActive
+                              ? "text-indigo-700 dark:text-indigo-400"
+                              : "text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-white/5 hover:text-gray-900 dark:hover:text-white"
+                          )}
+                        >
+                          <Icon className={cn(
+                            "w-5 h-5 me-3 shrink-0",
+                            activeTab === item.id || isChildActive
+                              ? "text-indigo-600 dark:text-indigo-400"
+                              : "text-gray-400 dark:text-gray-500"
+                          )} />
+                          <span className="truncate">{item.label}</span>
+                        </button>
+                        {hasChildren && (
+                          <button
+                            type="button"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              toggleSubmenu(item.id);
+                            }}
+                            className="me-1 inline-flex h-7 w-7 items-center justify-center rounded-md text-gray-500 hover:bg-gray-100 dark:hover:bg-white/10"
+                            aria-label={`Toggle ${item.label} submenu`}
+                            aria-expanded={isSubmenuOpen}
+                          >
+                            <ChevronDown
+                              className={cn(
+                                "w-4 h-4 transition-transform duration-200",
+                                isSubmenuOpen ? "rotate-180" : "rotate-0"
+                              )}
+                            />
+                          </button>
                         )}
-                      >
-                        <Icon className={cn(
-                          "w-5 h-5 me-3",
-                          activeTab === item.id || isChildActive
-                            ? "text-indigo-600 dark:text-indigo-400"
-                            : "text-gray-400 dark:text-gray-500"
-                        )} />
-                        {item.label}
-                      </button>
+                      </div>
                       {hasChildren && (
-                        <div className="mt-1 space-y-1 ps-8">
+                        <div
+                          className={cn(
+                            "mt-1 ps-8 overflow-hidden transition-all duration-200",
+                            isSubmenuOpen ? "max-h-40 opacity-100" : "max-h-0 opacity-0"
+                          )}
+                        >
+                          <div className="space-y-1 pb-1">
                           {item.children!.map((child) => {
                             const ChildIcon = child.icon;
                             return (
@@ -215,6 +257,7 @@ export function Sidebar({ activeTab, setActiveTab, isOpen, setIsOpen, userProfil
                               </button>
                             );
                           })}
+                          </div>
                         </div>
                       )}
                     </div>
