@@ -274,8 +274,9 @@ export async function GET(request: Request) {
         minimal: 'id,name,status,effective_status,objective,account_id,daily_budget,lifetime_budget',
       };
       const baseFields = fieldsByPreset[fieldPreset];
+      // Note: `roas` was deprecated in Meta API v19+ — use `purchase_roas` only
       const insightsFields =
-        'insights{spend,impressions,reach,clicks,ctr,cpc,cpm,frequency,inline_link_click_ctr,purchase_roas,roas,actions,action_values}';
+        'insights{spend,impressions,reach,clicks,ctr,cpc,cpm,frequency,inline_link_click_ctr,purchase_roas,actions,action_values}';
       graphUrl.searchParams.set('fields', includeInsights ? `${baseFields},${insightsFields}` : baseFields);
       if (includeEffectiveStatus) {
         graphUrl.searchParams.set(
@@ -309,8 +310,9 @@ export async function GET(request: Request) {
 
     const loadCampaignInsights = async (accountId: string) => {
       const resource = toAccountResource(accountId);
+      // Note: `roas` was deprecated in Meta API v19+ — removed from all variants
       const fieldsVariants = [
-        'campaign_id,spend,impressions,reach,clicks,ctr,cpc,cpm,frequency,actions,action_values,purchase_roas,roas',
+        'campaign_id,spend,impressions,reach,clicks,ctr,cpc,cpm,frequency,actions,action_values,purchase_roas',
         'campaign_id,spend,impressions,reach,clicks,ctr,cpc,cpm,frequency,actions,action_values',
         'campaign_id,spend,impressions,reach,clicks,ctr,cpc,cpm,frequency',
         'campaign_id,spend,impressions,clicks',
@@ -350,8 +352,17 @@ export async function GET(request: Request) {
           return { response, parsed };
         }
 
+        // Retry with a simpler field set when the error is field-related
+        // (invalid parameter, nonexisting field, unsupported field, etc.)
         const message = extractErrorMessage(response.status, parsed).toLowerCase();
-        if (!message.includes('invalid parameter')) {
+        const isFieldError =
+          message.includes('invalid parameter') ||
+          message.includes('nonexisting field') ||
+          message.includes('nonexistent field') ||
+          message.includes('unsupported') ||
+          message.includes('unknown field') ||
+          message.includes('does not exist');
+        if (!isFieldError) {
           break;
         }
       }
@@ -406,7 +417,14 @@ export async function GET(request: Request) {
         }
 
         const message = extractErrorMessage(response.status, parsed).toLowerCase();
-        if (!message.includes('invalid parameter')) {
+        const isFieldError =
+          message.includes('invalid parameter') ||
+          message.includes('nonexisting field') ||
+          message.includes('nonexistent field') ||
+          message.includes('unsupported') ||
+          message.includes('unknown field') ||
+          message.includes('does not exist');
+        if (!isFieldError) {
           break;
         }
       }
