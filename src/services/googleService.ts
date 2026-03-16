@@ -201,7 +201,7 @@ export async function fetchGoogleSearchTerms(
 
 export async function sendGmailNotification(accessToken: string, to: string, subject: string, body: string) {
   await ensureManagedApiSession(accessToken);
-  const response = await fetch(`${API_BASE}/api/google/gmail/send`, {
+  const response = await fetch(`${API_BASE}/api/connections/google/gmail-send`, {
     method: 'POST',
     headers: {
       'Authorization': `Bearer ${accessToken}`,

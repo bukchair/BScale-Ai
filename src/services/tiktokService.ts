@@ -24,7 +24,7 @@ export async function fetchTikTokCampaigns(
   if (startDate) query.set('start_date', startDate);
   if (endDate) query.set('end_date', endDate);
 
-  const response = await fetch(`${API_BASE}/api/tiktok/campaigns?${query.toString()}`, {
+  const response = await fetch(`${API_BASE}/api/connections/tiktok/campaigns?${query.toString()}`, {
     headers: {
       'Authorization': `Bearer ${accessToken}`
     }

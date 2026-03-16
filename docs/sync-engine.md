@@ -13,13 +13,10 @@ The sync engine moves the platform from live API fan-out in UI flows to a backgr
 
 To keep costs and Vercel function count stable on the current plan:
 
-1. **Single cron route**: `/api/cron/sync?type=...` (instead of many cron endpoints)
-2. **Two unified routes only**:
-   - `/api/unified/overview`
-   - `/api/unified/campaigns`
-3. **Worker-first expansion**:
+1. **Hobby-safe function budget**: API routes were minimized to keep deployment under function limits.
+2. **Worker-first expansion**:
    - refreshTokens + syncAccounts + syncCampaigns + syncMetrics + snapshotDaily + actions queue scaffold
-4. **TikTok write/sync guarded by flag**:
+3. **TikTok write/sync guarded by flag**:
    - `TIKTOK_SYNC_ENABLED=false` by default
 
 ## Job types
@@ -37,12 +34,12 @@ To keep costs and Vercel function count stable on the current plan:
 
 ```mermaid
 flowchart TD
-  A[Vercel Cron /api/cron/sync] --> B[enqueue jobs]
+  A[Scheduler/Manual trigger] --> B[enqueue jobs]
   B --> C[Redis queue bscale-sync / bscale-actions]
   C --> D[Worker process]
   D --> E[Connectors]
   E --> F[Prisma upsert unified tables]
-  F --> G[Unified API + Redis cache]
+  F --> G[UI/API reads unified tables]
 ```
 
 ## Runbook
@@ -53,8 +50,7 @@ flowchart TD
    - `npm run dev`
 3. Start worker:
    - `npm run worker:dev`
-4. Trigger cron route manually with header:
-   - `x-cron-secret: <CRON_SECRET>`
+4. Trigger queue jobs from admin/manual scripts until dedicated cron route is re-added (Pro plan or further consolidation).
 
 ## Production checklist
 
