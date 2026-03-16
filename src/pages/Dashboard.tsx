@@ -275,8 +275,8 @@ const COPY = {
     goOrders: 'מעבר לרשימת הזמנות',
     ga4Card: 'מצב גולשים מהאתר GA4',
     activeNow: 'פעילים עכשיו',
-    totalUsers: 'סה"כ משתמשים',
-    ga4Desc: 'מציג תמונת מצב מיידית של התנועה לאתר ומסייע להבין האם הקמפיינים מביאים גולשים בזמן אמת.',
+    totalUsers: 'משתמשים ב־24 שעות אחרונות',
+    ga4Desc: 'חלון חי: פעילים עכשיו + משתמשים ב־24 שעות אחרונות + 7 עמודים מובילים מתוך 30 הדקות האחרונות.',
     noGa4: 'אין כרגע נתוני GA4 חיים להצגה.',
     latestOrdersCard: '5 הזמנות אחרונות',
     customerFallback: 'לקוח',
@@ -328,8 +328,8 @@ const COPY = {
     goOrders: 'Go to orders list',
     ga4Card: 'Website traffic status (GA4)',
     activeNow: 'Active now',
-    totalUsers: 'Total users',
-    ga4Desc: 'Shows real time site traffic so you can understand whether campaigns are bringing visitors now.',
+    totalUsers: 'Users in last 24 hours',
+    ga4Desc: 'Live window: active now + users in last 24 hours + top 7 pages from the last 30 minutes.',
     noGa4: 'No live GA4 data to display right now.',
     latestOrdersCard: 'Latest 5 orders',
     customerFallback: 'Customer',
@@ -381,8 +381,8 @@ const COPY = {
     goOrders: 'Перейти к списку заказов',
     ga4Card: 'Состояние трафика сайта (GA4)',
     activeNow: 'Сейчас активны',
-    totalUsers: 'Всего пользователей',
-    ga4Desc: 'Показывает трафик сайта в реальном времени.',
+    totalUsers: 'Пользователи за последние 24 часа',
+    ga4Desc: 'Live окно: активны сейчас + пользователи за 24 часа + топ-7 страниц за последние 30 минут.',
     noGa4: 'Сейчас нет live данных GA4.',
     latestOrdersCard: 'Последние 5 заказов',
     customerFallback: 'Клиент',
@@ -434,8 +434,8 @@ const COPY = {
     goOrders: 'Ir para lista de pedidos',
     ga4Card: 'Status de tráfego do site (GA4)',
     activeNow: 'Ativos agora',
-    totalUsers: 'Usuários totais',
-    ga4Desc: 'Mostra o tráfego em tempo real para entender se as campanhas estão trazendo visitas.',
+    totalUsers: 'Usuários nas últimas 24 horas',
+    ga4Desc: 'Janela ao vivo: ativos agora + usuários nas últimas 24h + top 7 páginas dos últimos 30 minutos.',
     noGa4: 'Não há dados GA4 ao vivo para mostrar no momento.',
     latestOrdersCard: '5 pedidos mais recentes',
     customerFallback: 'Cliente',
@@ -487,8 +487,8 @@ const COPY = {
     goOrders: 'Aller à la liste des commandes',
     ga4Card: 'Statut du trafic du site (GA4)',
     activeNow: 'Actifs maintenant',
-    totalUsers: 'Utilisateurs totaux',
-    ga4Desc: 'Affiche le trafic en temps réel pour comprendre si les campagnes apportent des visiteurs.',
+    totalUsers: 'Utilisateurs des 24 dernières heures',
+    ga4Desc: 'Fenêtre live : actifs maintenant + utilisateurs sur 24h + top 7 pages des 30 dernières minutes.',
     noGa4: 'Aucune donnée GA4 en direct à afficher pour le moment.',
     latestOrdersCard: '5 dernières commandes',
     customerFallback: 'Client',
@@ -533,10 +533,10 @@ export function Dashboard() {
   const isHebrew = language === 'he';
   const text = COPY[language] || COPY.en;
   const statusLabels = STATUS_LABELS[language] || STATUS_LABELS.en;
-  const ga4TopPagesTitle = isHebrew ? '4 עמודים נצפים' : 'Top 4 viewed pages';
+  const ga4TopPagesTitle = isHebrew ? '7 עמודים נצפים (30 דק׳ אחרונות)' : 'Top 7 viewed pages (last 30 min)';
   const ga4NoTopPages = isHebrew
-    ? 'אין כרגע נתוני עמודים נצפים מ‑GA4.'
-    : 'No top viewed pages from GA4 yet.';
+    ? 'אין כרגע נתוני עמודים נצפים ב‑30 הדקות האחרונות מ‑GA4.'
+    : 'No top viewed pages from GA4 in the last 30 minutes yet.';
 
   const connectedPlatforms = connections.filter((c) => c.status === 'connected');
   const isWooConnected = connections.find((c) => c.id === 'woocommerce')?.status === 'connected';
@@ -734,6 +734,7 @@ export function Dashboard() {
           let totalUsers = 0;
           let activeNow = 0;
           const realtimeActiveUsers = Number((report as any)?.realtime?.activeUsers ?? NaN);
+          const usersLast24hRaw = Number((report as any)?.realtime?.usersLast24h ?? NaN);
           rows.forEach((row: any) => {
             totalUsers += moneyFromUnknown(metricValueByName(row, 'totalUsers', 0));
           });
@@ -746,6 +747,9 @@ export function Dashboard() {
           if (totalsRow) {
             totalUsers = moneyFromUnknown(metricValueByName(totalsRow, 'totalUsers', 0));
           }
+          if (Number.isFinite(usersLast24hRaw)) {
+            totalUsers = usersLast24hRaw;
+          }
           const topPagesRaw = Array.isArray((report as any)?.topPages) ? (report as any).topPages : [];
           const topPagesMapped: Ga4TopPage[] = topPagesRaw
             .map((row: any) => ({
@@ -754,7 +758,7 @@ export function Dashboard() {
               views: toNumber(row?.views, 0),
             }))
             .filter((row: Ga4TopPage) => Boolean(row.path || row.title))
-            .slice(0, 4);
+            .slice(0, 7);
           ga4Live = {
             activeNow: toNumber(activeNow, DEMO_GA4_STATS.activeNow),
             totalUsers: toNumber(totalUsers, DEMO_GA4_STATS.totalUsers),
@@ -1281,7 +1285,12 @@ export function Dashboard() {
               <div className="w-9 h-9 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center">
                 <Users className="w-5 h-5" />
               </div>
-              <h2 className="font-bold text-gray-900 dark:text-white">{text.ga4Card}</h2>
+              <div>
+                <h2 className="font-bold text-gray-900 dark:text-white tracking-tight">{text.ga4Card}</h2>
+                <p className="text-[11px] font-semibold text-indigo-600">
+                  {isHebrew ? 'Live Sync · 30 דק׳ אחרונות' : 'Live Sync · Last 30 min'}
+                </p>
+              </div>
             </div>
             <DemoTag show={isGa4UsingDemo} />
           </div>
