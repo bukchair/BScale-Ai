@@ -424,3 +424,59 @@ export async function fetchMetaCampaigns(
   metaInFlight.set(cacheKey, requestPromise);
   return requestPromise;
 }
+
+export type MetaAdset = {
+  id: string;
+  name: string;
+  status: string;
+  campaignId: string;
+  dailyBudget: number;
+  lifetimeBudget: number;
+  optimizationGoal: string;
+  bidStrategy: string;
+  billingEvent: string;
+  startTime: string;
+  endTime: string;
+  spend: number;
+  impressions: number;
+  clicks: number;
+  reach: number;
+  ctr: number;
+  cpc: number;
+  cpm: number;
+  frequency: number;
+  uniqueClicks: number;
+  uniqueCtr: number;
+  conversions: number;
+  conversionValue: number;
+  roas: number;
+  cpa: number;
+};
+
+export async function fetchMetaAdsets(
+  accessToken: string,
+  adAccountId?: string,
+  campaignIds?: string[],
+  startDate?: string,
+  endDate?: string
+): Promise<MetaAdset[]> {
+  await ensureManagedApiSession(accessToken);
+  const query = new URLSearchParams();
+  if (adAccountId) query.set('ad_account_id', adAccountId);
+  if (campaignIds?.length) query.set('campaign_ids', campaignIds.join(','));
+  if (startDate) query.set('start_date', startDate);
+  if (endDate) query.set('end_date', endDate);
+
+  const response = await fetch(`${API_BASE}/api/connections/meta/adsets?${query.toString()}`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+    cache: 'no-store',
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}));
+    throw new Error((error as any).message || 'Failed to fetch Meta adsets');
+  }
+
+  const payload = await response.json();
+  return Array.isArray((payload as any).data) ? (payload as any).data : [];
+}
