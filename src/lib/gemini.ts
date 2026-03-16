@@ -3,7 +3,7 @@ import { getAIKeysFromConnections, requestJSON, hasAnyAIKey, type AIKeys } from 
 
 export { getAIKeysFromConnections, hasAnyAIKey } from "./multiAI";
 
-const DEFAULT_MODEL = "gemini-2.0-flash";
+const DEFAULT_MODEL = "gemini-2.0-flash-001";
 
 export type AIKeysOrApiKey = AIKeys | string | undefined;
 
