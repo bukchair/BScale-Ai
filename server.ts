@@ -13,6 +13,9 @@ async function startServer() {
   const app = express();
   const PORT = Number(process.env.PORT) || 3000;
 
+  // Resolved once Next.js is initialized (production only).
+  let nextHandler: ((req: any, res: any) => void) | null = null;
+
   // API routes FIRST
   app.get("/api/health", (req, res) => {
     res.json({ status: "ok" });
@@ -401,8 +404,9 @@ async function startServer() {
 
   app.get("/api/google/ads/accounts", async (req, res) => {
     const accessToken = req.headers.authorization?.split(" ")[1];
-    if (!accessToken) {
-      return res.status(400).json({ message: "Missing access token" });
+    if (!accessToken || accessToken === 'server-managed') {
+      if (nextHandler) return nextHandler(req, res);
+      return res.status(401).json({ message: "Unauthenticated." });
     }
     const developerToken = process.env.GOOGLE_ADS_DEVELOPER_TOKEN;
     if (!developerToken) {
@@ -427,8 +431,12 @@ async function startServer() {
     const accessToken = req.headers.authorization?.split(" ")[1];
     const customerId = req.query.customer_id;
 
-    if (!accessToken || !customerId) {
-      return res.status(400).json({ message: "Missing access token or customer ID" });
+    if (!accessToken || accessToken === 'server-managed') {
+      if (nextHandler) return nextHandler(req, res);
+      return res.status(401).json({ message: "Unauthenticated." });
+    }
+    if (!customerId) {
+      return res.status(400).json({ message: "Missing customer ID" });
     }
 
     try {
@@ -463,12 +471,13 @@ async function startServer() {
     }
   });
 
-  app.post("/api/google/gmail/send", async (req, res) => {
+  app.post("/api/google/gmail/send", express.json(), async (req, res) => {
     const accessToken = req.headers.authorization?.split(" ")[1];
     const { to, subject, body } = req.body;
 
-    if (!accessToken) {
-      return res.status(400).json({ message: "Missing access token" });
+    if (!accessToken || accessToken === 'server-managed') {
+      if (nextHandler) return nextHandler(req, res);
+      return res.status(401).json({ message: "Unauthenticated." });
     }
 
     try {
@@ -510,8 +519,12 @@ async function startServer() {
     const accessToken = req.headers.authorization?.split(" ")[1];
     const propertyId = req.query.property_id;
 
-    if (!accessToken || !propertyId) {
-      return res.status(400).json({ message: "Missing access token or property ID" });
+    if (!accessToken || accessToken === 'server-managed') {
+      if (nextHandler) return nextHandler(req, res);
+      return res.status(401).json({ message: "Unauthenticated." });
+    }
+    if (!propertyId) {
+      return res.status(400).json({ message: "Missing property ID" });
     }
 
     try {
@@ -544,8 +557,12 @@ async function startServer() {
     const accessToken = req.headers.authorization?.split(" ")[1];
     const siteUrl = req.query.site_url;
 
-    if (!accessToken || !siteUrl) {
-      return res.status(400).json({ message: "Missing access token or site URL" });
+    if (!accessToken || accessToken === 'server-managed') {
+      if (nextHandler) return nextHandler(req, res);
+      return res.status(401).json({ message: "Unauthenticated." });
+    }
+    if (!siteUrl) {
+      return res.status(400).json({ message: "Missing site URL" });
     }
 
     try {
@@ -584,7 +601,7 @@ async function startServer() {
     const { default: next } = await import('next');
     const nextApp = next({ dev: false, dir: __dirname });
     await nextApp.prepare();
-    const nextHandler = nextApp.getRequestHandler();
+    nextHandler = nextApp.getRequestHandler();
 
     // Forward unhandled /api/* to Next.js (Express routes registered above take priority)
     app.all('/api/*', (req, res) => nextHandler(req, res));
