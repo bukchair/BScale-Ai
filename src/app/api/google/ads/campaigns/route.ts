@@ -118,6 +118,7 @@ export async function GET(request: Request) {
 
     return NextResponse.json(parsed, { status: 200 });
   } catch (error) {
+    console.error('[google/ads/campaigns] Unhandled error:', error);
     return NextResponse.json(
       {
         message:
