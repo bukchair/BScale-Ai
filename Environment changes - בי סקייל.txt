@@ -1,0 +1,12 @@
+# Terminal Environment Changes
+
+## Extension: vscode.git
+
+Enables the following features: git auth provider
+
+- `GIT_ASKPASS=c:\Users\User\AppData\Local\Programs\cursor\resources\app\extensions\git\dist\askpass.sh`
+- `VSCODE_GIT_ASKPASS_NODE=C:\Users\User\AppData\Local\Programs\cursor\Cursor.exe`
+- `VSCODE_GIT_ASKPASS_EXTRA_ARGS=`
+- `VSCODE_GIT_ASKPASS_MAIN=c:\Users\User\AppData\Local\Programs\cursor\resources\app\extensions\git\dist\askpass-main.js`
+- `VSCODE_GIT_IPC_HANDLE=\\.\pipe\vscode-git-ca1b5add31-sock`
+- `VSCODE_GIT_IPC_AUTH_TOKEN=e2798392c46dab2c767fb6bffa7b287e3db7fff4e2e0294783514a8d8c4362fd`

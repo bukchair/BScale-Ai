@@ -13,57 +13,35 @@ service cloud.firestore {
       return isAuthenticated() && request.auth.uid == userId;
     }
     
-    function isAdmin() {
+    function hasAdminRole() {
       return isAuthenticated() &&
         exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
+
+    function isAdmin() {
+      return isAuthenticated() && 
+        ((request.auth.token.email == "asher205@gmail.com" && request.auth.token.email_verified == true) || hasAdminRole());
+    }
     
     function isAgency() {
-      return isAuthenticated() &&
-        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'agency';
+      return isAuthenticated() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'agency';
     }
-
-    function isSharedWithResource(data) {
-      return isAuthenticated() &&
-             request.auth.token.email is string &&
-             data.sharedAccessEmails is list &&
-             request.auth.token.email in data.sharedAccessEmails;
-    }
-
-    function isSharedWithUser(userId) {
-      return isAuthenticated() &&
-             request.auth.token.email is string &&
-             exists(/databases/$(database)/documents/users/$(userId)) &&
-             get(/databases/$(database)/documents/users/$(userId)).data.sharedAccessEmails is list &&
-             request.auth.token.email in get(/databases/$(database)/documents/users/$(userId)).data.sharedAccessEmails;
-    }
-
-    function hasSharedEditAccess(userId) {
-      return isAuthenticated() &&
-             request.auth.token.email is string &&
-             exists(/databases/$(database)/documents/users/$(userId)) &&
-             get(/databases/$(database)/documents/users/$(userId)).data.sharedEditorsEmails is list &&
-             request.auth.token.email in get(/databases/$(database)/documents/users/$(userId)).data.sharedEditorsEmails;
-    }
-
+    
     function hasStoreAccess(storeId) {
-      let userPath = /databases/$(database)/documents/users/$(request.auth.uid);
-      let storePath = /databases/$(database)/documents/stores/$(storeId);
-      return isAdmin() ||
-             (exists(userPath) && exists(storePath) &&
-              ((get(userPath).data.role == 'agency' && get(storePath).data.agencyId == request.auth.uid) ||
-               (storeId in get(userPath).data.storeIds)));
+      let user = get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+      let store = get(/databases/$(database)/documents/stores/$(storeId)).data;
+      return isAdmin() || 
+             (user.role == 'agency' && store.agencyId == request.auth.uid) ||
+             (storeId in user.storeIds);
     }
-
+    
     function hasStoreEditAccess(storeId) {
-      let userPath = /databases/$(database)/documents/users/$(request.auth.uid);
-      let storePath = /databases/$(database)/documents/stores/$(storeId);
-      return isAdmin() ||
-             (exists(userPath) && exists(storePath) &&
-              ((get(userPath).data.role == 'agency' && get(storePath).data.agencyId == request.auth.uid) ||
-               (storeId in get(userPath).data.storeIds && get(userPath).data.role in ['owner', 'editor'])));
+      let user = get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+      let store = get(/databases/$(database)/documents/stores/$(storeId)).data;
+      return isAdmin() || 
+             (user.role == 'agency' && store.agencyId == request.auth.uid) ||
+             (storeId in user.storeIds && user.role in ['owner', 'editor']);
     }
 
     function isValidUser(data) {
@@ -80,7 +58,7 @@ service cloud.firestore {
     // ===============================================================
     
     match /users/{userId} {
-      allow read: if isOwner(userId) || isAdmin() || isAgency() || isSharedWithResource(resource.data);
+      allow read: if isOwner(userId) || isAdmin() || isAgency();
       
       // Only admins can create admins/agencies. Users can create themselves as 'owner' initially.
       allow create: if isAuthenticated() && isValidUser(request.resource.data) && 
@@ -93,26 +71,21 @@ service cloud.firestore {
       allow delete: if isAdmin();
 
       match /settings/{settingId} {
-        allow read: if isOwner(userId) || isAdmin() || isSharedWithUser(userId);
-        allow write: if isOwner(userId) || isAdmin() || hasSharedEditAccess(userId);
+        allow read, write: if isOwner(userId) || isAdmin();
       }
 
-      match /savedAds/{adId} {
-        allow read: if isOwner(userId) || isAdmin() || isSharedWithUser(userId);
-        allow write: if isOwner(userId) || isAdmin() || hasSharedEditAccess(userId);
-      }
-
-      match /audiences/{audienceId} {
-        allow read: if isOwner(userId) || isAdmin() || isSharedWithUser(userId);
-        allow write: if isOwner(userId) || isAdmin() || hasSharedEditAccess(userId);
+      match /notifications/{notificationId} {
+        allow read: if isOwner(userId) || isAdmin();
+        allow create: if isAdmin();
+        allow update: if isAdmin() || (
+          isOwner(userId) &&
+          request.resource.data.diff(resource.data).changedKeys().hasOnly(['read', 'readAt']) &&
+          request.resource.data.read is bool
+        );
+        allow delete: if isAdmin();
       }
     }
-
-    match /appSettings/{docId} {
-      allow read: if isAuthenticated();
-      allow write: if isAdmin();
-    }
-
+    
     match /stores/{storeId} {
       allow read: if hasStoreAccess(storeId);
       allow create: if isAuthenticated() && (isAdmin() || isAgency() || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'owner');
@@ -128,50 +101,6 @@ service cloud.firestore {
         allow read: if hasStoreAccess(storeId);
         allow create: if hasStoreEditAccess(storeId);
         allow update, delete: if false; // Logs are immutable
-      }
-    }
-
-    match /salesLeads/{leadId} {
-      // Public lead submission from website bot.
-      allow create: if request.resource.data.keys().hasAll(['name', 'createdAt', 'status']) &&
-                    request.resource.data.name is string &&
-                    request.resource.data.name.size() > 0 &&
-                    request.resource.data.name.size() < 120 &&
-                    request.resource.data.createdAt is string &&
-                    request.resource.data.status in ['new', 'contacted', 'closed'];
-
-      // Internal app visibility and management - admin only.
-      allow read, update: if isAdmin();
-
-      allow delete: if isAdmin();
-    }
-
-    match /supportThreads/{threadId} {
-      allow create: if isAuthenticated() &&
-                    request.resource.data.createdByUid == request.auth.uid &&
-                    request.resource.data.subject is string &&
-                    request.resource.data.subject.size() > 0 &&
-                    request.resource.data.status in ['open', 'waiting-admin', 'waiting-user', 'resolved'];
-
-      allow read: if isAdmin() || (isAuthenticated() && resource.data.createdByUid == request.auth.uid);
-
-      allow update: if isAdmin() || (isAuthenticated() && resource.data.createdByUid == request.auth.uid);
-
-      allow delete: if isAdmin();
-
-      match /messages/{messageId} {
-        allow create: if isAuthenticated() &&
-                      request.resource.data.senderUid == request.auth.uid &&
-                      request.resource.data.senderRole in ['user', 'admin'] &&
-                      request.resource.data.text is string &&
-                      request.resource.data.text.size() > 0 &&
-                      (isAdmin() || get(/databases/$(database)/documents/supportThreads/$(threadId)).data.createdByUid == request.auth.uid);
-
-        allow read: if isAdmin() ||
-                    (isAuthenticated() &&
-                     get(/databases/$(database)/documents/supportThreads/$(threadId)).data.createdByUid == request.auth.uid);
-
-        allow update, delete: if false;
       }
     }
   }
