@@ -9,7 +9,7 @@ RUN npm ci
 COPY . .
 
 # Generate Prisma client
-RUN npx prisma generate
+RUN ./node_modules/.bin/prisma generate
 
 # Build Vite SPA frontend → ./dist
 RUN npm run build
