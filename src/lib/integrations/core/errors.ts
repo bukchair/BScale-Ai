@@ -79,3 +79,8 @@ export class ExternalApiError extends IntegrationError {
     this.name = 'ExternalApiError';
   }
 }
+
+export const httpStatusFromError = (error: unknown): number => {
+  if (error instanceof IntegrationError) return error.statusCode;
+  return 500;
+};

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { requireAuthenticatedUser } from '@/src/lib/auth/session';
+import { httpStatusFromError } from '@/src/lib/integrations/core/errors';
 import { integrationsEnv } from '@/src/lib/env/integrations-env';
 import { googleLegacyBridge } from '@/src/lib/integrations/services/google-legacy-bridge';
 import { GOOGLE_ADS_API_BASE } from '@/src/lib/constants/api-urls';
@@ -122,7 +123,7 @@ export async function GET(request: Request) {
         message:
           error instanceof Error ? error.message : 'Failed to load Google Ads campaigns for this user.',
       },
-      { status: 500 }
+      { status: httpStatusFromError(error) }
     );
   }
 }

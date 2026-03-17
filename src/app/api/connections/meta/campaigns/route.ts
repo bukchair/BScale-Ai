@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { requireAuthenticatedUser } from '@/src/lib/auth/session';
+import { httpStatusFromError } from '@/src/lib/integrations/core/errors';
 import { connectionService } from '@/src/lib/integrations/services/connection-service';
 import { MetaProvider } from '@/src/lib/integrations/providers/meta/provider';
 
@@ -711,7 +712,7 @@ export async function GET(request: Request) {
   } catch (error) {
     return NextResponse.json(
       { message: error instanceof Error ? error.message : 'Failed to fetch Meta campaigns.' },
-      { status: 500 }
+      { status: httpStatusFromError(error) }
     );
   }
 }
