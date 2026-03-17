@@ -216,7 +216,7 @@ async function startServer() {
       res.json(response.data);
     } catch (error: any) {
       console.error("TikTok API Error:", error.response?.data || error.message);
-      res.status(500).json({ message: error.message });
+      res.status(error.response?.status || 500).json({ message: error.response?.data?.message || error.message });
     }
   });
 
@@ -320,7 +320,7 @@ async function startServer() {
       res.json(response.data);
     } catch (error: any) {
       console.error("Meta API Error:", error.response?.data || error.message);
-      res.status(500).json({ message: error.message });
+      res.status(error.response?.status || 500).json({ message: error.response?.data?.message || error.message });
     }
   });
 
@@ -459,7 +459,7 @@ async function startServer() {
       res.json(response.data);
     } catch (error: any) {
       console.error("Google Ads API Error:", error.response?.data || error.message);
-      res.status(500).json({ message: error.message });
+      res.status(error.response?.status || 500).json({ message: error.response?.data?.error?.message || error.message });
     }
   });
 
@@ -502,7 +502,7 @@ async function startServer() {
       res.json(response.data);
     } catch (error: any) {
       console.error("Gmail API Error:", error.response?.data || error.message);
-      res.status(500).json({ message: error.message });
+      res.status(error.response?.status || 500).json({ message: error.response?.data?.error?.message || error.message });
     }
   });
 
@@ -536,7 +536,7 @@ async function startServer() {
       res.json(response.data);
     } catch (error: any) {
       console.error("GA4 API Error:", error.response?.data || error.message);
-      res.status(500).json({ message: error.message });
+      res.status(error.response?.status || 500).json({ message: error.response?.data?.error?.message || error.message });
     }
   });
 
@@ -567,7 +567,7 @@ async function startServer() {
       res.json(response.data);
     } catch (error: any) {
       console.error("GSC API Error:", error.response?.data || error.message);
-      res.status(500).json({ message: error.message });
+      res.status(error.response?.status || 500).json({ message: error.response?.data?.error?.message || error.message });
     }
   });
 
