@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { requireAuthenticatedUser } from '@/src/lib/auth/session';
+import { httpStatusFromError } from '@/src/lib/integrations/core/errors';
 import { integrationsEnv } from '@/src/lib/env/integrations-env';
 import { googleLegacyBridge } from '@/src/lib/integrations/services/google-legacy-bridge';
 import { connectionService } from '@/src/lib/integrations/services/connection-service';
@@ -645,7 +646,7 @@ export async function POST(request: Request) {
         success: false,
         message: error instanceof Error ? error.message : 'Failed to create scheduled campaigns.',
       },
-      { status: 500 }
+      { status: httpStatusFromError(error) }
     );
   }
 }

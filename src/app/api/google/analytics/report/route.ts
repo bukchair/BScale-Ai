@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { requireAuthenticatedUser } from '@/src/lib/auth/session';
+import { httpStatusFromError } from '@/src/lib/integrations/core/errors';
 import { googleLegacyBridge } from '@/src/lib/integrations/services/google-legacy-bridge';
 import { GA4_DATA_API, GA4_ADMIN_API, GA4_MAX_PROPERTY_DISCOVERY_CANDIDATES } from '@/src/lib/constants/api-urls';
 import { toApiErrorMessage, normalizeDateParam } from '@/src/lib/utils/api-request-utils';
@@ -406,7 +407,7 @@ export async function GET(request: Request) {
   } catch (error) {
     return NextResponse.json(
       { message: error instanceof Error ? error.message : 'Failed to load GA4 report for this user.' },
-      { status: 500 }
+      { status: httpStatusFromError(error) }
     );
   }
 }

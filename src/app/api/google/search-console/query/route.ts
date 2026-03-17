@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { requireAuthenticatedUser } from '@/src/lib/auth/session';
+import { httpStatusFromError } from '@/src/lib/integrations/core/errors';
 import { googleLegacyBridge } from '@/src/lib/integrations/services/google-legacy-bridge';
 
 import { toApiErrorMessage as toErrorMessage, normalizeDateParam } from '@/src/lib/utils/api-request-utils';
@@ -108,7 +109,7 @@ export async function GET(request: Request) {
         message:
           error instanceof Error ? error.message : 'Failed to load Search Console data for this user.',
       },
-      { status: 500 }
+      { status: httpStatusFromError(error) }
     );
   }
 }
