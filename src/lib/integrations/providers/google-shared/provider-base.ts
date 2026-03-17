@@ -9,7 +9,7 @@ import {
   refreshGoogleTokenSet,
 } from '@/src/lib/integrations/providers/google-shared/oauth';
 import { integrationsEnv } from '@/src/lib/env/integrations-env';
-import { MissingScopesError, TokenRefreshError } from '@/src/lib/integrations/core/errors';
+import { MissingScopesError, TokenRefreshError, ExternalApiError } from '@/src/lib/integrations/core/errors';
 import type {
   CallbackParams,
   CallbackResult,
@@ -94,7 +94,7 @@ export abstract class BaseGoogleProvider {
     });
 
     if (!connection) {
-      throw new Error('Platform connection was not found.');
+      throw new ExternalApiError('Platform connection was not found.');
     }
 
     const expiresSoon =
@@ -108,15 +108,19 @@ export abstract class BaseGoogleProvider {
         });
         await tokenService.saveTokenSet(connection.userId, connectionId, refreshed);
       } catch (error) {
-        await auditService.log({
-          userId: connection.userId,
-          action: 'refresh_failed',
-          platform: this.platform,
-          connectionId,
-          details: {
-            message: error instanceof Error ? error.message : String(error),
-          },
-        });
+        try {
+          await auditService.log({
+            userId: connection.userId,
+            action: 'refresh_failed',
+            platform: this.platform,
+            connectionId,
+            details: {
+              message: error instanceof Error ? error.message : String(error),
+            },
+          });
+        } catch {
+          // Swallow audit log failures so the original token refresh error propagates.
+        }
         throw error;
       }
     }

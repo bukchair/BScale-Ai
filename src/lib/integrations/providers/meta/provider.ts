@@ -134,15 +134,19 @@ export class MetaProvider implements IntegrationProvider {
         });
         await tokenService.saveTokenSet(connection.userId, connectionId, refreshed);
       } catch (error) {
-        await auditService.log({
-          userId: connection.userId,
-          platform: this.platform,
-          connectionId,
-          action: 'refresh_failed',
-          details: {
-            message: error instanceof Error ? error.message : String(error),
-          },
-        });
+        try {
+          await auditService.log({
+            userId: connection.userId,
+            platform: this.platform,
+            connectionId,
+            action: 'refresh_failed',
+            details: {
+              message: error instanceof Error ? error.message : String(error),
+            },
+          });
+        } catch {
+          // Swallow audit log failures so the original token refresh error propagates.
+        }
         throw error;
       }
     }
