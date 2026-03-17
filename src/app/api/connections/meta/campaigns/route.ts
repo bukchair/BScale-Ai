@@ -710,6 +710,7 @@ export async function GET(request: Request) {
     });
     return NextResponse.json(payload, { status: 200 });
   } catch (error) {
+    console.error('[meta/campaigns] Unhandled error:', error);
     return NextResponse.json(
       { message: error instanceof Error ? error.message : 'Failed to fetch Meta campaigns.' },
       { status: httpStatusFromError(error) }
