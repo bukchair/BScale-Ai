@@ -129,6 +129,33 @@ export const connectionService = {
     });
   },
 
+  async upsertMissingAccounts(
+    userId: string,
+    connectionId: string,
+    platform: Platform,
+    accountIds: string[]
+  ): Promise<void> {
+    if (!accountIds.length) return;
+    const existing = await prisma.connectedAccount.findMany({
+      where: { platformConnectionId: connectionId, externalAccountId: { in: accountIds } },
+      select: { externalAccountId: true },
+    });
+    const existingIds = new Set(existing.map((r) => r.externalAccountId));
+    const missing = accountIds.filter((id) => !existingIds.has(id));
+    if (!missing.length) return;
+    await prisma.connectedAccount.createMany({
+      data: missing.map((id) => ({
+        userId,
+        platformConnectionId: connectionId,
+        platform,
+        externalAccountId: id,
+        name: `Advertiser ${id}`,
+        status: 'ACTIVE',
+      })),
+      skipDuplicates: true,
+    });
+  },
+
   async setSelectedAccounts(userId: string, connectionId: string, accountIds: string[]): Promise<void> {
     const records = await prisma.connectedAccount.findMany({
       where: { platformConnectionId: connectionId, userId },
