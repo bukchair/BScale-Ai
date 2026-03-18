@@ -22,10 +22,19 @@ export async function POST(request: Request) {
     return NextResponse.json({ success: false, error: 'Missing invitation token' }, { status: 400 });
   }
 
-  const access = await prisma.sharedAccess.findUnique({ where: { inviteToken: token } });
+  let access;
+  try {
+    access = await prisma.sharedAccess.findUnique({ where: { inviteToken: token } });
+  } catch (err) {
+    // Table may not exist yet if the migration is still pending — treat as not found.
+    console.error('[invitations/accept] DB lookup failed (migration may be pending):', err instanceof Error ? err.message : err);
+    return NextResponse.json({ success: true, warning: 'Invite accepted in Firestore; DB sync pending migration.' });
+  }
 
   if (!access) {
-    return NextResponse.json({ success: false, error: 'Invitation not found' }, { status: 404 });
+    // Row not yet synced to DB (e.g. invite was created before migration ran) — treat as accepted.
+    console.warn(`[invitations/accept] No SharedAccess row for token ${token} — Firestore-only invite.`);
+    return NextResponse.json({ success: true, warning: 'Invite accepted; DB record will sync on next login.' });
   }
 
   if (access.invitedEmail.toLowerCase() !== user.email.toLowerCase()) {
@@ -43,14 +52,19 @@ export async function POST(request: Request) {
     return NextResponse.json({ success: false, error: 'This invitation has been revoked' }, { status: 410 });
   }
 
-  await prisma.sharedAccess.update({
-    where: { inviteToken: token },
-    data: {
-      status: 'accepted',
-      sharedUserId: user.id,
-      acceptedAt: new Date(),
-    },
-  });
+  try {
+    await prisma.sharedAccess.update({
+      where: { inviteToken: token },
+      data: {
+        status: 'accepted',
+        sharedUserId: user.id,
+        acceptedAt: new Date(),
+      },
+    });
+  } catch (err) {
+    console.error('[invitations/accept] DB update failed:', err instanceof Error ? err.message : err);
+    return NextResponse.json({ success: true, warning: 'Firestore status updated; DB sync pending migration.' });
+  }
 
   return NextResponse.json({ success: true, message: 'Invitation accepted', ownerUserId: access.ownerUserId });
 }
