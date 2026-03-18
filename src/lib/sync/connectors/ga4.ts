@@ -22,11 +22,12 @@ export const ga4Connector = {
    */
   async fetchSiteMetricsByDay(
     connectionId: string,
+    userId: string,
     propertyId: string,
     startDate: string,
     endDate: string
   ) {
-    const accessToken = await tokenService.getAccessToken(connectionId);
+    const accessToken = await tokenService.getAccessToken(connectionId, userId);
 
     const response = await fetchWithRetry(
       `${GA4_DATA_API}/properties/${propertyId}:runReport`,

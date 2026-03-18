@@ -9,8 +9,8 @@ const toNumber = (value: unknown) => {
 };
 
 export const metaAdsConnector = {
-  async fetchCampaigns(connectionId: string, adAccountId: string) {
-    const accessToken = await tokenService.getAccessToken(connectionId);
+  async fetchCampaigns(connectionId: string, userId: string, adAccountId: string) {
+    const accessToken = await tokenService.getAccessToken(connectionId, userId);
     const accountId = toMetaAccountResource(adAccountId);
     const url = new URL(`${META_GRAPH_BASE}/${accountId}/campaigns`);
     url.searchParams.set(
@@ -40,11 +40,12 @@ export const metaAdsConnector = {
 
   async fetchCampaignMetricsByDay(
     connectionId: string,
+    userId: string,
     adAccountId: string,
     startDate: string,
     endDate: string
   ) {
-    const accessToken = await tokenService.getAccessToken(connectionId);
+    const accessToken = await tokenService.getAccessToken(connectionId, userId);
     const accountId = toMetaAccountResource(adAccountId);
     const url = new URL(`${META_GRAPH_BASE}/${accountId}/insights`);
     url.searchParams.set(

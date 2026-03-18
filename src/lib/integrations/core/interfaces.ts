@@ -16,6 +16,9 @@ export interface ProviderContext {
 
 export interface RefreshTokenContext {
   connectionId: string;
+  /** The user who owns this connection.  Required so token-service calls can
+   *  verify ownership and prevent cross-tenant token access. */
+  userId: string;
   encryptedRefreshToken: string | null;
 }
 

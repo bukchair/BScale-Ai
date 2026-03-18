@@ -35,6 +35,7 @@ export const processRefreshTokens = async (payload: RefreshTokensPayload) => {
       const provider = providerFactory.get(connection.platform as any);
       const tokenSet = await provider.refreshToken({
         connectionId: connection.id,
+        userId: connection.userId,
         encryptedRefreshToken: connection.encryptedRefreshToken,
       });
       await tokenService.saveTokenSet(connection.userId, connection.id, tokenSet);

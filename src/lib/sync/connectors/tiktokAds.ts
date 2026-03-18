@@ -9,8 +9,8 @@ const toNumber = (value: unknown) => {
 };
 
 export const tiktokAdsConnector = {
-  async fetchCampaigns(connectionId: string, advertiserId: string) {
-    const accessToken = await tokenService.getAccessToken(connectionId);
+  async fetchCampaigns(connectionId: string, userId: string, advertiserId: string) {
+    const accessToken = await tokenService.getAccessToken(connectionId, userId);
     const url = new URL(`${TIKTOK_API_BASE}/campaign/get/`);
     url.searchParams.set('advertiser_id', advertiserId);
     const response = await fetchWithRetry(url.toString(), {
@@ -32,11 +32,12 @@ export const tiktokAdsConnector = {
 
   async fetchCampaignMetricsByDay(
     connectionId: string,
+    userId: string,
     advertiserId: string,
     startDate: string,
     endDate: string
   ) {
-    const accessToken = await tokenService.getAccessToken(connectionId);
+    const accessToken = await tokenService.getAccessToken(connectionId, userId);
     const response = await fetchWithRetry(`${TIKTOK_API_BASE}/report/integrated/get/`, {
       method: 'POST',
       headers: {
