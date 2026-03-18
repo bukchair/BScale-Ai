@@ -92,7 +92,9 @@ export function Settings({ userProfile }: { userProfile?: { role?: string } | nu
       })
       .finally(() => setIsLoadingSharing(false));
     // Load invitation statuses
-    getOwnerInvitations(uid).then(setInvitations).catch(() => {});
+    getOwnerInvitations(uid).then(setInvitations).catch((err) => {
+      console.error('[Settings] Failed to load invitations:', err);
+    });
   }, [uid]);
 
   useEffect(() => {
@@ -285,7 +287,9 @@ export function Settings({ userProfile }: { userProfile?: { role?: string } | nu
       setSharedAccessList(next);
 
       // Refresh invitations list
-      getOwnerInvitations(uid).then(setInvitations).catch(() => {});
+      getOwnerInvitations(uid).then(setInvitations).catch((err) => {
+      console.error('[Settings] Failed to load invitations:', err);
+    });
 
       // Send invitation email via connected Gmail account
       const appOrigin = typeof window !== 'undefined' ? window.location.origin : 'https://bscale.co.il';
@@ -297,8 +301,9 @@ export function Settings({ userProfile }: { userProfile?: { role?: string } | nu
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ to: shareEmail.trim(), subject, body: html }),
-      }).catch(() => {
+      }).catch((err) => {
         // Email send is best-effort — don't block the UI
+        console.error('[Settings] Invitation email send failed:', err);
       });
 
       setShareEmail('');
@@ -324,7 +329,9 @@ export function Settings({ userProfile }: { userProfile?: { role?: string } | nu
     try {
       const next = await removeUserSharedAccess(uid, email);
       setSharedAccessList(next);
-      getOwnerInvitations(uid).then(setInvitations).catch(() => {});
+      getOwnerInvitations(uid).then(setInvitations).catch((err) => {
+      console.error('[Settings] Failed to load invitations:', err);
+    });
       showSharingMessage(isHebrew ? 'הרשאת השיתוף הוסרה.' : 'Sharing permission removed.');
     } catch (err) {
       console.error('Failed to remove shared access:', err);
