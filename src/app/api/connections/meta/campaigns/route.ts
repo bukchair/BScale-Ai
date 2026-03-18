@@ -3,9 +3,8 @@ import { requireAuthenticatedUser } from '@/src/lib/auth/session';
 import { httpStatusFromError } from '@/src/lib/integrations/core/errors';
 import { connectionService } from '@/src/lib/integrations/services/connection-service';
 import { MetaProvider } from '@/src/lib/integrations/providers/meta/provider';
-
-const META_GRAPH_VERSION = 'v21.0';
-const META_GRAPH_BASE = `https://graph.facebook.com/${META_GRAPH_VERSION}`;
+import { normalizeDateParam } from '@/src/lib/utils/api-request-utils';
+import { META_GRAPH_BASE } from '@/src/lib/constants/api-urls';
 const META_CACHE_TTL_MS = 5 * 60 * 1000;
 type MetaCampaignsPayload = {
   data: Array<Record<string, unknown>>;
@@ -27,11 +26,6 @@ const metaCampaignsCache = new Map<
     payload: MetaCampaignsPayload;
   }
 >();
-const DATE_PARAM_REGEX = /^\d{4}-\d{2}-\d{2}$/;
-const normalizeDateParam = (value: string | null) => {
-  const trimmed = (value || '').trim();
-  return DATE_PARAM_REGEX.test(trimmed) ? trimmed : '';
-};
 
 const getClampedDateRange = (url: URL) => {
   const todayIso = new Date().toISOString().split('T')[0];
@@ -66,8 +60,9 @@ const discoverMetaAccountIdsFromToken = async (accessToken: string) => {
     const discoverUrl = new URL(`${META_GRAPH_BASE}/me/adaccounts`);
     discoverUrl.searchParams.set('fields', 'account_id');
     discoverUrl.searchParams.set('limit', '5');
-    discoverUrl.searchParams.set('access_token', accessToken);
-    const discoverResponse = await fetch(discoverUrl.toString());
+    const discoverResponse = await fetch(discoverUrl.toString(), {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
     const discoverPayload = (await discoverResponse.json().catch(() => null)) as
       | { data?: Array<{ account_id?: string }> }
       | null;
@@ -143,8 +138,8 @@ const isMetaFieldCompatibilityError = (message: string) => {
   );
 };
 
-const buildMetaCacheKey = (accountId: string, startDate: string, endDate: string) =>
-  `${normalizeMetaAccountId(accountId)}|${startDate || 'none'}|${endDate || 'none'}`;
+const buildMetaCacheKey = (userId: string, accountId: string, startDate: string, endDate: string) =>
+  `${userId}|${normalizeMetaAccountId(accountId)}|${startDate || 'none'}|${endDate || 'none'}`;
 
 const getFreshMetaCache = (key: string) => {
   const hit = metaCampaignsCache.get(key);
@@ -261,8 +256,10 @@ export async function GET(request: Request) {
       );
     }
 
-    const cacheKey = buildMetaCacheKey(resolvedAccountId, startDate, endDate);
-    const cached = getFreshMetaCache(cacheKey);
+    // Only cache when we have an authenticated server-side userId so cache entries
+    // are always scoped to a specific user and cannot leak across users.
+    const cacheKey = managedUserId ? buildMetaCacheKey(managedUserId, resolvedAccountId, startDate, endDate) : null;
+    const cached = cacheKey ? getFreshMetaCache(cacheKey) : null;
     if (cached) {
       return NextResponse.json(
         {
@@ -708,11 +705,13 @@ export async function GET(request: Request) {
         },
       },
     };
-    metaCampaignsCache.set(cacheKey, {
-      savedAt: Date.now(),
-      accountId: resolvedAccountId,
-      payload,
-    });
+    if (cacheKey) {
+      metaCampaignsCache.set(cacheKey, {
+        savedAt: Date.now(),
+        accountId: resolvedAccountId,
+        payload,
+      });
+    }
     return NextResponse.json(payload, { status: 200 });
   } catch (error) {
     console.error('[meta/campaigns] Unhandled error:', error);

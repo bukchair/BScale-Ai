@@ -11,6 +11,7 @@ export type AuthenticatedUser = {
   id: string;
   email: string;
   name?: string | null;
+  role: string;
 };
 
 type SessionPayload = {
@@ -21,7 +22,7 @@ type SessionPayload = {
 
 const getSessionSecret = () => new TextEncoder().encode(integrationsEnv.SESSION_SIGNING_SECRET);
 
-export const issueSessionToken = async (user: AuthenticatedUser): Promise<string> => {
+export const issueSessionToken = async (user: Pick<AuthenticatedUser, 'id' | 'email' | 'name'>): Promise<string> => {
   return new SignJWT({
     email: user.email,
     name: user.name ?? undefined,
@@ -59,12 +60,24 @@ export const requireAuthenticatedUser = async (): Promise<AuthenticatedUser> => 
     throw new IntegrationError('UNAUTHORIZED', 'Session payload is missing user claims.', 401);
   }
 
-  const user = await prisma.user.upsert({
+  let user = await prisma.user.findFirst({
     where: { id: payload.sub },
-    update: { email: payload.email, name: payload.name ?? null },
-    create: { id: payload.sub, email: payload.email, name: payload.name ?? null },
-    select: { id: true, email: true, name: true },
+    select: { id: true, email: true, name: true, role: true },
   });
+
+  if (!user) {
+    user = await prisma.user.create({
+      data: { id: payload.sub, email: payload.email, name: payload.name ?? null },
+      select: { id: true, email: true, name: true, role: true },
+    });
+  } else if (user.email !== payload.email || user.name !== (payload.name ?? null)) {
+    // Keep email and name in sync with the JWT session on change only.
+    user = await prisma.user.update({
+      where: { id: payload.sub },
+      data: { email: payload.email, name: payload.name ?? null },
+      select: { id: true, email: true, name: true, role: true },
+    });
+  }
 
   return user;
 };

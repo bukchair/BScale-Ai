@@ -3,6 +3,10 @@ import type { ActionPayload } from '@/src/lib/sync/queue/payloads';
 import { toPrismaJson } from '@/src/lib/integrations/utils/prisma-json';
 
 export const processAction = async (payload: ActionPayload) => {
+  // Create the action record in QUEUED state. Status remains QUEUED until
+  // a provider adapter actually executes the action on the platform.
+  // TODO (phase-2): add per-platform write-back logic here and update
+  //   status to SUCCESS / FAILED based on the platform API response.
   const action = await prisma.actionRequest.create({
     data: {
       userId: payload.userId,
@@ -17,18 +21,9 @@ export const processAction = async (payload: ActionPayload) => {
     },
   });
 
-  // Adapted scope: action execution is queued and audited first.
-  // Provider-specific write actions are intentionally kept as phase-2.
-  await prisma.actionRequest.update({
-    where: { id: action.id },
-    data: {
-      status: 'SUCCESS',
-    },
-  });
-
   return {
     actionRequestId: action.id,
     executed: false,
-    note: 'Action write-back is scaffolded and queued for phase-2 provider adapters.',
+    note: 'Action is queued and pending platform execution (phase-2 provider adapters).',
   };
 };

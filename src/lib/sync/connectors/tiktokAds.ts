@@ -1,7 +1,6 @@
 import { tokenService } from '@/src/lib/integrations/services/token-service';
 import { fetchWithRetry } from '@/src/lib/sync/jobs/http-retry';
-
-const TIKTOK_API_BASE = 'https://business-api.tiktok.com/open_api/v1.3';
+import { TIKTOK_API_BASE } from '@/src/lib/constants/api-urls';
 
 const toNumber = (value: unknown) => {
   const parsed = Number(value);

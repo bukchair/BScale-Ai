@@ -25,7 +25,16 @@ export async function GET(request: Request) {
     const start = (url.searchParams.get('start') || '').trim();
     const end = (url.searchParams.get('end') || '').trim();
     const campaignId = (url.searchParams.get('campaignId') || '').trim() || undefined;
-    const platform = (url.searchParams.get('platform') || '').trim().toUpperCase() || undefined;
+    const rawPlatform = (url.searchParams.get('platform') || '').trim().toUpperCase() || undefined;
+
+    const ALLOWED_PLATFORMS = new Set(['GOOGLE_ADS', 'META', 'TIKTOK', 'GA4', 'SEARCH_CONSOLE']);
+    if (rawPlatform && !ALLOWED_PLATFORMS.has(rawPlatform)) {
+      return NextResponse.json(
+        { error: `Invalid platform. Allowed values: ${[...ALLOWED_PLATFORMS].join(', ')}.` },
+        { status: 400 }
+      );
+    }
+    const platform = rawPlatform;
 
     if (!DATE_RE.test(start) || !DATE_RE.test(end) || start > end) {
       return NextResponse.json(

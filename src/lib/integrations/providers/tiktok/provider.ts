@@ -23,9 +23,9 @@ import {
 } from '@/src/lib/integrations/core/errors';
 import { toRoutePlatform } from '@/src/lib/integrations/utils/platform-utils';
 import { auditService } from '@/src/lib/integrations/services/audit-service';
+import { TIKTOK_API_BASE } from '@/src/lib/constants/api-urls';
 
 const TIKTOK_AUTH_URL = 'https://ads.tiktok.com/marketing_api/auth';
-const TIKTOK_API_BASE = 'https://business-api.tiktok.com/open_api/v1.3';
 
 /** TikTok returns scope as either a comma-separated string or a string array. */
 const parseTikTokScope = (scope: string | string[] | undefined, fallback: readonly string[]): string[] => {
