@@ -15,9 +15,11 @@ async function runMigrations() {
     console.warn('[startup] DATABASE_URL not set — skipping prisma migrate deploy.');
     return;
   }
+  // Use the locally-installed Prisma binary to avoid npx downloading a different major version.
+  const prismaBin = path.resolve(__dirname, 'node_modules', '.bin', 'prisma');
   try {
     console.info('[startup] Running prisma migrate deploy...');
-    execFileSync('npx', ['prisma', 'migrate', 'deploy'], {
+    execFileSync(prismaBin, ['migrate', 'deploy'], {
       stdio: 'inherit',
       cwd: __dirname,
       env: process.env,
