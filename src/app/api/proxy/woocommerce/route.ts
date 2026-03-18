@@ -15,23 +15,18 @@ async function tryFetch(
   key: string,
   secret: string,
   method: string,
-  bodyData?: unknown,
-  authMode: 'query' | 'header' | 'both' = 'query'
+  bodyData?: unknown
 ): Promise<Response> {
   const urlObj = new URL(targetUrl);
-  if (authMode === 'query' || authMode === 'both') {
-    urlObj.searchParams.append('consumer_key', key);
-    urlObj.searchParams.append('consumer_secret', secret);
-  }
 
+  // Credentials are sent via Basic Auth header only — never as URL query params
+  // so they don't appear in server access logs or CDN request logs.
   const auth = Buffer.from(`${key}:${secret}`).toString('base64');
   const headers: Record<string, string> = {
     'User-Agent': 'Mozilla/5.0 (compatible; BScale/1.0)',
     Accept: 'application/json',
+    Authorization: `Basic ${auth}`,
   };
-  if (authMode === 'header' || authMode === 'both') {
-    headers.Authorization = `Basic ${auth}`;
-  }
   if (method === 'PUT' || method === 'POST') {
     headers['Content-Type'] = 'application/json';
   }
@@ -68,27 +63,24 @@ export async function POST(request: Request) {
       formattedUrl = `https://${formattedUrl}`;
     }
     const baseUrl = formattedUrl.endsWith('/') ? formattedUrl.slice(0, -1) : formattedUrl;
-    const endpointPath = endpoint || 'system_status';
+    const rawEndpoint = endpoint || 'system_status';
+    // Guard against path traversal (e.g. "../../wp-login.php").
+    if (!/^[a-zA-Z0-9_/-]+$/.test(rawEndpoint) || rawEndpoint.includes('..')) {
+      return NextResponse.json({ message: 'Invalid endpoint path.' }, { status: 400 });
+    }
+    const endpointPath = rawEndpoint.replace(/^\/+/, '');
 
     const routeCandidates = [
       `${baseUrl}/wp-json/wc/v3/${endpointPath}`,
       `${baseUrl}/index.php/wp-json/wc/v3/${endpointPath}`,
       `${baseUrl}/wc-api/v3/${endpointPath}`,
     ];
-    // Try header auth first to avoid exposing credentials in URL logs/history.
-    const authModes: Array<'header' | 'query' | 'both'> = ['header', 'query', 'both'];
 
     let lastStatus = 500;
     let lastPayload: unknown = null;
-    const tried = new Set<string>();
 
     for (const route of routeCandidates) {
-      for (const authMode of authModes) {
-        const keyForDedup = `${route}::${authMode}`;
-        if (tried.has(keyForDedup)) continue;
-        tried.add(keyForDedup);
-
-        const response = await tryFetch(route, key, secret, method, data, authMode);
+        const response = await tryFetch(route, key, secret, method, data);
         const text = await response.text();
         lastStatus = response.status || 500;
 
@@ -119,7 +111,6 @@ export async function POST(request: Request) {
         }
 
         lastPayload = parsed;
-      }
     }
 
     if (lastPayload && typeof lastPayload === 'object') {
