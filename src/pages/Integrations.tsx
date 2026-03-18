@@ -669,8 +669,8 @@ export function Integrations({ userProfile }: { userProfile?: { role?: string; s
       await startManagedOAuth('tiktok', 'Failed to start TikTok authentication');
     } catch (err) {
       console.error("Failed to get TikTok auth URL:", err);
-      setToast({ message: "Failed to start TikTok authentication", type: 'error' });
-      setTimeout(() => setToast(null), 3000);
+      setToast({ message: err instanceof Error && err.message ? err.message : 'Failed to start TikTok authentication', type: 'error' });
+      setTimeout(() => setToast(null), 5000);
     }
   };
 
@@ -680,8 +680,8 @@ export function Integrations({ userProfile }: { userProfile?: { role?: string; s
       await startManagedOAuth('meta', 'Failed to start Meta authentication');
     } catch (err) {
       console.error("Failed to get Meta auth URL:", err);
-      setToast({ message: "Failed to start Meta authentication", type: 'error' });
-      setTimeout(() => setToast(null), 3000);
+      setToast({ message: err instanceof Error && err.message ? err.message : 'Failed to start Meta authentication', type: 'error' });
+      setTimeout(() => setToast(null), 5000);
     }
   };
 
@@ -691,8 +691,8 @@ export function Integrations({ userProfile }: { userProfile?: { role?: string; s
       await startManagedOAuth('google-ads', 'Failed to start Google authentication');
     } catch (err) {
       console.error("Failed to get Google auth URL:", err);
-      setToast({ message: `Failed to start Google authentication: ${err instanceof Error ? err.message : 'Unknown error'}`, type: 'error' });
-      setTimeout(() => setToast(null), 3000);
+      setToast({ message: err instanceof Error && err.message ? err.message : 'Failed to start Google authentication', type: 'error' });
+      setTimeout(() => setToast(null), 5000);
     }
   };
 
