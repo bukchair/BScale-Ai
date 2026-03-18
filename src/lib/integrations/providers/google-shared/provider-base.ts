@@ -75,7 +75,7 @@ export abstract class BaseGoogleProvider {
   }
 
   async refreshToken(context: RefreshTokenContext): Promise<ProviderTokenSet> {
-    const refreshToken = await tokenService.getRefreshToken(context.connectionId);
+    const refreshToken = await tokenService.getRefreshToken(context.connectionId, context.userId);
     const tokenSet = await refreshGoogleTokenSet({ refreshToken });
     if (!tokenSet.accessToken) {
       throw new TokenRefreshError();
@@ -104,6 +104,7 @@ export abstract class BaseGoogleProvider {
       try {
         const refreshed = await this.refreshToken({
           connectionId,
+          userId: connection.userId,
           encryptedRefreshToken: null,
         });
         await tokenService.saveTokenSet(connection.userId, connectionId, refreshed);
@@ -125,7 +126,7 @@ export abstract class BaseGoogleProvider {
       }
     }
 
-    return tokenService.getAccessToken(connectionId);
+    return tokenService.getAccessToken(connectionId, connection.userId);
   }
 
   async getAccessTokenForConnection(connectionId: string): Promise<string> {

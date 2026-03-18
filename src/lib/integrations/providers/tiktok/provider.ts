@@ -97,7 +97,7 @@ export class TikTokProvider implements IntegrationProvider {
   }
 
   async refreshToken(context: RefreshTokenContext): Promise<ProviderTokenSet> {
-    const refreshToken = await tokenService.getRefreshToken(context.connectionId);
+    const refreshToken = await tokenService.getRefreshToken(context.connectionId, context.userId);
     const response = await fetch(`${TIKTOK_API_BASE}/oauth2/refresh_token/`, {
       method: 'POST',
       headers: {
@@ -302,6 +302,7 @@ export class TikTokProvider implements IntegrationProvider {
       try {
         const refreshed = await this.refreshToken({
           connectionId,
+          userId: connection.userId,
           encryptedRefreshToken: null,
         });
         await tokenService.saveTokenSet(connection.userId, connectionId, refreshed);
@@ -320,7 +321,7 @@ export class TikTokProvider implements IntegrationProvider {
     }
 
     return {
-      accessToken: await tokenService.getAccessToken(connectionId),
+      accessToken: await tokenService.getAccessToken(connectionId, connection.userId),
     };
   }
 

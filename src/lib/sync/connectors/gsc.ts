@@ -15,11 +15,12 @@ export const gscConnector = {
    */
   async fetchSearchMetricsByDay(
     connectionId: string,
+    userId: string,
     siteUrl: string,
     startDate: string,
     endDate: string
   ) {
-    const accessToken = await tokenService.getAccessToken(connectionId);
+    const accessToken = await tokenService.getAccessToken(connectionId, userId);
     const encodedSite = encodeURIComponent(siteUrl);
 
     const response = await fetchWithRetry(

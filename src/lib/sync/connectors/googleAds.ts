@@ -12,10 +12,10 @@ const toNumber = (value: unknown) => {
 };
 
 export const googleAdsConnector = {
-  async fetchCampaigns(connectionId: string, customerId: string) {
-    const connection = await connectionService.getById(connectionId);
+  async fetchCampaigns(connectionId: string, userId: string, customerId: string) {
+    const connection = await connectionService.getByIdAndUser(connectionId, userId);
     if (!connection) return [];
-    const accessToken = await tokenService.getAccessToken(connectionId);
+    const accessToken = await tokenService.getAccessToken(connectionId, userId);
     const loginCustomerId = googleLegacyBridge.getLoginCustomerId(connection.metadata) || undefined;
     const headers: Record<string, string> = {
       authorization: `Bearer ${accessToken}`,
@@ -60,13 +60,14 @@ export const googleAdsConnector = {
 
   async fetchCampaignMetricsByDay(
     connectionId: string,
+    userId: string,
     customerId: string,
     startDate: string,
     endDate: string
   ) {
-    const connection = await connectionService.getById(connectionId);
+    const connection = await connectionService.getByIdAndUser(connectionId, userId);
     if (!connection) return [];
-    const accessToken = await tokenService.getAccessToken(connectionId);
+    const accessToken = await tokenService.getAccessToken(connectionId, userId);
     const loginCustomerId = googleLegacyBridge.getLoginCustomerId(connection.metadata) || undefined;
     const headers: Record<string, string> = {
       authorization: `Bearer ${accessToken}`,

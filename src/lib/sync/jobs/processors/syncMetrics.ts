@@ -88,6 +88,7 @@ export const processSyncMetrics = async (payload: SyncMetricsPayload) => {
   if (payload.platform === 'GOOGLE_ADS') {
     const rows = await googleAdsConnector.fetchCampaignMetricsByDay(
       payload.connectionId,
+      payload.userId,
       account.externalAccountId.replace(/\D/g, ''),
       payload.range.startDate,
       payload.range.endDate
@@ -112,6 +113,7 @@ export const processSyncMetrics = async (payload: SyncMetricsPayload) => {
   if (payload.platform === 'META') {
     const rows = await metaAdsConnector.fetchCampaignMetricsByDay(
       payload.connectionId,
+      payload.userId,
       account.externalAccountId,
       payload.range.startDate,
       payload.range.endDate
@@ -139,6 +141,7 @@ export const processSyncMetrics = async (payload: SyncMetricsPayload) => {
     }
     const rows = await tiktokAdsConnector.fetchCampaignMetricsByDay(
       payload.connectionId,
+      payload.userId,
       account.externalAccountId,
       payload.range.startDate,
       payload.range.endDate
@@ -163,6 +166,7 @@ export const processSyncMetrics = async (payload: SyncMetricsPayload) => {
   if (payload.platform === 'GA4') {
     const rows = await ga4Connector.fetchSiteMetricsByDay(
       payload.connectionId,
+      payload.userId,
       account.externalAccountId,
       payload.range.startDate,
       payload.range.endDate
@@ -187,6 +191,7 @@ export const processSyncMetrics = async (payload: SyncMetricsPayload) => {
   if (payload.platform === 'SEARCH_CONSOLE') {
     const rows = await gscConnector.fetchSearchMetricsByDay(
       payload.connectionId,
+      payload.userId,
       account.externalAccountId,
       payload.range.startDate,
       payload.range.endDate

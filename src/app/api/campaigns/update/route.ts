@@ -366,11 +366,12 @@ const updateTikTokCampaign = async (
   if (expiresSoon) {
     const refreshed = await provider.refreshToken({
       connectionId: connection.id,
+      userId,
       encryptedRefreshToken: connection.encryptedRefreshToken,
     });
     await tokenService.saveTokenSet(userId, connection.id, refreshed);
   }
-  const accessToken = await tokenService.getAccessToken(connection.id);
+  const accessToken = await tokenService.getAccessToken(connection.id, userId);
   const campaignId = normalizeCampaignId(body.campaignId);
   if (!campaignId) {
     throw new Error('Invalid TikTok campaign id.');

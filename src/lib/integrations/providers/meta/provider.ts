@@ -91,8 +91,8 @@ export class MetaProvider implements IntegrationProvider {
 
   async refreshToken(context: RefreshTokenContext): Promise<ProviderTokenSet> {
     const refreshSource = context.encryptedRefreshToken
-      ? await tokenService.getRefreshToken(context.connectionId)
-      : await tokenService.getAccessToken(context.connectionId);
+      ? await tokenService.getRefreshToken(context.connectionId, context.userId)
+      : await tokenService.getAccessToken(context.connectionId, context.userId);
 
     const url = new URL(`${META_GRAPH_BASE}/oauth/access_token`);
     url.searchParams.set('grant_type', 'fb_exchange_token');
@@ -130,6 +130,7 @@ export class MetaProvider implements IntegrationProvider {
       try {
         const refreshed = await this.refreshToken({
           connectionId,
+          userId: connection.userId,
           encryptedRefreshToken: null,
         });
         await tokenService.saveTokenSet(connection.userId, connectionId, refreshed);
@@ -152,7 +153,7 @@ export class MetaProvider implements IntegrationProvider {
     }
 
     return {
-      accessToken: await tokenService.getAccessToken(connectionId),
+      accessToken: await tokenService.getAccessToken(connectionId, connection.userId),
       connectionUserId: connection.userId,
     };
   }

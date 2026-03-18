@@ -4,9 +4,14 @@ import { IntegrationError } from '@/src/lib/integrations/core/errors';
 import { toPrismaJson } from '@/src/lib/integrations/utils/prisma-json';
 
 export const connectionService = {
-  async getById(id: string) {
-    return prisma.platformConnection.findUnique({
-      where: { id },
+  /**
+   * Fetch a connection by ID, **verifying it belongs to userId**.
+   * Returns null if the connection doesn't exist or belongs to a different user.
+   * Always prefer this over any unscoped lookup to prevent cross-tenant access.
+   */
+  async getByIdAndUser(id: string, userId: string) {
+    return prisma.platformConnection.findFirst({
+      where: { id, userId },
       include: { connectedAccounts: true },
     });
   },

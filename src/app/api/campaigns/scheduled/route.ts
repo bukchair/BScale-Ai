@@ -501,11 +501,12 @@ const createTikTokCampaign = async (
     if (expiresSoon) {
       const refreshed = await provider.refreshToken({
         connectionId: connection.id,
+        userId,
         encryptedRefreshToken: connection.encryptedRefreshToken,
       });
       await tokenService.saveTokenSet(userId, connection.id, refreshed);
     }
-    const accessToken = await tokenService.getAccessToken(connection.id);
+    const accessToken = await tokenService.getAccessToken(connection.id, userId);
 
     const response = await fetch(`${TIKTOK_API_BASE}/campaign/create/`, {
       method: 'POST',
