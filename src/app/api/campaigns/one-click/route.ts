@@ -400,6 +400,7 @@ const buildIdempotencyKey = (userId: string, rawKey: string): string =>
 // ─── Main handler ─────────────────────────────────────────────────────────────
 
 export async function POST(request: Request) {
+  try {
   const user = await requireAuthenticatedUser().catch(() => null);
   if (!user) {
     return NextResponse.json({ error: 'Unauthorized.' }, { status: 401 });
@@ -482,25 +483,30 @@ export async function POST(request: Request) {
 
   // ── Create/reset DB record ────────────────────────────────────────────────
   let record = existing;
-  if (record) {
-    record = await prisma.oneClickCampaignRequest.update({
-      where: { id: record.id },
-      data: { status: 'RUNNING', errorMessage: null, updatedAt: new Date() },
-    });
-  } else {
-    record = await prisma.oneClickCampaignRequest.create({
-      data: {
-        userId: user.id,
-        idempotencyKey,
-        platforms: platforms as unknown as string[],
-        objective,
-        dailyBudget,
-        country,
-        language,
-        productInfo: input.product ?? null,
-        status: 'RUNNING',
-      },
-    });
+  try {
+    if (record) {
+      record = await prisma.oneClickCampaignRequest.update({
+        where: { id: record.id },
+        data: { status: 'RUNNING', errorMessage: null, updatedAt: new Date() },
+      });
+    } else {
+      record = await prisma.oneClickCampaignRequest.create({
+        data: {
+          userId: user.id,
+          idempotencyKey,
+          platforms: platforms as unknown as string[],
+          objective,
+          dailyBudget,
+          country,
+          language,
+          productInfo: input.product ?? null,
+          status: 'RUNNING',
+        },
+      });
+    }
+  } catch (dbErr) {
+    console.error('[one-click] DB record creation failed:', dbErr);
+    return NextResponse.json({ error: 'Failed to initialize campaign request. The database may need a migration.' }, { status: 500 });
   }
 
   // ── Generate AI strategy ──────────────────────────────────────────────────
@@ -584,6 +590,11 @@ export async function POST(request: Request) {
   };
 
   return NextResponse.json(responseBody, { status: allOk || anyOk ? 200 : 422 });
+  } catch (err) {
+    console.error('[one-click] Unhandled error:', err);
+    const message = err instanceof Error ? err.message : 'Internal server error.';
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
 }
 
 /**

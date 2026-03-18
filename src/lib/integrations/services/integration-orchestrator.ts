@@ -193,6 +193,9 @@ export const integrationOrchestrator = {
     if (!connection) {
       throw new IntegrationError('NOT_FOUND', 'Connection not found for this platform.', 404);
     }
+    // Ensure account records exist before selecting — handles the case where a user
+    // manually enters an advertiser ID that was never auto-discovered.
+    await connectionService.upsertMissingAccounts(userId, connection.id, platform, accountIds);
     await connectionService.setSelectedAccounts(userId, connection.id, accountIds);
     await auditService.log({
       userId,
