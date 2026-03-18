@@ -23,11 +23,37 @@ function createPrismaClient() {
     });
   }
 
+  // In production, suppress Prisma's own stderr logger — all errors are caught and
+  // re-logged with context in the application layer (session.ts, route handlers, etc.).
+  // This avoids duplicate / misleading "prisma:error" lines when a migration is pending
+  // and the application is already handling the fallback gracefully.
   return new PrismaClient({
     adapter: new PrismaPg({ connectionString }),
-    log: process.env.NODE_ENV === 'development' ? ['error', 'warn'] : ['error'],
+    log: process.env.NODE_ENV === 'development' ? ['error', 'warn'] : [],
   });
 }
+
+function getPrismaClient() {
+  if (!globalThis.__bscalePrisma__) {
+    globalThis.__bscalePrisma__ = createPrismaClient();
+  }
+  return globalThis.__bscalePrisma__;
+}
+
+// Lazy proxy prevents Prisma constructor from running during module evaluation in Next build.
+export const prisma = new Proxy({} as PrismaClient, {
+  get(_target, property) {
+    const client = getPrismaClient() as unknown as Record<PropertyKey, unknown>;
+    const value = client[property];
+    return typeof value === 'function' ? (value as Function).bind(client) : value;
+  },
+  set(_target, property, value) {
+    const client = getPrismaClient() as unknown as Record<PropertyKey, unknown>;
+    client[property] = value;
+    return true;
+  },
+}) as PrismaClient;
+
 
 function getPrismaClient() {
   if (!globalThis.__bscalePrisma__) {
