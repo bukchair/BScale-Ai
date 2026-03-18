@@ -44,6 +44,25 @@ async function startServer() {
   });
 
   // WooCommerce Proxy Endpoint
+  // Blocks SSRF by rejecting private/loopback/link-local IP ranges and hostnames.
+  function isPrivateHost(hostname: string): boolean {
+    const ipv4 = hostname.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
+    if (ipv4) {
+      const [a, b] = [Number(ipv4[1]), Number(ipv4[2])];
+      return (
+        a === 10 ||
+        (a === 172 && b >= 16 && b <= 31) ||
+        (a === 192 && b === 168) ||
+        a === 127 ||
+        (a === 169 && b === 254) ||
+        a === 0 ||
+        a >= 224
+      );
+    }
+    const h = hostname.toLowerCase();
+    return h === 'localhost' || h.endsWith('.localhost') || h === '::1' || h === '[::1]';
+  }
+
   app.post("/api/proxy/woocommerce", express.json(), async (req, res) => {
     const { url, key, secret, endpoint } = req.body;
 
@@ -56,7 +75,17 @@ async function startServer() {
       if (!formattedUrl.startsWith('http://') && !formattedUrl.startsWith('https://')) {
         formattedUrl = `https://${formattedUrl}`;
       }
-      
+
+      let parsedHost: URL;
+      try {
+        parsedHost = new URL(formattedUrl);
+      } catch {
+        return res.status(400).json({ message: "Invalid store URL." });
+      }
+      if (isPrivateHost(parsedHost.hostname)) {
+        return res.status(400).json({ message: "Invalid store URL." });
+      }
+
       const baseUrl = formattedUrl.endsWith('/') ? formattedUrl.slice(0, -1) : formattedUrl;
       const endpointPath = endpoint || 'system_status';
       const method = req.body.method || 'GET';
@@ -144,285 +173,10 @@ async function startServer() {
     }
   });
 
-  // TikTok OAuth Routes
-  app.get("/api/auth/tiktok/url", (req, res) => {
-    const appId = process.env.TIKTOK_APP_ID;
-    const redirectUri = process.env.TIKTOK_REDIRECT_URI || `${req.protocol}://${req.get("host")}/api/auth/tiktok/callback`;
-    
-    if (!appId) {
-      return res.status(500).json({ message: "TikTok App ID not configured" });
-    }
-
-    const authUrl = `https://ads.tiktok.com/marketing_api/auth?app_id=${appId}&state=state&redirect_uri=${encodeURIComponent(redirectUri)}`;
-    res.json({ url: authUrl });
-  });
-
-  app.get("/api/auth/tiktok/callback", async (req, res) => {
-    const { auth_code } = req.query;
-    
-    if (!auth_code) {
-      return res.send(`
-        <html>
-          <body>
-            <script>
-              if (window.opener) {
-                window.opener.postMessage({ type: 'OAUTH_AUTH_ERROR', error: 'No auth code provided' }, '*');
-                window.close();
-              }
-            </script>
-          </body>
-        </html>
-      `);
-    }
-
-    try {
-      const response = await axios.post("https://business-api.tiktok.com/open_api/v1.3/oauth2/access_token/", {
-        app_id: process.env.TIKTOK_APP_ID,
-        secret: process.env.TIKTOK_SECRET,
-        auth_code: auth_code
-      });
-
-      const data = response.data;
-      
-      if (data.code !== 0) {
-        throw new Error(data.message || "Failed to exchange token");
-      }
-
-      res.send(`
-        <html>
-          <body>
-            <script>
-              if (window.opener) {
-                window.opener.postMessage({ 
-                  type: 'OAUTH_AUTH_SUCCESS', 
-                  platform: 'tiktok',
-                  data: ${JSON.stringify(data.data)}
-                }, '*');
-                window.close();
-              }
-            </script>
-          </body>
-        </html>
-      `);
-    } catch (error: any) {
-      console.error("TikTok Auth Error:", error.response?.data || error.message);
-      res.send(`
-        <html>
-          <body>
-            <script>
-              if (window.opener) {
-                window.opener.postMessage({ type: 'OAUTH_AUTH_ERROR', error: 'Failed to authenticate with TikTok' }, '*');
-                window.close();
-              }
-            </script>
-          </body>
-        </html>
-      `);
-    }
-  });
-
-  app.get("/api/tiktok/campaigns", async (req, res) => {
-    const accessToken = req.headers.authorization?.split(" ")[1];
-    const advertiserId = req.query.advertiser_id;
-
-    if (!accessToken || !advertiserId) {
-      return res.status(400).json({ message: "Missing access token or advertiser ID" });
-    }
-
-    try {
-      const response = await axios.get(`https://business-api.tiktok.com/open_api/v1.3/campaign/get/`, {
-        params: {
-          advertiser_id: advertiserId,
-        },
-        headers: {
-          "Access-Token": accessToken,
-        }
-      });
-      res.json(response.data);
-    } catch (error: any) {
-      console.error("TikTok API Error:", error.response?.data || error.message);
-      res.status(error.response?.status || 500).json({ message: error.response?.data?.message || error.message });
-    }
-  });
-
-  // Meta OAuth Routes
-  app.get("/api/auth/meta/url", (req, res) => {
-    const appId = process.env.META_APP_ID;
-    const redirectUri = process.env.META_REDIRECT_URI || `${req.protocol}://${req.get("host")}/api/auth/meta/callback`;
-    
-    if (!appId) {
-      return res.status(500).json({ message: "Meta App ID not configured" });
-    }
-
-    // Permissions needed for Ads management
-    const scope = "ads_management,ads_read,business_management,public_profile";
-    const authUrl = `https://www.facebook.com/v19.0/dialog/oauth?client_id=${appId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${scope}&response_type=code`;
-    res.json({ url: authUrl });
-  });
-
-  app.get("/api/auth/meta/callback", async (req, res) => {
-    const { code } = req.query;
-    const redirectUri = process.env.META_REDIRECT_URI || `${req.protocol}://${req.get("host")}/api/auth/meta/callback`;
-    
-    if (!code) {
-      return res.send(`
-        <html>
-          <body>
-            <script>
-              if (window.opener) {
-                window.opener.postMessage({ type: 'OAUTH_AUTH_ERROR', error: 'No auth code provided' }, '*');
-                window.close();
-              }
-            </script>
-          </body>
-        </html>
-      `);
-    }
-
-    try {
-      const response = await axios.get("https://graph.facebook.com/v19.0/oauth/access_token", {
-        params: {
-          client_id: process.env.META_APP_ID,
-          client_secret: process.env.META_APP_SECRET,
-          redirect_uri: redirectUri,
-          code: code
-        }
-      });
-
-      const data = response.data;
-      
-      res.send(`
-        <html>
-          <body>
-            <script>
-              if (window.opener) {
-                window.opener.postMessage({ 
-                  type: 'OAUTH_AUTH_SUCCESS', 
-                  platform: 'meta',
-                  data: ${JSON.stringify(data)}
-                }, '*');
-                window.close();
-              }
-            </script>
-          </body>
-        </html>
-      `);
-    } catch (error: any) {
-      console.error("Meta Auth Error:", error.response?.data || error.message);
-      res.send(`
-        <html>
-          <body>
-            <script>
-              if (window.opener) {
-                window.opener.postMessage({ type: 'OAUTH_AUTH_ERROR', error: 'Failed to authenticate with Meta' }, '*');
-                window.close();
-              }
-            </script>
-          </body>
-        </html>
-      `);
-    }
-  });
-
-  app.get("/api/meta/campaigns", async (req, res) => {
-    const accessToken = req.headers.authorization?.split(" ")[1];
-    const adAccountId = req.query.ad_account_id;
-
-    if (!accessToken || !adAccountId) {
-      return res.status(400).json({ message: "Missing access token or ad account ID" });
-    }
-
-    try {
-      // Ad account ID should be prefixed with act_ if it isn't
-      const adAccountIdStr = String(adAccountId);
-      const formattedAdAccountId = adAccountIdStr.startsWith('act_') ? adAccountIdStr : `act_${adAccountIdStr}`;
-      const response = await axios.get(`https://graph.facebook.com/v19.0/${formattedAdAccountId}/campaigns`, {
-        params: {
-          fields: 'id,name,status,objective,start_time,stop_time,spend,insights{spend,inline_link_click_ctr,roas}',
-          access_token: accessToken,
-        }
-      });
-      res.json(response.data);
-    } catch (error: any) {
-      console.error("Meta API Error:", error.response?.data || error.message);
-      res.status(error.response?.status || 500).json({ message: error.response?.data?.message || error.message });
-    }
-  });
-
-  app.get(["/api/auth/google/url", "/api/auth/google/url/"], (req, res) => {
-    const redirectUri = process.env.GOOGLE_REDIRECT_URI || `${req.protocol}://${req.get("host")}/api/auth/google/callback`;
-    const scopes = [
-      "https://www.googleapis.com/auth/adwords",
-      "https://www.googleapis.com/auth/analytics.readonly",
-      "https://www.googleapis.com/auth/webmasters.readonly",
-      "https://www.googleapis.com/auth/gmail.send",
-      "https://www.googleapis.com/auth/userinfo.profile",
-      "https://www.googleapis.com/auth/userinfo.email"
-    ];
-
-    if (!process.env.GOOGLE_CLIENT_ID) {
-      return res.status(500).json({ message: "Google Client ID not configured" });
-    }
-
-    const params = new URLSearchParams({
-      client_id: process.env.GOOGLE_CLIENT_ID!,
-      redirect_uri: redirectUri,
-      response_type: "code",
-      scope: scopes.join(" "),
-      access_type: "offline",
-      prompt: "consent"
-    });
-
-    res.json({ url: `https://accounts.google.com/o/oauth2/v2/auth?${params}` });
-  });
-
-  app.get("/api/auth/google/callback", async (req, res) => {
-    const { code } = req.query;
-    const redirectUri = process.env.GOOGLE_REDIRECT_URI || `${req.protocol}://${req.get("host")}/api/auth/google/callback`;
-
-    try {
-      const response = await axios.post("https://oauth2.googleapis.com/token", {
-        client_id: process.env.GOOGLE_CLIENT_ID,
-        client_secret: process.env.GOOGLE_CLIENT_SECRET,
-        redirect_uri: redirectUri,
-        grant_type: "authorization_code",
-        code: code
-      });
-
-      const data = response.data;
-      
-      res.send(`
-        <html>
-          <body>
-            <script>
-              if (window.opener) {
-                window.opener.postMessage({ 
-                  type: 'OAUTH_AUTH_SUCCESS', 
-                  platform: 'google',
-                  tokens: ${JSON.stringify(data)} 
-                }, '*');
-                window.close();
-              }
-            </script>
-          </body>
-        </html>
-      `);
-    } catch (error: any) {
-      console.error("Google Auth Error:", error.response?.data || error.message);
-      res.send(`
-        <html>
-          <body>
-            <script>
-              if (window.opener) {
-                window.opener.postMessage({ type: 'OAUTH_AUTH_ERROR', platform: 'google', error: 'Failed to authenticate with Google' }, '*');
-                window.close();
-              }
-            </script>
-          </body>
-        </html>
-      `);
-    }
-  });
+  // ─── Legacy OAuth routes (TikTok, Meta, Google) removed ─────────────────────
+  // All OAuth flows now go through Next.js: /api/connections/[platform]/start
+  // and /api/connections/[platform]/callback (src/app/api/connections/).
+  // ─────────────────────────────────────────────────────────────────────────────
 
   app.get("/api/google/ads/accounts", async (req, res) => {
     const accessToken = req.headers.authorization?.split(" ")[1];

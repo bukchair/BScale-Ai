@@ -1030,9 +1030,10 @@ export function Dashboard() {
       setIsLoadingOverview(false);
     }
 
-    loadOverview().catch(() => {
+    loadOverview().catch((err) => {
       if (!cancelled) {
         setIsLoadingOverview(false);
+        console.error('[Dashboard] loadOverview failed:', err);
       }
     });
 

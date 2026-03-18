@@ -85,11 +85,16 @@ const ensureManagedApiSession = async (accessToken: string) => {
   const user =
     auth.currentUser ||
     (await new Promise<typeof auth.currentUser>((resolve) => {
+      let settled = false;
       const timeoutId = window.setTimeout(() => {
+        if (settled) return;
+        settled = true;
         unsubscribe();
         resolve(auth.currentUser);
       }, 3000);
       const unsubscribe = onAuthStateChanged(auth, (nextUser) => {
+        if (settled) return;
+        settled = true;
         window.clearTimeout(timeoutId);
         unsubscribe();
         resolve(nextUser);
