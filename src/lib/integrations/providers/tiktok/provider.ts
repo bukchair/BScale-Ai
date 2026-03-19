@@ -44,7 +44,10 @@ type TikTokEnvelope<T> = {
 type TikTokTokenData = {
   access_token?: string;
   refresh_token?: string;
+  // TikTok Business API v1.3 uses access_token_expire_in; some older responses used expires_in.
+  access_token_expire_in?: number;
   expires_in?: number;
+  refresh_token_expire_in?: number;
   refresh_expires_in?: number;
   advertiser_ids?: string[];
   open_id?: string;
@@ -130,9 +133,10 @@ export class TikTokProvider implements IntegrationProvider {
       refreshToken: envelope.data.refresh_token || refreshToken,
       tokenType: 'bearer',
       scopes: parseTikTokScope(envelope.data.scope, this.oauthScopes),
-      expiresAt: envelope.data.expires_in
-        ? new Date(Date.now() + envelope.data.expires_in * 1000)
-        : undefined,
+      expiresAt: (() => {
+        const ei = envelope.data.access_token_expire_in ?? envelope.data.expires_in;
+        return ei ? new Date(Date.now() + ei * 1000) : undefined;
+      })(),
       externalUserId: envelope.data.open_id,
       metadata: {
         advertiserIds: envelope.data.advertiser_ids ?? [],
@@ -321,14 +325,13 @@ export class TikTokProvider implements IntegrationProvider {
       );
     }
 
+    const expireIn = envelope.data.access_token_expire_in ?? envelope.data.expires_in;
     return {
       accessToken: envelope.data.access_token,
       refreshToken: envelope.data.refresh_token,
       tokenType: 'bearer',
       scopes: parseTikTokScope(envelope.data.scope, this.oauthScopes),
-      expiresAt: envelope.data.expires_in
-        ? new Date(Date.now() + envelope.data.expires_in * 1000)
-        : undefined,
+      expiresAt: expireIn ? new Date(Date.now() + expireIn * 1000) : undefined,
       externalUserId: envelope.data.open_id,
       metadata: {
         advertiserIds: envelope.data.advertiser_ids ?? [],
@@ -343,8 +346,11 @@ export class TikTokProvider implements IntegrationProvider {
     });
     if (!connection) throw new ExternalApiError('TikTok connection not found.');
 
+    // Only consider the token expired when we have a known expiry time that is approaching.
+    // A null tokenExpiresAt means expiry was not provided by TikTok; assume the token is still valid.
     const expiresSoon =
-      !connection.tokenExpiresAt || connection.tokenExpiresAt.getTime() <= Date.now() + 60_000;
+      connection.tokenExpiresAt !== null &&
+      connection.tokenExpiresAt.getTime() <= Date.now() + 60_000;
     if (expiresSoon) {
       // If there is no refresh token stored, we cannot silently refresh.
       // Mark the connection as EXPIRED so the UI surfaces a reconnect prompt.
