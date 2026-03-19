@@ -333,10 +333,44 @@ const createTikTokDraft = async (
     const campaignId = String(
       (payload?.data as Record<string, unknown>)?.campaign_id || ''
     );
+
+    // Create Ad Group (required by TikTok — Campaign alone cannot be activated)
+    const toTikTokOptimizationGoal = (o: OneClickObjective) => {
+      if (o === 'sales') return 'CONVERT';
+      if (o === 'leads') return 'LEAD_GENERATION';
+      return 'CLICK';
+    };
+    const toTikTokBillingEvent = (o: OneClickObjective) =>
+      o === 'traffic' ? 'CPC' : 'OCPM';
+
+    const scheduleStart = new Date().toISOString().replace('T', ' ').slice(0, 19);
+    const adGroupRes = await fetch(`${TIKTOK_API_BASE}/adgroup/create/`, {
+      method: 'POST',
+      headers: { 'Access-Token': accessToken, 'content-type': 'application/json' },
+      body: JSON.stringify({
+        advertiser_id: account.externalAccountId,
+        campaign_id: campaignId,
+        adgroup_name: `${sanitize(name)} – Ad Group`,
+        placement_type: 'PLACEMENT_TYPE_AUTOMATIC',
+        budget_mode: 'BUDGET_MODE_DAY',
+        budget: Math.max(dailyBudget, 1),
+        schedule_type: 'SCHEDULE_FROM_NOW',
+        schedule_start_time: scheduleStart,
+        optimization_goal: toTikTokOptimizationGoal(objective),
+        billing_event: toTikTokBillingEvent(objective),
+        operation_status: 'DISABLE',
+      }),
+    });
+
+    const adGroupPayload = (await adGroupRes.json()) as Record<string, unknown>;
+    const adGroupMsg = adGroupRes.ok && Number(adGroupPayload?.code) === 0
+      ? ''
+      : ` (Ad Group creation failed: ${String(adGroupPayload?.message || '').trim() || `HTTP ${adGroupRes.status}`})`;
+
     return {
       ok: true,
       campaignId,
-      message: `TikTok Ads draft campaign created (DISABLED). Budget: ${dailyBudget}/day.`,
+      message: `TikTok Ads draft campaign created (DISABLED). Budget: ${dailyBudget}/day.${adGroupMsg}`,
       campaignStatus: 'Draft',
     };
   } catch (err) {
