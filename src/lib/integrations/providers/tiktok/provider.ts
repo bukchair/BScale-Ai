@@ -56,7 +56,7 @@ type TikTokTokenData = {
 
 export class TikTokProvider implements IntegrationProvider {
   readonly platform: Platform = 'TIKTOK';
-  readonly oauthScopes = ['user.info.basic', 'ad.account.read', 'report.read'] as const;
+  readonly oauthScopes = ['user.info.basic', 'ad.account.read', 'ad.account.update', 'report.read'] as const;
   private readonly baseCapabilities: readonly ProviderCapability[] = [
     'ACCOUNT_DISCOVERY',
     'MULTI_ACCOUNT',
