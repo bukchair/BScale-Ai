@@ -31,8 +31,8 @@ export class Ga4Provider extends BaseGoogleProvider {
     'TOKEN_REFRESH',
   ] as const;
 
-  private async requestGa4<T>(connectionId: string, url: string, init?: RequestInit): Promise<T> {
-    const accessToken = await this.getValidAccessToken(connectionId);
+  private async requestGa4<T>(connectionId: string, userId: string, url: string, init?: RequestInit): Promise<T> {
+    const accessToken = await this.getValidAccessToken(connectionId, userId);
     const response = await fetch(url, {
       ...init,
       headers: {
@@ -53,9 +53,10 @@ export class Ga4Provider extends BaseGoogleProvider {
     return parsed as T;
   }
 
-  async discoverAccounts(connectionId: string): Promise<DiscoveredAccount[]> {
+  async discoverAccounts(connectionId: string, userId: string): Promise<DiscoveredAccount[]> {
     const summaries = await this.requestGa4<AccountSummariesResponse>(
       connectionId,
+      userId,
       `${GA4_ADMIN_API}/accountSummaries?pageSize=200`
     );
 
@@ -86,7 +87,7 @@ export class Ga4Provider extends BaseGoogleProvider {
     return discovered;
   }
 
-  async testConnection(connectionId: string, accountId?: string): Promise<TestResult> {
+  async testConnection(connectionId: string, userId: string, accountId?: string): Promise<TestResult> {
     const connection = await prisma.platformConnection.findUnique({
       where: { id: connectionId },
       include: { connectedAccounts: true },
@@ -110,7 +111,7 @@ export class Ga4Provider extends BaseGoogleProvider {
     const report = await this.requestGa4<{
       rows?: Array<{ dimensionValues?: Array<{ value?: string }>; metricValues?: Array<{ value?: string }> }>;
       rowCount?: number;
-    }>(connectionId, `${GA4_DATA_API}/properties/${propertyId}:runReport`, {
+    }>(connectionId, userId, `${GA4_DATA_API}/properties/${propertyId}:runReport`, {
       method: 'POST',
       body: JSON.stringify({
         dateRanges: [{ startDate: '7daysAgo', endDate: 'today' }],

@@ -29,8 +29,8 @@ export class SearchConsoleProvider extends BaseGoogleProvider {
     'TOKEN_REFRESH',
   ] as const;
 
-  private async requestSc<T>(connectionId: string, url: string, init?: RequestInit): Promise<T> {
-    const accessToken = await this.getValidAccessToken(connectionId);
+  private async requestSc<T>(connectionId: string, userId: string, url: string, init?: RequestInit): Promise<T> {
+    const accessToken = await this.getValidAccessToken(connectionId, userId);
     const response = await fetch(url, {
       ...init,
       headers: {
@@ -53,8 +53,8 @@ export class SearchConsoleProvider extends BaseGoogleProvider {
     return parsed as T;
   }
 
-  async discoverAccounts(connectionId: string): Promise<DiscoveredAccount[]> {
-    const sites = await this.requestSc<SiteListResponse>(connectionId, `${SEARCH_CONSOLE_API}/sites`);
+  async discoverAccounts(connectionId: string, userId: string): Promise<DiscoveredAccount[]> {
+    const sites = await this.requestSc<SiteListResponse>(connectionId, userId, `${SEARCH_CONSOLE_API}/sites`);
     const discovered = (sites.siteEntry ?? [])
       .filter((entry) => Boolean(entry.siteUrl))
       .map<DiscoveredAccount>((entry) => ({
@@ -73,7 +73,7 @@ export class SearchConsoleProvider extends BaseGoogleProvider {
     return discovered;
   }
 
-  async testConnection(connectionId: string, accountId?: string): Promise<TestResult> {
+  async testConnection(connectionId: string, userId: string, accountId?: string): Promise<TestResult> {
     const connection = await prisma.platformConnection.findUnique({
       where: { id: connectionId },
       include: { connectedAccounts: true },
@@ -94,6 +94,7 @@ export class SearchConsoleProvider extends BaseGoogleProvider {
     const encodedSite = encodeURIComponent(siteUrl);
     const report = await this.requestSc<SearchAnalyticsResponse>(
       connectionId,
+      userId,
       `${SEARCH_CONSOLE_API}/sites/${encodedSite}/searchAnalytics/query`,
       {
         method: 'POST',
