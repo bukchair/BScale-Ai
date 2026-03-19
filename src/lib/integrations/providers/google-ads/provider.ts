@@ -27,12 +27,13 @@ export class GoogleAdsProvider extends BaseGoogleProvider {
 
   private async requestAds<T>(input: {
     connectionId: string;
+    userId: string;
     path: string;
     method?: 'GET' | 'POST';
     body?: Record<string, unknown>;
     loginCustomerId?: string | null;
   }): Promise<T> {
-    const accessToken = await this.getValidAccessToken(input.connectionId);
+    const accessToken = await this.getValidAccessToken(input.connectionId, input.userId);
     const headers: Record<string, string> = {
       authorization: `Bearer ${accessToken}`,
       'developer-token': integrationsEnv.GOOGLE_ADS_DEVELOPER_TOKEN,
@@ -68,7 +69,7 @@ export class GoogleAdsProvider extends BaseGoogleProvider {
     return parsed as T;
   }
 
-  async discoverAccounts(connectionId: string): Promise<DiscoveredAccount[]> {
+  async discoverAccounts(connectionId: string, userId: string): Promise<DiscoveredAccount[]> {
     if (!integrationsEnv.GOOGLE_ADS_DEVELOPER_TOKEN) {
       throw new ProviderConfigError('Missing Google Ads developer token.');
     }
@@ -85,6 +86,7 @@ export class GoogleAdsProvider extends BaseGoogleProvider {
 
     const accessible = await this.requestAds<{ resourceNames?: string[] }>({
       connectionId,
+      userId,
       path: '/customers:listAccessibleCustomers',
       method: 'GET',
       loginCustomerId: typeof loginCustomerId === 'string' ? loginCustomerId : null,
@@ -102,6 +104,7 @@ export class GoogleAdsProvider extends BaseGoogleProvider {
       customerIds.map(async (customerId): Promise<DiscoveredAccount> => {
         const rows = await this.requestAds<SearchStreamChunk[]>({
           connectionId,
+          userId,
           path: `/customers/${customerId}/googleAds:searchStream`,
           body: {
             query:
@@ -130,7 +133,7 @@ export class GoogleAdsProvider extends BaseGoogleProvider {
     return discovered;
   }
 
-  async testConnection(connectionId: string, accountId?: string): Promise<TestResult> {
+  async testConnection(connectionId: string, userId: string, accountId?: string): Promise<TestResult> {
     const connection = await prisma.platformConnection.findUnique({
       where: { id: connectionId },
       include: { connectedAccounts: true },
@@ -138,6 +141,11 @@ export class GoogleAdsProvider extends BaseGoogleProvider {
     if (!connection) {
       throw new ExternalApiError('Google Ads connection not found.');
     }
+
+    const loginCustomerId =
+      typeof connection.metadata === 'object' && connection.metadata
+        ? (connection.metadata as Record<string, unknown>).loginCustomerId
+        : null;
 
     const chosen =
       accountId ||
@@ -150,11 +158,13 @@ export class GoogleAdsProvider extends BaseGoogleProvider {
 
     const chunks = await this.requestAds<SearchStreamChunk[]>({
       connectionId,
+      userId,
       path: `/customers/${chosen}/googleAds:searchStream`,
       body: {
         query:
           'SELECT campaign.id, campaign.name, campaign.status, metrics.impressions, metrics.clicks, metrics.ctr, metrics.cost_micros FROM campaign WHERE segments.date DURING LAST_7_DAYS LIMIT 20',
       },
+      loginCustomerId: typeof loginCustomerId === 'string' ? loginCustomerId : null,
     });
 
     const campaigns = chunks.flatMap((chunk) => chunk.results ?? []) as Array<{

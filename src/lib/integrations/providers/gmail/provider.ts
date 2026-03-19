@@ -28,8 +28,8 @@ export class GmailProvider extends BaseGoogleProvider {
     ? (['ACCOUNT_DISCOVERY', 'REPORTING_TEST', 'TOKEN_REFRESH', 'SEND_EMAIL'] as const)
     : (['ACCOUNT_DISCOVERY', 'REPORTING_TEST', 'TOKEN_REFRESH'] as const);
 
-  private async requestGmail<T>(connectionId: string, path: string, init?: RequestInit): Promise<T> {
-    const accessToken = await this.getValidAccessToken(connectionId);
+  private async requestGmail<T>(connectionId: string, userId: string, path: string, init?: RequestInit): Promise<T> {
+    const accessToken = await this.getValidAccessToken(connectionId, userId);
     const response = await fetch(`${GMAIL_API_BASE}${path}`, {
       ...init,
       headers: {
@@ -50,8 +50,8 @@ export class GmailProvider extends BaseGoogleProvider {
     return parsed as T;
   }
 
-  async discoverAccounts(connectionId: string): Promise<DiscoveredAccount[]> {
-    const profile = await this.requestGmail<GmailProfileResponse>(connectionId, '/users/me/profile');
+  async discoverAccounts(connectionId: string, userId: string): Promise<DiscoveredAccount[]> {
+    const profile = await this.requestGmail<GmailProfileResponse>(connectionId, userId, '/users/me/profile');
     if (!profile.emailAddress) {
       throw new NoAccountsFoundError('No Gmail mailbox is available for this user.');
     }
@@ -70,7 +70,7 @@ export class GmailProvider extends BaseGoogleProvider {
     ];
   }
 
-  async testConnection(connectionId: string): Promise<TestResult> {
+  async testConnection(connectionId: string, userId: string): Promise<TestResult> {
     const connection = await prisma.platformConnection.findUnique({
       where: { id: connectionId },
       include: { connectedAccounts: true },
@@ -79,9 +79,10 @@ export class GmailProvider extends BaseGoogleProvider {
       throw new ExternalApiError('Gmail connection not found.');
     }
 
-    const profile = await this.requestGmail<GmailProfileResponse>(connectionId, '/users/me/profile');
+    const profile = await this.requestGmail<GmailProfileResponse>(connectionId, userId, '/users/me/profile');
     const recent = await this.requestGmail<GmailListResponse>(
       connectionId,
+      userId,
       '/users/me/messages?maxResults=10&includeSpamTrash=false'
     );
 
