@@ -154,8 +154,54 @@ const buildKeywords = (productName: string, audiences: string[]): string[] => {
   return [...new Set(kws)].slice(0, 10);
 };
 
+// ─── Meta helpers ─────────────────────────────────────────────────────────────
+
+const toMetaCTA = (o: OneClickObjective) =>
+  o === 'sales' ? 'SHOP_NOW' : 'LEARN_MORE';
+
+/** Fetch first Facebook Page ID the token has access to (needed for Ad Creative) */
+const fetchMetaPageId = async (accessToken: string): Promise<string | null> => {
+  try {
+    const res = await fetch(
+      `${META_GRAPH_BASE}/me/accounts?fields=id&limit=1&access_token=${accessToken}`
+    );
+    const data = (await res.json()) as { data?: Array<{ id?: string }> };
+    return data?.data?.[0]?.id || null;
+  } catch {
+    return null;
+  }
+};
+
+/** Download image from URL and upload to Meta ad account. Returns image hash or null. */
+const uploadMetaImage = async (
+  imageUrl: string,
+  accountResource: string,
+  accessToken: string
+): Promise<string | null> => {
+  try {
+    const imgRes = await fetch(imageUrl);
+    if (!imgRes.ok) return null;
+    const buffer = Buffer.from(await imgRes.arrayBuffer());
+    const contentType = imgRes.headers.get('content-type') || 'image/jpeg';
+    const ext = contentType.includes('png') ? 'png' : 'jpg';
+    const filename = `product.${ext}`;
+
+    const form = new FormData();
+    form.append('filename', new Blob([buffer], { type: contentType }), filename);
+
+    const uploadRes = await fetch(`${META_GRAPH_BASE}/${accountResource}/adimages`, {
+      method: 'POST',
+      headers: { authorization: `Bearer ${accessToken}` },
+      body: form,
+    });
+    const uploadData = (await uploadRes.json()) as { images?: Record<string, { hash?: string }> };
+    return uploadData?.images?.[filename]?.hash || null;
+  } catch {
+    return null;
+  }
+};
+
 // ─── Platform creators ────────────────────────────────────────────────────────
-// One-click campaigns are always created as PAUSED drafts for user review.
 
 const createGoogleDraft = async (
   userId: string,
@@ -409,9 +455,10 @@ const createMetaDraft = async (
   name: string,
   objective: OneClickObjective,
   dailyBudget: number,
-  _strategy: OneClickStrategy,
+  strategy: OneClickStrategy,
   activateImmediately = false,
-  country = 'US'
+  country = 'US',
+  product?: OneClickInput['product']
 ): Promise<PlatformResult> => {
   try {
     const connection = await connectionService.getByUserPlatform(userId, 'META');
@@ -480,15 +527,101 @@ const createMetaDraft = async (
       body: adSetForm.toString(),
     });
 
-    // Ad set failure is non-fatal — campaign itself was created
-    const adSetMsg = adSetRes.ok
-      ? ''
-      : ` (Ad set creation failed: ${await extractError(adSetRes)})`;
+    if (!adSetRes.ok) {
+      const adSetErr = await extractError(adSetRes);
+      console.error('[one-click] Meta ad set failed:', adSetErr);
+      return {
+        ok: true,
+        campaignId,
+        message: `Meta campaign created (${metaStatus}). Ad set failed: ${adSetErr}`,
+        campaignStatus: activateImmediately ? 'Active' : 'Draft',
+      };
+    }
+    const adSetPayload = (await adSetRes.json()) as Record<string, unknown>;
+    const adSetId = String(adSetPayload?.id || '');
+
+    // 3. Fetch page ID (required for Ad Creative)
+    const pageId = await fetchMetaPageId(accessToken);
+    if (!pageId) {
+      return {
+        ok: true,
+        campaignId,
+        message: `Meta campaign + ad set created (${metaStatus}). No Facebook Page found — ad creative skipped.`,
+        campaignStatus: activateImmediately ? 'Active' : 'Draft',
+      };
+    }
+
+    // 4. Upload image if available (WooCommerce or manual imageUrl)
+    const imageUrl = product?.imageUrl;
+    let imageHash: string | null = null;
+    if (imageUrl) {
+      imageHash = await uploadMetaImage(imageUrl, accountResource, accessToken);
+    }
+
+    // 5. Create Ad Creative
+    const adTitle = strategy.platformCopy?.Meta?.title || name;
+    const adBody  = strategy.platformCopy?.Meta?.description || product?.description || '';
+    const finalUrl = product?.url || '';
+
+    const linkData: Record<string, unknown> = {
+      link: finalUrl || 'https://facebook.com',
+      name: sanitize(adTitle, 40),
+      message: sanitize(adBody, 125),
+      call_to_action: { type: toMetaCTA(objective), value: finalUrl ? { link: finalUrl } : {} },
+    };
+    if (imageHash) linkData.image_hash = imageHash;
+
+    const creativeForm = new URLSearchParams();
+    creativeForm.set('name', `${sanitize(name)} – Creative`);
+    creativeForm.set('object_story_spec', JSON.stringify({
+      page_id: pageId,
+      link_data: linkData,
+    }));
+
+    const creativeRes = await fetch(`${META_GRAPH_BASE}/${accountResource}/adcreatives`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/x-www-form-urlencoded', authorization: `Bearer ${accessToken}` },
+      body: creativeForm.toString(),
+    });
+
+    if (!creativeRes.ok) {
+      const creativeErr = await extractError(creativeRes);
+      console.error('[one-click] Meta creative failed:', creativeErr);
+      return {
+        ok: true,
+        campaignId,
+        message: `Meta campaign + ad set created (${metaStatus}). Creative failed: ${creativeErr}`,
+        campaignStatus: activateImmediately ? 'Active' : 'Draft',
+      };
+    }
+    const creativePayload = (await creativeRes.json()) as Record<string, unknown>;
+    const creativeId = String(creativePayload?.id || '');
+
+    // 6. Create Ad
+    const adForm = new URLSearchParams();
+    adForm.set('name', sanitize(name));
+    adForm.set('adset_id', adSetId);
+    adForm.set('creative', JSON.stringify({ creative_id: creativeId }));
+    adForm.set('status', metaStatus);
+
+    const adRes = await fetch(`${META_GRAPH_BASE}/${accountResource}/ads`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/x-www-form-urlencoded', authorization: `Bearer ${accessToken}` },
+      body: adForm.toString(),
+    });
+
+    const adPayload = (await adRes.json()) as Record<string, unknown>;
+    const adId = adRes.ok ? String(adPayload?.id || '') : undefined;
+
+    if (!adRes.ok) {
+      console.error('[one-click] Meta ad failed:', await extractError(adRes).catch(() => adPayload));
+    }
 
     return {
       ok: true,
       campaignId,
-      message: `Meta Ads campaign created (${metaStatus}). Budget: ${dailyBudget}/day.${adSetMsg}`,
+      adId,
+      message: `Meta campaign + ad set${adId ? ' + ad' : ''} created (${metaStatus}).${imageHash ? ' Image uploaded.' : ''}`,
       campaignStatus: activateImmediately ? 'Active' : 'Draft',
     };
   } catch (err) {
@@ -793,7 +926,7 @@ export async function POST(request: Request) {
   const campaignName = strategy.campaignName;
   const creatorMap: Record<OneClickPlatform, () => Promise<PlatformResult>> = {
     Google: () => createGoogleDraft(user.id, campaignName, objective, dailyBudget, strategy, activateImmediately, input.country, input.product),
-    Meta: () => createMetaDraft(user.id, campaignName, objective, dailyBudget, strategy, activateImmediately, input.country),
+    Meta: () => createMetaDraft(user.id, campaignName, objective, dailyBudget, strategy, activateImmediately, input.country, input.product),
     TikTok: () => createTikTokDraft(user.id, campaignName, objective, dailyBudget, strategy, activateImmediately, input.country),
   };
 
