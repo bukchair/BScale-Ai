@@ -8,6 +8,8 @@ export type OneClickProductInfo = {
   description?: string;
   price?: string;
   url?: string;
+  /** Image URL from WooCommerce or other source — backend will download and upload to platforms */
+  imageUrl?: string;
 };
 
 export type OneClickInput = {
@@ -21,6 +23,8 @@ export type OneClickInput = {
   /** BCP-47 language tag, e.g. "he" or "en". */
   language: string;
   product?: OneClickProductInfo;
+  /** When true campaigns are created as ENABLED/ACTIVE instead of PAUSED */
+  activateImmediately?: boolean;
 };
 
 export type PlatformAdCopy = {
@@ -40,9 +44,10 @@ export type OneClickStrategy = {
 export type PlatformResult = {
   ok: boolean;
   campaignId?: string;
+  adId?: string;
   message: string;
-  /** "Draft" = paused on platform, "Scheduled" = enabled */
-  campaignStatus: 'Draft' | 'Scheduled' | 'Error';
+  /** "Draft" = paused, "Active" = enabled/live */
+  campaignStatus: 'Draft' | 'Active' | 'Error';
 };
 
 export type OneClickResult = {
