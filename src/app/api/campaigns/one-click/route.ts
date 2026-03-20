@@ -176,8 +176,8 @@ export async function POST(request: Request) {
         requestId: existing.id,
         idempotencyKey,
         status: existing.status,
-        strategy: existing.aiStrategy,
-        results: existing.results,
+        strategy: existing.aiStrategy as OneClickStrategy,
+        results: existing.results as Partial<Record<string, PlatformResult>>,
         cached: true,
       } satisfies OneClickResult & { cached: boolean });
     }
@@ -200,7 +200,7 @@ export async function POST(request: Request) {
             dailyBudget,
             country,
             language,
-            productInfo: input.product ?? null,
+            productInfo: input.product ?? undefined,
             status: 'RUNNING',
           },
         });
