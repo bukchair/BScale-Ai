@@ -188,6 +188,9 @@ export function OneClickWizard({ open, onClose, onSuccess }: OneClickWizardProps
   const [previewError, setPreviewError] = useState<string | null>(null);
   const [copiedField, setCopiedField] = useState<string | null>(null);
 
+  // Step 4 — activate toggle
+  const [activateImmediately, setActivateImmediately] = useState(false);
+
   // Step 5 — Results
   const [launching, setLaunching] = useState(false);
   const [result, setResult] = useState<OneClickResult | null>(null);
@@ -239,6 +242,7 @@ export function OneClickWizard({ open, onClose, onSuccess }: OneClickWizardProps
       setLanguage2(language === 'he' ? 'he' : 'en');
       setPreviewStrategy(null);
       setPreviewError(null);
+      setActivateImmediately(false);
       setResult(null);
       setLaunchError(null);
     }
@@ -336,6 +340,7 @@ export function OneClickWizard({ open, onClose, onSuccess }: OneClickWizardProps
           dailyBudget: budget,
           country,
           language: language2,
+          activateImmediately,
           product: activeProduct.name ? activeProduct : undefined,
         }),
       });
@@ -865,11 +870,43 @@ export function OneClickWizard({ open, onClose, onSuccess }: OneClickWizardProps
                     </div>
                   )}
 
-                  {/* Launch confirmation notice */}
-                  <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800 flex items-start gap-2">
-                    <AlertCircle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
-                    {tx.launchConfirm}
+                  {/* Activate immediately toggle */}
+                  <div className="rounded-xl border border-gray-200 bg-gray-50 p-3 flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-xs font-semibold text-gray-800">
+                        {isHebrew ? 'הפעל מיד לאחר יצירה' : 'Activate immediately after creation'}
+                      </p>
+                      <p className="text-[11px] text-gray-500 mt-0.5">
+                        {isHebrew
+                          ? activateImmediately
+                            ? 'המודעות יתחילו לרוץ מיד — ללא כניסה לפלטפורמה'
+                            : 'המודעות ייצרו כטיוטה — תצטרך להפעיל ידנית'
+                          : activateImmediately
+                          ? 'Ads will go live immediately — no need to visit each platform'
+                          : 'Ads created as drafts — activate manually on each platform'}
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => setActivateImmediately((v) => !v)}
+                      className={cn(
+                        'relative shrink-0 w-11 h-6 rounded-full transition-colors focus:outline-none',
+                        activateImmediately ? 'bg-violet-600' : 'bg-gray-300'
+                      )}
+                    >
+                      <span className={cn(
+                        'absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform',
+                        activateImmediately ? 'translate-x-5' : 'translate-x-0'
+                      )} />
+                    </button>
                   </div>
+
+                  {/* Launch confirmation notice */}
+                  {!activateImmediately && (
+                    <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800 flex items-start gap-2">
+                      <AlertCircle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                      {tx.launchConfirm}
+                    </div>
+                  )}
                 </div>
               )}
             </div>

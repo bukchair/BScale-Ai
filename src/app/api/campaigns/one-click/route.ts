@@ -79,7 +79,8 @@ const createGoogleDraft = async (
   name: string,
   objective: OneClickObjective,
   dailyBudget: number,
-  _strategy: OneClickStrategy
+  _strategy: OneClickStrategy,
+  activateImmediately = false
 ): Promise<PlatformResult> => {
   try {
     if (!integrationsEnv.GOOGLE_ADS_DEVELOPER_TOKEN) {
@@ -134,7 +135,7 @@ const createGoogleDraft = async (
       return { ok: false, message: 'Google budget created without resource name.', campaignStatus: 'Error' };
     }
 
-    // 2. Create campaign (always PAUSED draft)
+    // 2. Create campaign
     const channelType =
       objective === 'traffic' ? 'DISPLAY' : objective === 'leads' ? 'SEARCH' : 'SEARCH';
 
@@ -148,7 +149,7 @@ const createGoogleDraft = async (
             {
               create: {
                 name: sanitize(name),
-                status: 'PAUSED', // always draft — user activates after review
+                status: activateImmediately ? 'ENABLED' : 'PAUSED',
                 advertisingChannelType: channelType,
                 campaignBudget: budgetResourceName,
                 targetSpend: {},
@@ -176,8 +177,8 @@ const createGoogleDraft = async (
     return {
       ok: true,
       campaignId,
-      message: `Google Ads draft campaign created (PAUSED). Budget: ${dailyBudget}/day.`,
-      campaignStatus: 'Draft',
+      message: `Google Ads campaign created (${activateImmediately ? 'ENABLED' : 'PAUSED'}). Budget: ${dailyBudget}/day.`,
+      campaignStatus: activateImmediately ? 'Active' : 'Draft',
     };
   } catch (err) {
     return {
@@ -193,7 +194,8 @@ const createMetaDraft = async (
   name: string,
   objective: OneClickObjective,
   dailyBudget: number,
-  _strategy: OneClickStrategy
+  _strategy: OneClickStrategy,
+  activateImmediately = false
 ): Promise<PlatformResult> => {
   try {
     const connection = await connectionService.getByUserPlatform(userId, 'META');
@@ -213,11 +215,12 @@ const createMetaDraft = async (
       ? account.externalAccountId
       : `act_${account.externalAccountId}`;
 
-    // Create campaign (always PAUSED)
+    // Create campaign
+    const metaStatus = activateImmediately ? 'ACTIVE' : 'PAUSED';
     const form = new URLSearchParams();
     form.set('name', sanitize(name));
     form.set('objective', toMetaObjective(objective));
-    form.set('status', 'PAUSED');
+    form.set('status', metaStatus);
     form.set('buying_type', 'AUCTION');
     form.set('special_ad_categories', JSON.stringify([]));
 
@@ -235,13 +238,14 @@ const createMetaDraft = async (
     const campaignPayload = (await campaignRes.json()) as Record<string, unknown>;
     const campaignId = String(campaignPayload?.id || '');
 
-    // Create ad set with daily budget (always PAUSED)
+    // Create ad set with daily budget
+    const metaOptGoal = objective === 'leads' ? 'LEAD_GENERATION' : objective === 'traffic' ? 'LINK_CLICKS' : 'OFFSITE_CONVERSIONS';
     const adSetForm = new URLSearchParams();
     adSetForm.set('name', `${sanitize(name)} – Ad Set`);
     adSetForm.set('campaign_id', campaignId);
-    adSetForm.set('status', 'PAUSED');
+    adSetForm.set('status', metaStatus);
     adSetForm.set('billing_event', 'IMPRESSIONS');
-    adSetForm.set('optimization_goal', objective === 'leads' ? 'LEAD_GENERATION' : 'OFFSITE_CONVERSIONS');
+    adSetForm.set('optimization_goal', metaOptGoal);
     adSetForm.set('daily_budget', String(Math.round(Math.max(dailyBudget, 1) * 100))); // in cents
     adSetForm.set('bid_strategy', 'LOWEST_COST_WITHOUT_CAP');
     adSetForm.set('targeting', JSON.stringify({ age_min: 18, age_max: 65, publisher_platforms: ['facebook', 'instagram'] }));
@@ -263,8 +267,8 @@ const createMetaDraft = async (
     return {
       ok: true,
       campaignId,
-      message: `Meta Ads draft campaign created (PAUSED). Budget: ${dailyBudget}/day.${adSetMsg}`,
-      campaignStatus: 'Draft',
+      message: `Meta Ads campaign created (${metaStatus}). Budget: ${dailyBudget}/day.${adSetMsg}`,
+      campaignStatus: activateImmediately ? 'Active' : 'Draft',
     };
   } catch (err) {
     return {
@@ -280,7 +284,8 @@ const createTikTokDraft = async (
   name: string,
   objective: OneClickObjective,
   dailyBudget: number,
-  _strategy: OneClickStrategy
+  _strategy: OneClickStrategy,
+  activateImmediately = false
 ): Promise<PlatformResult> => {
   try {
     const connection = await connectionService.getByUserPlatform(userId, 'TIKTOK');
@@ -317,7 +322,7 @@ const createTikTokDraft = async (
         objective_type: toTikTokObjective(objective),
         budget_mode: 'BUDGET_MODE_DAY',
         budget: Math.max(dailyBudget, 1),
-        operation_status: 'DISABLE', // always paused
+        operation_status: activateImmediately ? 'ENABLE' : 'DISABLE',
       }),
     });
 
@@ -358,7 +363,7 @@ const createTikTokDraft = async (
         schedule_start_time: scheduleStart,
         optimization_goal: toTikTokOptimizationGoal(objective),
         billing_event: toTikTokBillingEvent(objective),
-        operation_status: 'DISABLE',
+        operation_status: activateImmediately ? 'ENABLE' : 'DISABLE',
       }),
     });
 
@@ -370,8 +375,8 @@ const createTikTokDraft = async (
     return {
       ok: true,
       campaignId,
-      message: `TikTok Ads draft campaign created (DISABLED). Budget: ${dailyBudget}/day.${adGroupMsg}`,
-      campaignStatus: 'Draft',
+      message: `TikTok Ads campaign created (${activateImmediately ? 'ENABLED' : 'DISABLED'}). Budget: ${dailyBudget}/day.${adGroupMsg}`,
+      campaignStatus: activateImmediately ? 'Active' : 'Draft',
     };
   } catch (err) {
     return {
@@ -462,6 +467,8 @@ export async function POST(request: Request) {
   const rawIdempotencyKey = String(body.idempotencyKey || `${Date.now()}-${Math.random()}`);
   const idempotencyKey = buildIdempotencyKey(user.id, rawIdempotencyKey);
 
+  const activateImmediately = body.activateImmediately === true;
+
   const input: OneClickInput = {
     idempotencyKey,
     platforms,
@@ -469,6 +476,7 @@ export async function POST(request: Request) {
     dailyBudget,
     country,
     language,
+    activateImmediately,
     product: body.product
       ? {
           name: sanitize(body.product.name || '', 120),
@@ -560,9 +568,9 @@ export async function POST(request: Request) {
   // ── Run platform creators in parallel ─────────────────────────────────────
   const campaignName = strategy.campaignName;
   const creatorMap: Record<OneClickPlatform, () => Promise<PlatformResult>> = {
-    Google: () => createGoogleDraft(user.id, campaignName, objective, dailyBudget, strategy),
-    Meta: () => createMetaDraft(user.id, campaignName, objective, dailyBudget, strategy),
-    TikTok: () => createTikTokDraft(user.id, campaignName, objective, dailyBudget, strategy),
+    Google: () => createGoogleDraft(user.id, campaignName, objective, dailyBudget, strategy, activateImmediately),
+    Meta: () => createMetaDraft(user.id, campaignName, objective, dailyBudget, strategy, activateImmediately),
+    TikTok: () => createTikTokDraft(user.id, campaignName, objective, dailyBudget, strategy, activateImmediately),
   };
 
   const settled = await Promise.allSettled(
