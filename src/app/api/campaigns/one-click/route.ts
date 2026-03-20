@@ -172,23 +172,28 @@ const fetchMetaPageId = async (accessToken: string): Promise<string | null> => {
   }
 };
 
-/** Download image from URL and upload to Meta ad account. Returns image hash or null. */
+/** Upload image buffer to Meta ad account. Returns image hash or null. */
 const uploadMetaImage = async (
-  imageUrl: string,
+  imageSource: string | Buffer,
   accountResource: string,
-  accessToken: string
+  accessToken: string,
+  mimeType = 'image/jpeg'
 ): Promise<string | null> => {
   try {
-    const imgRes = await fetch(imageUrl);
-    if (!imgRes.ok) return null;
-    const buffer = Buffer.from(await imgRes.arrayBuffer());
-    const contentType = imgRes.headers.get('content-type') || 'image/jpeg';
+    let buffer: Buffer;
+    let contentType = mimeType;
+    if (typeof imageSource === 'string') {
+      const imgRes = await fetch(imageSource);
+      if (!imgRes.ok) return null;
+      buffer = Buffer.from(await imgRes.arrayBuffer());
+      contentType = imgRes.headers.get('content-type') || mimeType;
+    } else {
+      buffer = imageSource;
+    }
     const ext = contentType.includes('png') ? 'png' : 'jpg';
     const filename = `product.${ext}`;
-
     const form = new FormData();
     form.append('filename', new Blob([buffer], { type: contentType }), filename);
-
     const uploadRes = await fetch(`${META_GRAPH_BASE}/${accountResource}/adimages`, {
       method: 'POST',
       headers: { authorization: `Bearer ${accessToken}` },
@@ -206,23 +211,28 @@ const uploadMetaImage = async (
 const toTikTokCTA = (o: OneClickObjective) =>
   o === 'sales' ? 'SHOP_NOW' : 'LEARN_MORE';
 
-/** Download image from URL and upload to TikTok ad library. Returns image_id or null. */
+/** Upload image (URL or Buffer) to TikTok ad library. Returns image_id or null. */
 const uploadTikTokImage = async (
-  imageUrl: string,
+  imageSource: string | Buffer,
   advertiserId: string,
-  accessToken: string
+  accessToken: string,
+  mimeType = 'image/jpeg'
 ): Promise<string | null> => {
   try {
-    const imgRes = await fetch(imageUrl);
-    if (!imgRes.ok) return null;
-    const buffer = Buffer.from(await imgRes.arrayBuffer());
-    const contentType = imgRes.headers.get('content-type') || 'image/jpeg';
+    let buffer: Buffer;
+    let contentType = mimeType;
+    if (typeof imageSource === 'string') {
+      const imgRes = await fetch(imageSource);
+      if (!imgRes.ok) return null;
+      buffer = Buffer.from(await imgRes.arrayBuffer());
+      contentType = imgRes.headers.get('content-type') || mimeType;
+    } else {
+      buffer = imageSource;
+    }
     const ext = contentType.includes('png') ? 'png' : 'jpg';
-
     const form = new FormData();
     form.append('advertiser_id', advertiserId);
     form.append('image_file', new Blob([buffer], { type: contentType }), `product.${ext}`);
-
     const uploadRes = await fetch(`${TIKTOK_API_BASE}/file/image/ad/upload/`, {
       method: 'POST',
       headers: { 'Access-Token': accessToken },
@@ -493,7 +503,9 @@ const createMetaDraft = async (
   strategy: OneClickStrategy,
   activateImmediately = false,
   country = 'US',
-  product?: OneClickInput['product']
+  product?: OneClickInput['product'],
+  mediaBuffer?: Buffer,
+  mediaMimeType?: string
 ): Promise<PlatformResult> => {
   try {
     const connection = await connectionService.getByUserPlatform(userId, 'META');
@@ -586,11 +598,11 @@ const createMetaDraft = async (
       };
     }
 
-    // 4. Upload image if available (WooCommerce or manual imageUrl)
-    const imageUrl = product?.imageUrl;
+    // 4. Upload image — manual upload takes priority over WooCommerce URL
+    const imageSource: string | Buffer | null = mediaBuffer ?? product?.imageUrl ?? null;
     let imageHash: string | null = null;
-    if (imageUrl) {
-      imageHash = await uploadMetaImage(imageUrl, accountResource, accessToken);
+    if (imageSource) {
+      imageHash = await uploadMetaImage(imageSource, accountResource, accessToken, mediaMimeType);
     }
 
     // 5. Create Ad Creative
@@ -676,7 +688,9 @@ const createTikTokDraft = async (
   strategy: OneClickStrategy,
   activateImmediately = false,
   country = 'US',
-  product?: OneClickInput['product']
+  product?: OneClickInput['product'],
+  mediaBuffer?: Buffer,
+  mediaMimeType?: string
 ): Promise<PlatformResult> => {
   try {
     const connection = await connectionService.getByUserPlatform(userId, 'TIKTOK');
@@ -776,11 +790,11 @@ const createTikTokDraft = async (
       };
     }
 
-    // 3. Upload image if available
-    const imageUrl = product?.imageUrl;
+    // 3. Upload image — manual upload takes priority over WooCommerce URL
+    const imageSource: string | Buffer | null = mediaBuffer ?? product?.imageUrl ?? null;
     let imageId: string | null = null;
-    if (imageUrl) {
-      imageId = await uploadTikTokImage(imageUrl, account.externalAccountId, accessToken);
+    if (imageSource) {
+      imageId = await uploadTikTokImage(imageSource, account.externalAccountId, accessToken, mediaMimeType);
     }
 
     if (!imageId) {
@@ -899,10 +913,25 @@ export async function POST(request: Request) {
   }
 
   let body: Partial<OneClickInput> & { idempotencyKey?: string } = {};
+  let mediaBuffer: Buffer | undefined;
+  let mediaMimeType: string | undefined;
+
   try {
-    body = (await request.json()) as typeof body;
+    const ct = request.headers.get('content-type') || '';
+    if (ct.includes('multipart/form-data')) {
+      const fd = await request.formData();
+      const bodyStr = fd.get('body');
+      if (typeof bodyStr === 'string') body = JSON.parse(bodyStr) as typeof body;
+      const file = fd.get('media');
+      if (file instanceof File && file.size > 0) {
+        mediaBuffer = Buffer.from(await file.arrayBuffer());
+        mediaMimeType = file.type || 'image/jpeg';
+      }
+    } else {
+      body = (await request.json()) as typeof body;
+    }
   } catch {
-    return NextResponse.json({ error: 'Invalid JSON body.' }, { status: 400 });
+    return NextResponse.json({ error: 'Invalid request body.' }, { status: 400 });
   }
 
   // ── Validate ──────────────────────────────────────────────────────────────
@@ -1023,8 +1052,8 @@ export async function POST(request: Request) {
   const campaignName = strategy.campaignName;
   const creatorMap: Record<OneClickPlatform, () => Promise<PlatformResult>> = {
     Google: () => createGoogleDraft(user.id, campaignName, objective, dailyBudget, strategy, activateImmediately, input.country, input.product),
-    Meta: () => createMetaDraft(user.id, campaignName, objective, dailyBudget, strategy, activateImmediately, input.country, input.product),
-    TikTok: () => createTikTokDraft(user.id, campaignName, objective, dailyBudget, strategy, activateImmediately, input.country, input.product),
+    Meta: () => createMetaDraft(user.id, campaignName, objective, dailyBudget, strategy, activateImmediately, input.country, input.product, mediaBuffer, mediaMimeType),
+    TikTok: () => createTikTokDraft(user.id, campaignName, objective, dailyBudget, strategy, activateImmediately, input.country, input.product, mediaBuffer, mediaMimeType),
   };
 
   const settled = await Promise.allSettled(

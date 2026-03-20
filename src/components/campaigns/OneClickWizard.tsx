@@ -189,6 +189,9 @@ export function OneClickWizard({ open, onClose, onSuccess }: OneClickWizardProps
   const [previewError, setPreviewError] = useState<string | null>(null);
   const [copiedField, setCopiedField] = useState<string | null>(null);
 
+  // Step 3 — media file for manual upload
+  const [mediaFile, setMediaFile] = useState<File | null>(null);
+
   // Step 4 — activate toggle
   const [activateImmediately, setActivateImmediately] = useState(false);
 
@@ -242,6 +245,7 @@ export function OneClickWizard({ open, onClose, onSuccess }: OneClickWizardProps
       setSelectedWooId('');
       setCountry('IL');
       setLanguage2(language === 'he' ? 'he' : 'en');
+      setMediaFile(null);
       setPreviewStrategy(null);
       setPreviewError(null);
       setActivateImmediately(false);
@@ -332,20 +336,30 @@ export function OneClickWizard({ open, onClose, onSuccess }: OneClickWizardProps
     try {
       const budget = Math.max(Number(dailyBudget) || 20, 1);
       const idempotencyKey = buildIdempotencyKey(selectedPlatforms, objective, budget, activeProduct.name);
-      const res = await fetch(`${API_BASE}/api/campaigns/one-click`, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({
-          idempotencyKey,
-          platforms: selectedPlatforms,
-          objective,
-          dailyBudget: budget,
-          country,
-          language: language2,
-          activateImmediately,
-          product: activeProduct.name ? activeProduct : undefined,
-        }),
-      });
+      const payload = {
+        idempotencyKey,
+        platforms: selectedPlatforms,
+        objective,
+        dailyBudget: budget,
+        country,
+        language: language2,
+        activateImmediately,
+        product: activeProduct.name ? activeProduct : undefined,
+      };
+
+      let res: Response;
+      if (mediaFile) {
+        const fd = new FormData();
+        fd.append('body', JSON.stringify(payload));
+        fd.append('media', mediaFile);
+        res = await fetch(`${API_BASE}/api/campaigns/one-click`, { method: 'POST', body: fd });
+      } else {
+        res = await fetch(`${API_BASE}/api/campaigns/one-click`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+      }
       const rawText = await res.text();
       if (!rawText.trim()) {
         throw new Error(isHebrew ? 'השרת החזיר תגובה ריקה. נסה שוב.' : 'Server returned an empty response. Please try again.');
@@ -743,6 +757,82 @@ export function OneClickWizard({ open, onClose, onSuccess }: OneClickWizardProps
                   </div>
                 </div>
               )}
+
+              {/* WooCommerce product image preview */}
+              {productSource === 'woocommerce' && activeProduct.imageUrl && (
+                <div className="rounded-xl border border-sky-200 bg-sky-50 p-3 flex items-center gap-3">
+                  <img
+                    src={activeProduct.imageUrl}
+                    alt={activeProduct.name}
+                    className="w-14 h-14 object-cover rounded-lg border border-sky-200 shrink-0"
+                  />
+                  <div>
+                    <p className="text-xs font-semibold text-sky-800">
+                      {isHebrew ? 'תמונת מוצר' : 'Product image'}
+                    </p>
+                    <p className="text-[11px] text-sky-600 mt-0.5">
+                      {isHebrew
+                        ? 'תועלה אוטומטית למטא ו-TikTok'
+                        : 'Will be uploaded automatically to Meta & TikTok'}
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* Manual media upload */}
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">
+                  {isHebrew ? 'תמונה / וידאו למודעה' : 'Ad image / video'}
+                  {' '}<span className="text-gray-400">({isHebrew ? 'אופציונלי' : 'optional'})</span>
+                </label>
+                <div className="rounded-xl border-2 border-dashed border-gray-200 hover:border-violet-300 transition-colors p-3">
+                  {mediaFile ? (
+                    <div className="flex items-center gap-3">
+                      {mediaFile.type.startsWith('image/') ? (
+                        <img
+                          src={URL.createObjectURL(mediaFile)}
+                          alt="preview"
+                          className="w-14 h-14 object-cover rounded-lg border border-gray-200 shrink-0"
+                        />
+                      ) : (
+                        <div className="w-14 h-14 rounded-lg bg-gray-100 flex items-center justify-center shrink-0">
+                          <span className="text-2xl">🎬</span>
+                        </div>
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-medium text-gray-800 truncate">{mediaFile.name}</p>
+                        <p className="text-[11px] text-gray-500">
+                          {(mediaFile.size / 1024 / 1024).toFixed(1)} MB
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => setMediaFile(null)}
+                        className="shrink-0 text-xs text-red-500 hover:text-red-700 px-2 py-1 rounded border border-red-200 hover:bg-red-50"
+                      >
+                        {isHebrew ? 'הסר' : 'Remove'}
+                      </button>
+                    </div>
+                  ) : (
+                    <label className="flex flex-col items-center gap-1.5 cursor-pointer py-2">
+                      <span className="text-2xl">🖼️</span>
+                      <span className="text-xs font-medium text-violet-600">
+                        {isHebrew ? 'לחץ להעלאת קובץ' : 'Click to upload file'}
+                      </span>
+                      <span className="text-[10px] text-gray-400 text-center">
+                        {isHebrew
+                          ? 'Meta: JPG/PNG מינ׳ 1080×1080 | TikTok: JPG/PNG מינ׳ 720×1280'
+                          : 'Meta: JPG/PNG min 1080×1080 | TikTok: JPG/PNG min 720×1280'}
+                      </span>
+                      <input
+                        type="file"
+                        accept="image/jpeg,image/png,image/webp,video/mp4,video/quicktime"
+                        className="hidden"
+                        onChange={(e) => setMediaFile(e.target.files?.[0] ?? null)}
+                      />
+                    </label>
+                  )}
+                </div>
+              </div>
 
               {/* Country & Language */}
               <div className="grid grid-cols-2 gap-3">
