@@ -6,6 +6,8 @@ import { auth, db, resolveWorkspaceScope, type WorkspaceScope } from '../lib/fir
 import { verifyWooCommerceConnection } from '../services/woocommerceService';
 import { fetchMetaAdAccounts } from '../services/metaService';
 import { fetchGoogleAdAccounts } from '../services/googleService';
+import { AI_CONNECTION_IDS, PLATFORM_CONNECTION_IDS, ADMIN_SALES_EMAIL, initialConnections } from './connectionsData';
+import { isValidDateValue, isExpiredTrialStatus, stripUndefinedDeep, isPermissionDeniedError } from './connectionsUtils';
 
 export type ConnectionStatus = 'connected' | 'disconnected' | 'error' | 'connecting';
 
@@ -70,120 +72,7 @@ type ManagedPlatformSlug =
   | 'meta'
   | 'tiktok';
 
-const AI_CONNECTION_IDS = ['gemini', 'openai', 'claude'] as const;
-const PLATFORM_CONNECTION_IDS = ['google', 'meta', 'tiktok', 'woocommerce', 'shopify'] as const;
-const ADMIN_SALES_EMAIL = 'asher205@gmail.com';
 // AI connections are stored in appSettings/connections and shared with all users (read by everyone, write by admin only).
-
-const isValidDateValue = (value: unknown): value is string => {
-  return typeof value === 'string' && !Number.isNaN(Date.parse(value));
-};
-
-const isExpiredTrialStatus = (data: Record<string, unknown> | undefined) => {
-  if (!data) return false;
-  if (data.subscriptionStatus !== 'trial') return false;
-  const trialEndsAt = data.trialEndsAt;
-  if (!isValidDateValue(trialEndsAt)) return false;
-  return Date.parse(trialEndsAt) <= Date.now();
-};
-
-const stripUndefinedDeep = <T,>(value: T): T => {
-  if (Array.isArray(value)) {
-    return value
-      .map((item) => stripUndefinedDeep(item))
-      .filter((item) => item !== undefined) as unknown as T;
-  }
-  if (value && typeof value === 'object') {
-    const next: Record<string, unknown> = {};
-    for (const [key, nestedValue] of Object.entries(value as Record<string, unknown>)) {
-      if (nestedValue === undefined) continue;
-      const cleaned = stripUndefinedDeep(nestedValue as unknown);
-      if (cleaned !== undefined) {
-        next[key] = cleaned;
-      }
-    }
-    return next as T;
-  }
-  return value;
-};
-
-const isPermissionDeniedError = (error: unknown) => {
-  if (!error || typeof error !== 'object') return false;
-  const maybeCode =
-    typeof (error as { code?: unknown }).code === 'string'
-      ? String((error as { code?: unknown }).code).toLowerCase()
-      : '';
-  const maybeMessage =
-    typeof (error as { message?: unknown }).message === 'string'
-      ? String((error as { message?: unknown }).message).toLowerCase()
-      : '';
-  return maybeCode.includes('permission-denied') || maybeMessage.includes('missing or insufficient permissions');
-};
-
-const initialConnections: Connection[] = [
-  { 
-    id: 'gemini', 
-    name: 'integrations.platforms.gemini.name', 
-    category: 'AI Engine', 
-    status: 'disconnected', 
-    description: 'integrations.platforms.gemini.desc' 
-  },
-  { 
-    id: 'openai', 
-    name: 'integrations.platforms.openai.name', 
-    category: 'AI Engine', 
-    status: 'disconnected', 
-    description: 'integrations.platforms.openai.desc' 
-  },
-  { 
-    id: 'claude', 
-    name: 'integrations.platforms.claude.name', 
-    category: 'AI Engine', 
-    status: 'disconnected', 
-    description: 'integrations.platforms.claude.desc' 
-  },
-  { 
-    id: 'google', 
-    name: 'integrations.platforms.google.name', 
-    category: 'Google', 
-    status: 'disconnected', 
-    description: 'integrations.platforms.google.desc',
-    subConnections: [
-      { id: 'google_ads', name: 'Google Ads', status: 'disconnected' },
-      { id: 'ga4', name: 'Google Analytics 4', status: 'disconnected' },
-      { id: 'gsc', name: 'Search Console', status: 'disconnected' },
-      { id: 'gmail', name: 'Gmail / Reports', status: 'disconnected' },
-    ]
-  },
-  { 
-    id: 'meta', 
-    name: 'integrations.platforms.meta.name', 
-    category: 'Social', 
-    status: 'disconnected', 
-    description: 'integrations.platforms.meta.desc' 
-  },
-  { 
-    id: 'tiktok', 
-    name: 'integrations.platforms.tiktok.name', 
-    category: 'Social', 
-    status: 'disconnected',
-    description: 'integrations.platforms.tiktok.desc' 
-  },
-  { 
-    id: 'woocommerce', 
-    name: 'integrations.platforms.woocommerce.name', 
-    category: 'E-commerce', 
-    status: 'disconnected', 
-    description: 'integrations.platforms.woocommerce.desc' 
-  },
-  { 
-    id: 'shopify', 
-    name: 'integrations.platforms.shopify.name', 
-    category: 'E-commerce', 
-    status: 'disconnected',
-    description: 'integrations.platforms.shopify.desc' 
-  },
-];
 
 const ConnectionsContext = createContext<ConnectionsContextType | undefined>(undefined);
 
