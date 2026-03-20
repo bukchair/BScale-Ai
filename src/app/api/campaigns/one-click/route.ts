@@ -201,6 +201,41 @@ const uploadMetaImage = async (
   }
 };
 
+// ─── TikTok helpers ───────────────────────────────────────────────────────────
+
+const toTikTokCTA = (o: OneClickObjective) =>
+  o === 'sales' ? 'SHOP_NOW' : 'LEARN_MORE';
+
+/** Download image from URL and upload to TikTok ad library. Returns image_id or null. */
+const uploadTikTokImage = async (
+  imageUrl: string,
+  advertiserId: string,
+  accessToken: string
+): Promise<string | null> => {
+  try {
+    const imgRes = await fetch(imageUrl);
+    if (!imgRes.ok) return null;
+    const buffer = Buffer.from(await imgRes.arrayBuffer());
+    const contentType = imgRes.headers.get('content-type') || 'image/jpeg';
+    const ext = contentType.includes('png') ? 'png' : 'jpg';
+
+    const form = new FormData();
+    form.append('advertiser_id', advertiserId);
+    form.append('image_file', new Blob([buffer], { type: contentType }), `product.${ext}`);
+
+    const uploadRes = await fetch(`${TIKTOK_API_BASE}/file/image/ad/upload/`, {
+      method: 'POST',
+      headers: { 'Access-Token': accessToken },
+      body: form,
+    });
+    const data = (await uploadRes.json()) as { code?: number; data?: { image_id?: string } };
+    if (Number(data?.code) !== 0) return null;
+    return data?.data?.image_id || null;
+  } catch {
+    return null;
+  }
+};
+
 // ─── Platform creators ────────────────────────────────────────────────────────
 
 const createGoogleDraft = async (
@@ -638,9 +673,10 @@ const createTikTokDraft = async (
   name: string,
   objective: OneClickObjective,
   dailyBudget: number,
-  _strategy: OneClickStrategy,
+  strategy: OneClickStrategy,
   activateImmediately = false,
-  country = 'US'
+  country = 'US',
+  product?: OneClickInput['product']
 ): Promise<PlatformResult> => {
   try {
     const connection = await connectionService.getByUserPlatform(userId, 'TIKTOK');
@@ -724,14 +760,75 @@ const createTikTokDraft = async (
     });
 
     const adGroupPayload = (await adGroupRes.json()) as Record<string, unknown>;
-    const adGroupMsg = adGroupRes.ok && Number(adGroupPayload?.code) === 0
-      ? ''
-      : ` (Ad Group creation failed: ${String(adGroupPayload?.message || '').trim() || `HTTP ${adGroupRes.status}`})`;
+    const adGroupOk = adGroupRes.ok && Number(adGroupPayload?.code) === 0;
+    const adGroupId = String(
+      (adGroupPayload?.data as Record<string, unknown>)?.adgroup_id || ''
+    );
+
+    if (!adGroupOk || !adGroupId) {
+      const adGroupErr = String(adGroupPayload?.message || '').trim() || `HTTP ${adGroupRes.status}`;
+      console.error('[one-click] TikTok ad group failed:', adGroupErr);
+      return {
+        ok: true,
+        campaignId,
+        message: `TikTok campaign created (${activateImmediately ? 'ENABLED' : 'DISABLED'}). Ad group failed: ${adGroupErr}`,
+        campaignStatus: activateImmediately ? 'Active' : 'Draft',
+      };
+    }
+
+    // 3. Upload image if available
+    const imageUrl = product?.imageUrl;
+    let imageId: string | null = null;
+    if (imageUrl) {
+      imageId = await uploadTikTokImage(imageUrl, account.externalAccountId, accessToken);
+    }
+
+    if (!imageId) {
+      // No image → cannot create TikTok Ad (video/image required)
+      return {
+        ok: true,
+        campaignId,
+        message: `TikTok campaign + ad group created (${activateImmediately ? 'ENABLED' : 'DISABLED'}). No image available — ad skipped.`,
+        campaignStatus: activateImmediately ? 'Active' : 'Draft',
+      };
+    }
+
+    // 4. Create Ad
+    const adText = sanitize(strategy.platformCopy?.TikTok?.description || strategy.campaignName, 100);
+    const finalUrl = product?.url || '';
+
+    const adRes = await fetch(`${TIKTOK_API_BASE}/ad/create/`, {
+      method: 'POST',
+      headers: { 'Access-Token': accessToken, 'content-type': 'application/json' },
+      body: JSON.stringify({
+        advertiser_id: account.externalAccountId,
+        adgroup_id: adGroupId,
+        creatives: [{
+          ad_name: sanitize(name),
+          ad_format: 'SINGLE_IMAGE',
+          image_ids: [imageId],
+          ad_text: adText,
+          call_to_action: toTikTokCTA(objective),
+          ...(finalUrl ? { landing_page_url: finalUrl } : {}),
+        }],
+      }),
+    });
+
+    const adPayload = (await adRes.json()) as Record<string, unknown>;
+    const adOk = adRes.ok && Number(adPayload?.code) === 0;
+    const adId = adOk
+      ? String(((adPayload?.data as Record<string, unknown>)?.ad_ids as string[])?.[0] || '')
+      : undefined;
+
+    if (!adOk) {
+      console.error('[one-click] TikTok ad failed:', String(adPayload?.message || ''));
+    }
 
     return {
       ok: true,
       campaignId,
-      message: `TikTok Ads campaign created (${activateImmediately ? 'ENABLED' : 'DISABLED'}). Budget: ${dailyBudget}/day.${adGroupMsg}`,
+      adId,
+      message: `TikTok campaign + ad group${adId ? ' + ad' : ''} created (${activateImmediately ? 'ENABLED' : 'DISABLED'}). Image uploaded.`,
       campaignStatus: activateImmediately ? 'Active' : 'Draft',
     };
   } catch (err) {
@@ -927,7 +1024,7 @@ export async function POST(request: Request) {
   const creatorMap: Record<OneClickPlatform, () => Promise<PlatformResult>> = {
     Google: () => createGoogleDraft(user.id, campaignName, objective, dailyBudget, strategy, activateImmediately, input.country, input.product),
     Meta: () => createMetaDraft(user.id, campaignName, objective, dailyBudget, strategy, activateImmediately, input.country, input.product),
-    TikTok: () => createTikTokDraft(user.id, campaignName, objective, dailyBudget, strategy, activateImmediately, input.country),
+    TikTok: () => createTikTokDraft(user.id, campaignName, objective, dailyBudget, strategy, activateImmediately, input.country, input.product),
   };
 
   const settled = await Promise.allSettled(
