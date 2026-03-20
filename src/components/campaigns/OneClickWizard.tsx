@@ -57,6 +57,7 @@ interface WizardProduct {
   description: string;
   price: string;
   url: string;
+  imageUrl?: string;
 }
 
 interface OneClickWizardProps {
@@ -176,7 +177,7 @@ export function OneClickWizard({ open, onClose, onSuccess }: OneClickWizardProps
   // Step 3 — Product & targeting
   const [productSource, setProductSource] = useState<ProductSource>('manual');
   const [manualProduct, setManualProduct] = useState<WizardProduct>({ name: '', description: '', price: '', url: '' });
-  const [wooProducts, setWooProducts] = useState<Array<{ id: number; name: string; price?: string; short_description?: string; sku?: string }>>([]);
+  const [wooProducts, setWooProducts] = useState<Array<{ id: number; name: string; price?: string; short_description?: string; sku?: string; permalink?: string; images?: Array<{ src: string }> }>>([]);
   const [wooLoading, setWooLoading] = useState(false);
   const [selectedWooId, setSelectedWooId] = useState<string>('');
   const [country, setCountry] = useState('IL');
@@ -187,6 +188,12 @@ export function OneClickWizard({ open, onClose, onSuccess }: OneClickWizardProps
   const [previewStrategy, setPreviewStrategy] = useState<OneClickStrategy | null>(null);
   const [previewError, setPreviewError] = useState<string | null>(null);
   const [copiedField, setCopiedField] = useState<string | null>(null);
+
+  // Step 3 — media file for manual upload
+  const [mediaFile, setMediaFile] = useState<File | null>(null);
+
+  // Step 4 — activate toggle
+  const [activateImmediately, setActivateImmediately] = useState(false);
 
   // Step 5 — Results
   const [launching, setLaunching] = useState(false);
@@ -218,7 +225,8 @@ export function OneClickWizard({ open, onClose, onSuccess }: OneClickWizardProps
         name: selectedWooProduct.name || '',
         description: stripHtml(selectedWooProduct.short_description || ''),
         price: selectedWooProduct.price || '',
-        url: '',
+        url: selectedWooProduct.permalink || '',
+        imageUrl: selectedWooProduct.images?.[0]?.src || undefined,
       };
     }
     return manualProduct;
@@ -237,8 +245,10 @@ export function OneClickWizard({ open, onClose, onSuccess }: OneClickWizardProps
       setSelectedWooId('');
       setCountry('IL');
       setLanguage2(language === 'he' ? 'he' : 'en');
+      setMediaFile(null);
       setPreviewStrategy(null);
       setPreviewError(null);
+      setActivateImmediately(false);
       setResult(null);
       setLaunchError(null);
     }
@@ -326,19 +336,30 @@ export function OneClickWizard({ open, onClose, onSuccess }: OneClickWizardProps
     try {
       const budget = Math.max(Number(dailyBudget) || 20, 1);
       const idempotencyKey = buildIdempotencyKey(selectedPlatforms, objective, budget, activeProduct.name);
-      const res = await fetch(`${API_BASE}/api/campaigns/one-click`, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({
-          idempotencyKey,
-          platforms: selectedPlatforms,
-          objective,
-          dailyBudget: budget,
-          country,
-          language: language2,
-          product: activeProduct.name ? activeProduct : undefined,
-        }),
-      });
+      const payload = {
+        idempotencyKey,
+        platforms: selectedPlatforms,
+        objective,
+        dailyBudget: budget,
+        country,
+        language: language2,
+        activateImmediately,
+        product: activeProduct.name ? activeProduct : undefined,
+      };
+
+      let res: Response;
+      if (mediaFile) {
+        const fd = new FormData();
+        fd.append('body', JSON.stringify(payload));
+        fd.append('media', mediaFile);
+        res = await fetch(`${API_BASE}/api/campaigns/one-click`, { method: 'POST', body: fd });
+      } else {
+        res = await fetch(`${API_BASE}/api/campaigns/one-click`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+      }
       const rawText = await res.text();
       if (!rawText.trim()) {
         throw new Error(isHebrew ? 'השרת החזיר תגובה ריקה. נסה שוב.' : 'Server returned an empty response. Please try again.');
@@ -737,6 +758,82 @@ export function OneClickWizard({ open, onClose, onSuccess }: OneClickWizardProps
                 </div>
               )}
 
+              {/* WooCommerce product image preview */}
+              {productSource === 'woocommerce' && activeProduct.imageUrl && (
+                <div className="rounded-xl border border-sky-200 bg-sky-50 p-3 flex items-center gap-3">
+                  <img
+                    src={activeProduct.imageUrl}
+                    alt={activeProduct.name}
+                    className="w-14 h-14 object-cover rounded-lg border border-sky-200 shrink-0"
+                  />
+                  <div>
+                    <p className="text-xs font-semibold text-sky-800">
+                      {isHebrew ? 'תמונת מוצר' : 'Product image'}
+                    </p>
+                    <p className="text-[11px] text-sky-600 mt-0.5">
+                      {isHebrew
+                        ? 'תועלה אוטומטית למטא ו-TikTok'
+                        : 'Will be uploaded automatically to Meta & TikTok'}
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* Manual media upload */}
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">
+                  {isHebrew ? 'תמונה / וידאו למודעה' : 'Ad image / video'}
+                  {' '}<span className="text-gray-400">({isHebrew ? 'אופציונלי' : 'optional'})</span>
+                </label>
+                <div className="rounded-xl border-2 border-dashed border-gray-200 hover:border-violet-300 transition-colors p-3">
+                  {mediaFile ? (
+                    <div className="flex items-center gap-3">
+                      {mediaFile.type.startsWith('image/') ? (
+                        <img
+                          src={URL.createObjectURL(mediaFile)}
+                          alt="preview"
+                          className="w-14 h-14 object-cover rounded-lg border border-gray-200 shrink-0"
+                        />
+                      ) : (
+                        <div className="w-14 h-14 rounded-lg bg-gray-100 flex items-center justify-center shrink-0">
+                          <span className="text-2xl">🎬</span>
+                        </div>
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-medium text-gray-800 truncate">{mediaFile.name}</p>
+                        <p className="text-[11px] text-gray-500">
+                          {(mediaFile.size / 1024 / 1024).toFixed(1)} MB
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => setMediaFile(null)}
+                        className="shrink-0 text-xs text-red-500 hover:text-red-700 px-2 py-1 rounded border border-red-200 hover:bg-red-50"
+                      >
+                        {isHebrew ? 'הסר' : 'Remove'}
+                      </button>
+                    </div>
+                  ) : (
+                    <label className="flex flex-col items-center gap-1.5 cursor-pointer py-2">
+                      <span className="text-2xl">🖼️</span>
+                      <span className="text-xs font-medium text-violet-600">
+                        {isHebrew ? 'לחץ להעלאת קובץ' : 'Click to upload file'}
+                      </span>
+                      <span className="text-[10px] text-gray-400 text-center">
+                        {isHebrew
+                          ? 'Meta: JPG/PNG מינ׳ 1080×1080 | TikTok: JPG/PNG מינ׳ 720×1280'
+                          : 'Meta: JPG/PNG min 1080×1080 | TikTok: JPG/PNG min 720×1280'}
+                      </span>
+                      <input
+                        type="file"
+                        accept="image/jpeg,image/png,image/webp,video/mp4,video/quicktime"
+                        className="hidden"
+                        onChange={(e) => setMediaFile(e.target.files?.[0] ?? null)}
+                      />
+                    </label>
+                  )}
+                </div>
+              </div>
+
               {/* Country & Language */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
@@ -865,11 +962,43 @@ export function OneClickWizard({ open, onClose, onSuccess }: OneClickWizardProps
                     </div>
                   )}
 
-                  {/* Launch confirmation notice */}
-                  <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800 flex items-start gap-2">
-                    <AlertCircle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
-                    {tx.launchConfirm}
+                  {/* Activate immediately toggle */}
+                  <div className="rounded-xl border border-gray-200 bg-gray-50 p-3 flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-xs font-semibold text-gray-800">
+                        {isHebrew ? 'הפעל מיד לאחר יצירה' : 'Activate immediately after creation'}
+                      </p>
+                      <p className="text-[11px] text-gray-500 mt-0.5">
+                        {isHebrew
+                          ? activateImmediately
+                            ? 'המודעות יתחילו לרוץ מיד — ללא כניסה לפלטפורמה'
+                            : 'המודעות ייצרו כטיוטה — תצטרך להפעיל ידנית'
+                          : activateImmediately
+                          ? 'Ads will go live immediately — no need to visit each platform'
+                          : 'Ads created as drafts — activate manually on each platform'}
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => setActivateImmediately((v) => !v)}
+                      className={cn(
+                        'relative shrink-0 w-11 h-6 rounded-full transition-colors focus:outline-none',
+                        activateImmediately ? 'bg-violet-600' : 'bg-gray-300'
+                      )}
+                    >
+                      <span className={cn(
+                        'absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform',
+                        activateImmediately ? 'translate-x-5' : 'translate-x-0'
+                      )} />
+                    </button>
                   </div>
+
+                  {/* Launch confirmation notice */}
+                  {!activateImmediately && (
+                    <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800 flex items-start gap-2">
+                      <AlertCircle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                      {tx.launchConfirm}
+                    </div>
+                  )}
                 </div>
               )}
             </div>
