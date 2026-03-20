@@ -15,6 +15,7 @@ import {
   resolveWorkspaceScope,
 } from '../lib/firebase';
 import { runAutoAdsIfNeeded } from '../lib/autoAdsRunner';
+import { UserProfileProvider } from '../contexts/UserProfileContext';
 
 const PATH_TO_TAB: Record<string, string> = {
   '/':                    'dashboard',
@@ -123,7 +124,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   }
 
   return (
-    <>
+    <UserProfileProvider value={userProfile}>
       <div
         className="flex h-screen bg-gray-50 dark:bg-[#050505] text-gray-900 dark:text-white transition-colors duration-300"
         dir={dir}
@@ -146,6 +147,6 @@ export function AppShell({ children }: { children: ReactNode }) {
         </div>
       </div>
       <SalesBot />
-    </>
+    </UserProfileProvider>
   );
 }
