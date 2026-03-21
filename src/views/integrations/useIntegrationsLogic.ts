@@ -494,13 +494,201 @@ export function useIntegrationsLogic({
     }
   };
 
-  // (form handlers — added in ט-4)
-  const handleMigrateAi = async () => {};                                                   // replaced in ט-4
-  const handleSave = async (_id: string, _overrideSettings?: Record<string, string>) => {}; // replaced in ט-4
-  const handleTest = async (_id: string) => {};                                             // replaced in ט-4
-  const handleHardResetConnection = async (_id: string) => {};                              // replaced in ט-4
-  const handleExpand = (_integration: Connection) => {};                                    // replaced in ט-4
-  const handleInputChange = (_key: string, _value: string) => {};                          // replaced in ט-4
+  // ── Form handlers ───────────────────────────────────────────────────────
+
+  const handleMigrateAi = async () => {
+    if (blockIfReadOnly()) return;
+    try {
+      const result = await migrateAiConnectionsFromUser();
+      setToast({ message: result.message, type: result.success ? 'success' : 'error' });
+    } catch {
+      setToast({ message: t('common.error'), type: 'error' });
+    } finally {
+      setTimeout(() => setToast(null), 3000);
+    }
+  };
+
+  const handleSave = async (id: string, overrideSettings?: Record<string, string>) => {
+    if (blockIfReadOnly()) return;
+    setError(null);
+    setSuccess(null);
+    const settingsToSave = overrideSettings || formValues;
+    try {
+      await updateConnectionSettings(id, settingsToSave);
+      if (id === 'tiktok' && settingsToSave.tiktokAdvertiserId) {
+        try { await persistManagedTikTokSelection(settingsToSave.tiktokAdvertiserId); }
+        catch (e) { console.warn('Failed to persist TikTok advertiser selection:', e); }
+      }
+      if (id === 'google' && settingsToSave.googleAdsId) {
+        try { await persistManagedGoogleSelection(settingsToSave.googleAdsId); }
+        catch (e) {
+          setToast({
+            message: language === 'he'
+              ? 'החיבור נשמר, אך בחירת חשבון ברירת המחדל ל-Google Ads נכשלה. נסה שוב.'
+              : 'Connection was saved, but default Google Ads account selection failed. Please retry.',
+            type: 'error',
+          });
+          setTimeout(() => setToast(null), 3500);
+          console.warn('Failed to persist managed Google Ads selection:', e);
+        }
+      }
+      setExpandedId(null);
+      const connectionName = connections.find((c) => c.id === id)?.name || '';
+      const successTemplate = t('integrations.success');
+      setSuccess(
+        successTemplate.includes('{{name}}')
+          ? successTemplate.replace('{{name}}', connectionName)
+          : `${successTemplate} ${connectionName}`.trim()
+      );
+      setTimeout(() => setSuccess(null), 3000);
+    } catch (err) {
+      const connectionName = connections.find((c) => c.id === id)?.name || '';
+      const errorTemplate = t('integrations.error');
+      setError({
+        id,
+        message: errorTemplate.includes('{{name}}')
+          ? errorTemplate.replace('{{name}}', connectionName)
+          : `${errorTemplate} ${connectionName}`.trim(),
+      });
+    }
+  };
+
+  const handleTest = async (id: string) => {
+    if (blockIfReadOnly()) return;
+    setTestingId(id);
+    setError(null);
+    setSuccess(null);
+    try {
+      const result = await testConnection(id);
+      if (result.success) {
+        setSuccess(result.message);
+        setToast({ message: result.message, type: 'success' });
+        setTimeout(() => { setSuccess(null); setToast(null); }, 3000);
+      } else {
+        setError({ id, message: result.message });
+        setToast({ message: result.message, type: 'error' });
+        setTimeout(() => setToast(null), 3000);
+      }
+    } catch {
+      setError({ id, message: t('common.error') });
+      setToast({ message: t('common.error'), type: 'error' });
+      setTimeout(() => setToast(null), 3000);
+    } finally {
+      setTestingId(null);
+    }
+  };
+
+  const handleHardResetConnection = async (id: string) => {
+    if (blockIfReadOnly()) return;
+    const confirmDelete = window.confirm(
+      isHebrew ? 'למחוק את החיבור וההגדרות שנשמרו לפלטפורמה זו?' : 'Delete this connection and its saved settings?'
+    );
+    if (!confirmDelete) return;
+    setError(null); setSuccess(null);
+    try {
+      await clearConnectionSettings(id);
+      setExpandedId(id);
+      setFormValues({});
+      setToast({ message: isHebrew ? 'החיבור אופס בהצלחה.' : 'Connection reset successfully.', type: 'success' });
+    } catch (err) {
+      setToast({
+        message: err instanceof Error && err.message ? err.message : isHebrew ? 'איפוס החיבור נכשל. נסה שוב.' : 'Connection reset failed. Please try again.',
+        type: 'error',
+      });
+    } finally {
+      setTimeout(() => setToast(null), 3000);
+    }
+  };
+
+  const handleExpand = (integration: Connection) => {
+    if (isWorkspaceReadOnly) return;
+    if (expandedId === integration.id) {
+      setExpandedId(null);
+    } else {
+      setExpandedId(integration.id);
+      setFormValues(integration.settings || {});
+      setSuccess(null);
+      if (integration.id === 'meta' && integration.status === 'connected') {
+        void loadManagedMetaAssets(integration.settings || {});
+      } else {
+        setMetaAssets(null);
+        setMetaAssetsError(null);
+      }
+      if (integration.id === 'tiktok' && integration.status === 'connected') {
+        void loadManagedTikTokAccounts(integration.settings || {});
+      } else {
+        setTiktokAccounts([]);
+        setTiktokAccountsError(null);
+      }
+    }
+  };
+
+  const handleInputChange = (key: string, value: string) => {
+    if (isWorkspaceReadOnly) return;
+    setFormValues((prev) => ({ ...prev, [key]: value }));
+  };
+
+  // ── Effects ──────────────────────────────────────────────────────────────
+
+  // Clean up OAuth redirect params + show result toast
+  React.useEffect(() => {
+    const url = new URL(window.location.href);
+    const connected = url.searchParams.get('connected');
+    const errorMessage = url.searchParams.get('error');
+    if (!connected && !errorMessage) return;
+    if (connected === '1') {
+      setToast({ message: isHebrew ? 'החיבור הושלם בהצלחה.' : 'Connection completed successfully.', type: 'success' });
+      setTimeout(() => setToast(null), 3000);
+    } else if (errorMessage) {
+      setToast({ message: errorMessage, type: 'error' });
+      setTimeout(() => setToast(null), 4000);
+    }
+    url.searchParams.delete('connected');
+    url.searchParams.delete('error');
+    url.searchParams.delete('platform');
+    const nextQuery = url.searchParams.toString();
+    window.history.replaceState({}, '', `${url.pathname}${nextQuery ? `?${nextQuery}` : ''}${url.hash || ''}`);
+  }, [isHebrew]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // OAuth popup message handler
+  React.useEffect(() => {
+    const handleMessage = (event: MessageEvent) => {
+      const isAllowedOrigin =
+        event.origin.includes(window.location.hostname) ||
+        event.origin.includes('localhost') ||
+        event.origin.includes('.run.app');
+      if (!isAllowedOrigin) return;
+
+      if (event.data?.type === 'OAUTH_AUTH_SUCCESS' && event.data?.platform === 'meta') {
+        const { data } = event.data;
+        void handleSave('meta', { metaToken: data.access_token });
+        setWizardValues((prev) => ({ ...prev, metaToken: data.access_token || '' }));
+        setToast({ message: 'Successfully connected to Meta Ads!', type: 'success' });
+        setTimeout(() => setToast(null), 3000);
+      }
+      if (event.data?.type === 'OAUTH_AUTH_SUCCESS' && event.data?.platform === 'google') {
+        const { tokens } = event.data;
+        void handleSave('google', {
+          googleAccessToken: tokens.access_token,
+          googleRefreshToken: tokens.refresh_token || '',
+          googleExpiry: (Date.now() + tokens.expires_in * 1000).toString(),
+        });
+        setWizardValues((prev) => ({
+          ...prev,
+          googleAccessToken: tokens.access_token || '',
+          googleRefreshToken: tokens.refresh_token || '',
+        }));
+        setToast({ message: t('integrations.googleEcosystemConnected'), type: 'success' });
+        setTimeout(() => setToast(null), 3000);
+      }
+      if (event.data?.type === 'OAUTH_AUTH_ERROR') {
+        setToast({ message: event.data.error || 'TikTok authentication failed', type: 'error' });
+        setTimeout(() => setToast(null), 3000);
+      }
+    };
+    window.addEventListener('message', handleMessage);
+    return () => window.removeEventListener('message', handleMessage);
+  }, [formValues]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const runOAuthForWizard = async () => {
     if (wizardPlatform === 'google') { await handleGoogleConnect(); return; }
