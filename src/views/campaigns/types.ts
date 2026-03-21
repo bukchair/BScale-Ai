@@ -61,6 +61,8 @@ export type WooCampaignProduct = {
   description?: string;
   sku?: string;
   stockQuantity?: number | null;
+  productUrl?: string;
+  imageUrl?: string;
 };
 
 export type WooPublishScope = 'category' | 'product';
