@@ -780,5 +780,9 @@ export function useIntegrationsLogic({
     // helpers
     blockIfReadOnly,
     languageSafeText,
+    // extra setters / helpers needed by JSX
+    setWizardPlatform,
+    isWizardPlatformDone,
+    getConnectionSettingsById,
   };
 }
