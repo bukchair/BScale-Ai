@@ -3,7 +3,7 @@ import { useLanguage } from '../contexts/LanguageContext';
 import { Users as UsersIcon, Shield, UserPlus, MoreVertical, Search, Edit2, Trash2, Building, Mail, CheckCircle2, XCircle, Loader2 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { db, auth } from '../lib/firebase';
-import { collection, onSnapshot, query, doc, updateDoc, deleteDoc, setDoc, writeBatch, getDoc } from 'firebase/firestore';
+import { collection, onSnapshot, query, doc, updateDoc, setDoc, writeBatch, getDoc } from 'firebase/firestore';
 
 interface UserProfile {
   uid: string;
@@ -145,7 +145,14 @@ export function Users() {
 
   const handleDeleteUser = async (userId: string) => {
     try {
-      await deleteDoc(doc(db, 'users', userId));
+      const targetUser = users.find((item) => item.uid === userId);
+      const batch = writeBatch(db);
+      batch.delete(doc(db, 'users', userId));
+      (targetUser?.storeIds || []).forEach((storeId) => {
+        if (!storeId) return;
+        batch.delete(doc(db, 'stores', storeId, 'members', userId));
+      });
+      await batch.commit();
       setDeleteConfirmId(null);
     } catch (error) {
       console.error("Error deleting user:", error);
