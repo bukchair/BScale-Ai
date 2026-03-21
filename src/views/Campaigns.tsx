@@ -2,13 +2,6 @@
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  getOptimizationRecommendations,
-  getAIKeysFromConnections,
-  hasAnyAIKey,
-  getAudienceRecommendations,
-  getCampaignBuilderSuggestions,
-} from '../lib/gemini';
-import {
   CheckCircle2,
   AlertCircle,
   Loader2,
@@ -36,19 +29,6 @@ import { useConnections } from '../contexts/ConnectionsContext';
 import { OneClickWizard } from '../components/campaigns/OneClickWizard';
 import { useDateRange, useDateRangeBounds } from '../contexts/DateRangeContext';
 import { useCurrency } from '../contexts/CurrencyContext';
-import { fetchTikTokCampaigns } from '../services/tiktokService';
-import { fetchMetaCampaigns, fetchMetaAdsets, isMetaRateLimitMessage, type MetaAdset } from '../services/metaService';
-import { fetchGoogleCampaigns, sendGmailNotification } from '../services/googleService';
-import { fetchWooCommerceProducts } from '../services/woocommerceService';
-import { auth, onAuthStateChanged } from '../lib/firebase';
-import {
-  mapGoogleCampaignRowsToUnifiedLayer,
-  mapMetaCampaignRowsToUnifiedLayer,
-  mapTikTokCampaignRowsToUnifiedLayer,
-  replaceUnifiedPlatformSlice,
-  unifiedLayerToCampaignRows,
-} from '../lib/unified-data/mappers';
-import { createEmptyUnifiedDataLayer } from '../lib/unified-data/types';
 import {
   type CampaignRow,
   type ContentType,
@@ -75,6 +55,9 @@ import {
   createEmptyDaySchedule,
   stripHtmlToText,
 } from './campaigns/types';
+import { useCampaignData } from './campaigns/useCampaignData';
+import { useCampaignBuilder } from './campaigns/useCampaignBuilder';
+import { useCampaignEdit } from './campaigns/useCampaignEdit';
 import {
   toAmount,
   normalizeCampaignStatus,
@@ -247,123 +230,6 @@ export function Campaigns() {
   const periodLabel = dateRange === 'today' ? t('dashboard.today') : dateRange === '7days' ? t('dashboard.last7Days') : dateRange === '30days' ? t('dashboard.last30Days') : t('dashboard.customRange');
   const startDateIso = useMemo(() => bounds.startDate.toISOString().slice(0, 10), [bounds.startDate]);
   const endDateIso = useMemo(() => bounds.endDate.toISOString().slice(0, 10), [bounds.endDate]);
-  const [recommendations, setRecommendations] = useState<Record<string, unknown>[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [appliedRecs, setAppliedRecs] = useState<number[]>([]);
-  const [expandedRecs, setExpandedRecs] = useState<number[]>([]);
-  const [realCampaigns, setRealCampaigns] = useState<CampaignRow[]>([]);
-  const [unifiedDataLayer, setUnifiedDataLayer] = useState(createEmptyUnifiedDataLayer);
-  const [expandedCampaigns, setExpandedCampaigns] = useState<Set<string>>(new Set());
-  const [adsetsByCampaignId, setAdsetsByCampaignId] = useState<Record<string, MetaAdset[]>>({});
-  const [loadingAdsetsCampaignId, setLoadingAdsetsCampaignId] = useState<string | null>(null);
-  const CAMPAIGNS_CACHE_KEY = 'bscale:campaigns:realCampaigns:v1';
-
-  useEffect(() => {
-    try {
-      const raw = window.localStorage.getItem(CAMPAIGNS_CACHE_KEY);
-      if (!raw) return;
-      const parsed = JSON.parse(raw) as { items?: CampaignRow[] };
-      if (Array.isArray(parsed.items) && parsed.items.length > 0) {
-        setRealCampaigns(parsed.items);
-      }
-    } catch {
-      // ignore cache parse errors
-    }
-  }, []);
-
-  // Read creative-lab prefill on mount (from the "Launch Campaign" button)
-  useEffect(() => {
-    try {
-      const raw = sessionStorage.getItem('bscale:creative-prefill');
-      if (!raw) return;
-      sessionStorage.removeItem('bscale:creative-prefill');
-      const prefill = JSON.parse(raw) as Record<string, any>;
-      if (prefill.campaignName) setCampaignNameInput(prefill.campaignName);
-      if (prefill.shortTitle) setShortTitleInput(prefill.shortTitle);
-      if (prefill.brief) setCampaignBrief(prefill.brief);
-      if (prefill.platformCopy) setPlatformCopyDrafts(prefill.platformCopy);
-    } catch {
-      // ignore prefill errors
-    }
-  }, []);
-
-  useEffect(() => {
-    try {
-      if (realCampaigns.length > 0) {
-        window.localStorage.setItem(
-          CAMPAIGNS_CACHE_KEY,
-          JSON.stringify({
-            savedAt: Date.now(),
-            items: realCampaigns,
-          })
-        );
-      }
-    } catch {
-      // ignore storage quota errors
-    }
-  }, [realCampaigns]);
-
-  const [createdCampaigns, setCreatedCampaigns] = useState<CampaignRow[]>([]);
-  const [isSyncing, setIsSyncing] = useState(false);
-  const [sendingEmail, setSendingEmail] = useState(false);
-  const [builderMessage, setBuilderMessage] = useState<string | null>(null);
-  const [metaSyncNotice, setMetaSyncNotice] = useState<string | null>(null);
-
-  // Filtering and Sorting State
-  const [searchQuery, setSearchQuery] = useState('');
-  const [platformFilter, setPlatformFilter] = useState('All');
-  const [statusFilter, setStatusFilter] = useState('All');
-  const [sortField, setSortField] = useState('name');
-  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
-
-  // Interactive campaign builder state
-  const [campaignNameInput, setCampaignNameInput] = useState('');
-  const [shortTitleInput, setShortTitleInput] = useState('');
-  const [objective, setObjective] = useState<ObjectiveType>('sales');
-  const [contentType, setContentType] = useState<ContentType>('product');
-  const [productType, setProductType] = useState<ProductType>('other');
-  const [serviceTypeInput, setServiceTypeInput] = useState('');
-  const [campaignBrief, setCampaignBrief] = useState('');
-  const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>([]);
-  const [selectedAudiences, setSelectedAudiences] = useState<string[]>([]);
-  const [customAudience, setCustomAudience] = useState('');
-  const [uploadedAssets, setUploadedAssets] = useState<UploadedAsset[]>([]);
-  const [weeklySchedule, setWeeklySchedule] = useState<WeeklySchedule>({});
-  const [selectedSchedulePlatform, setSelectedSchedulePlatform] = useState<string>('Google');
-  const [selectedScheduleDay, setSelectedScheduleDay] = useState<DayKey>('mon');
-  const [timeRules, setTimeRules] = useState<TimeRule[]>([]);
-  const [rulePlatform, setRulePlatform] = useState<PlatformName>('Google');
-  const [ruleStartHour, setRuleStartHour] = useState<number>(18);
-  const [ruleEndHour, setRuleEndHour] = useState<number>(22);
-  const [ruleAction, setRuleAction] = useState<RuleAction>('boost');
-  const [ruleMinRoas, setRuleMinRoas] = useState<number>(3);
-  const [ruleReason, setRuleReason] = useState<string>('');
-  const [aiAudienceLoading, setAiAudienceLoading] = useState(false);
-  const [aiAudienceProvider, setAiAudienceProvider] = useState<string>('');
-  const [aiGeneratedAudienceNames, setAiGeneratedAudienceNames] = useState<string[]>([]);
-  const [aiRecommendedHoursByPlatform, setAiRecommendedHoursByPlatform] = useState<Record<string, number[]>>({});
-  const [smartAdRunStartedAt, setSmartAdRunStartedAt] = useState<number | null>(null);
-  const [smartAdElapsedMs, setSmartAdElapsedMs] = useState(0);
-  const [isCreatingCampaign, setIsCreatingCampaign] = useState(false);
-  const [publishResults, setPublishResults] = useState<Array<{ platform: string; ok: boolean; message: string; campaignId?: string }>>([]);
-  const [editingCampaign, setEditingCampaign] = useState<EditCampaignDraft | null>(null);
-  const [editApplyToAds, setEditApplyToAds] = useState(false);
-  const [editLoading, setEditLoading] = useState(false);
-  const [oneClickOpen, setOneClickOpen] = useState(false);
-  const [editMessage, setEditMessage] = useState<string | null>(null);
-  const [platformCopyDrafts, setPlatformCopyDrafts] = useState<Partial<Record<PlatformName, PlatformCopyDraft>>>({});
-  const [selectedCopyPlatform, setSelectedCopyPlatform] = useState<PlatformName>('Google');
-  const [selectedPreviewPlatform, setSelectedPreviewPlatform] = useState<PlatformName>('Google');
-  const [wooProducts, setWooProducts] = useState<WooCampaignProduct[]>([]);
-  const [wooLoading, setWooLoading] = useState(false);
-  const [useWooProductData, setUseWooProductData] = useState(false);
-  const [wooPublishScope, setWooPublishScope] = useState<WooPublishScope>('category');
-  const [selectedWooCategory, setSelectedWooCategory] = useState('');
-  const [selectedWooProductId, setSelectedWooProductId] = useState<string>('');
-  const wooAutoBriefRef = useRef('');
-  const builderSectionRef = useRef<HTMLElement | null>(null);
-  const shortTitleInputRef = useRef<HTMLInputElement | null>(null);
-
   const connectedAdPlatforms = useMemo(() => {
     const options: string[] = [];
     if (connections.find((c) => c.id === 'google' && c.status === 'connected')) options.push('Google');
@@ -378,46 +244,187 @@ export function Campaigns() {
   );
   const isWooConnected = Boolean(wooConnection);
 
-  useEffect(() => {
-    if (!aiAudienceLoading || !smartAdRunStartedAt) return;
-    const intervalId = window.setInterval(() => {
-      setSmartAdElapsedMs(Date.now() - smartAdRunStartedAt);
-    }, 250);
-    return () => window.clearInterval(intervalId);
-  }, [aiAudienceLoading, smartAdRunStartedAt]);
+  // ── Custom hooks ──────────────────────────────────────────────────
+  const {
+    realCampaigns, setRealCampaigns,
+    createdCampaigns, setCreatedCampaigns,
+    isSyncing,
+    metaSyncNotice,
+    expandedCampaigns,
+    adsetsByCampaignId,
+    loadingAdsetsCampaignId,
+    toggleCampaignExpand,
+    recommendations,
+    loading,
+    appliedRecs,
+    expandedRecs,
+    fetchRecommendations,
+    handleApply,
+    toggleRecExpanded,
+    sendingEmail,
+    handleSendEmail,
+  } = useCampaignData({
+    connections,
+    startDateIso,
+    endDateIso,
+    language,
+    isHebrew,
+  });
 
-  const formatSmartElapsed = (elapsedMs: number) => {
-    const totalSeconds = Math.max(0, Math.floor(elapsedMs / 1000));
-    const minutes = Math.floor(totalSeconds / 60)
-      .toString()
-      .padStart(2, '0');
-    const seconds = (totalSeconds % 60).toString().padStart(2, '0');
-    return `${minutes}:${seconds}`;
-  };
+  const builder = useCampaignBuilder({
+    connections,
+    connectedAdPlatforms,
+    isHebrew,
+    language,
+    isWooConnected,
+    wooConnection,
+    realCampaigns,
+    onCampaignsCreated: (created) => setCreatedCampaigns((prev) => [...created, ...prev]),
+  });
+
+  const {
+    campaignNameInput, setCampaignNameInput,
+    shortTitleInput, setShortTitleInput,
+    objective, setObjective,
+    contentType, setContentType,
+    productType, setProductType,
+    serviceTypeInput, setServiceTypeInput,
+    campaignBrief, setCampaignBrief,
+    selectedPlatforms, setSelectedPlatforms,
+    selectedAudiences, setSelectedAudiences,
+    customAudience, setCustomAudience,
+    builderMessage, setBuilderMessage,
+    platformCopyDrafts, setPlatformCopyDrafts,
+    selectedCopyPlatform, setSelectedCopyPlatform,
+    selectedPreviewPlatform, setSelectedPreviewPlatform,
+    draftPlatforms,
+    previewPlatforms,
+    oneClickOpen, setOneClickOpen,
+    builderSectionRef,
+    shortTitleInputRef,
+    audienceSuggestions,
+    audienceSuggestionsWithAi,
+    effectiveMediaLimits,
+    aiProcessingBrief,
+    togglePlatformSelection,
+    toggleAudienceSelection,
+    addCustomAudience,
+    scrollToBuilderSection,
+    uploadedAssets,
+    handleAssetUpload,
+    removeAsset,
+    clearUploadedMedia,
+    normalizeHour,
+    sanitizeHours,
+    weeklySchedule, setWeeklySchedule,
+    selectedSchedulePlatform, setSelectedSchedulePlatform,
+    selectedScheduleDay, setSelectedScheduleDay,
+    toggleScheduleHour,
+    isFullDaySelected,
+    toggleFullDay,
+    getActiveSlotsCount,
+    timeRules, setTimeRules,
+    rulePlatform, setRulePlatform,
+    ruleStartHour, setRuleStartHour,
+    ruleEndHour, setRuleEndHour,
+    ruleAction, setRuleAction,
+    ruleMinRoas, setRuleMinRoas,
+    ruleReason, setRuleReason,
+    addTimeRule,
+    removeTimeRule,
+    aiAudienceLoading,
+    aiAudienceProvider,
+    aiGeneratedAudienceNames, setAiGeneratedAudienceNames,
+    aiRecommendedHoursByPlatform,
+    smartAdRunStartedAt,
+    smartAdElapsedMs,
+    formatSmartElapsed,
+    getPlatformTitleLimit,
+    getPlatformDescriptionLimit,
+    applyPlatformCopyToFields,
+    handleAutoAudienceAndStrategy,
+    handleGeneratePlatformAdCopies,
+    isCreatingCampaign,
+    publishResults,
+    handleCreateScheduledCampaign,
+    wooProducts,
+    wooLoading,
+    useWooProductData, setUseWooProductData,
+    wooPublishScope, setWooPublishScope,
+    selectedWooCategory, setSelectedWooCategory,
+    selectedWooProductId, setSelectedWooProductId,
+    wooCategoryOptions,
+    wooProductsFiltered,
+    selectedWooProduct,
+    inferredWooTitle,
+    buildWooProductBrief,
+    importWooProductToBuilder,
+    disableWooImportMode,
+  } = builder;
+
+  const {
+    editingCampaign, setEditingCampaign,
+    editApplyToAds, setEditApplyToAds,
+    editLoading,
+    editMessage, setEditMessage,
+    isEditablePlatformCampaign,
+    openEditCampaign,
+    closeEditCampaign,
+    saveEditedCampaign,
+  } = useCampaignEdit({
+    isHebrew,
+    onUpdateCampaigns: (updater) => {
+      setRealCampaigns(updater);
+      setCreatedCampaigns(updater);
+    },
+  });
+
+  // ── Remaining local state ─────────────────────────────────────────
+  const [searchQuery, setSearchQuery] = useState('');
+  const [platformFilter, setPlatformFilter] = useState('All');
+  const [statusFilter, setStatusFilter] = useState('All');
+  const [sortField, setSortField] = useState('name');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
+
+  // Creative-lab prefill on mount
+  useEffect(() => {
+    try {
+      const raw = sessionStorage.getItem('bscale:creative-prefill');
+      if (!raw) return;
+      sessionStorage.removeItem('bscale:creative-prefill');
+      const prefill = JSON.parse(raw) as Record<string, unknown>;
+      if (prefill.campaignName) setCampaignNameInput(String(prefill.campaignName));
+      if (prefill.shortTitle) setShortTitleInput(String(prefill.shortTitle));
+      if (prefill.brief) setCampaignBrief(String(prefill.brief));
+      if (prefill.platformCopy) setPlatformCopyDrafts(prefill.platformCopy as typeof platformCopyDrafts);
+    } catch {
+      // ignore prefill errors
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const objectiveOptions: Array<{ value: ObjectiveType; label: string }> = [
     { value: 'sales', label: isHebrew ? 'מכירות' : 'Sales' },
-    { value: 'traffic', label: isHebrew ? 'תנועה לאתר' : 'Traffic' },
+    { value: 'traffic', label: isHebrew ? 'תנועה לאתר' : 'Website Traffic' },
     { value: 'leads', label: isHebrew ? 'לידים' : 'Leads' },
-    { value: 'awareness', label: isHebrew ? 'מודעות למותג' : 'Awareness' },
-    { value: 'retargeting', label: isHebrew ? 'רימרקטינג' : 'Retargeting' },
+    { value: 'awareness', label: isHebrew ? 'מודעות למותג' : 'Brand Awareness' },
+    { value: 'retargeting', label: isHebrew ? 'רטרגטינג' : 'Retargeting' },
   ];
 
   const contentTypeOptions: Array<{ value: ContentType; label: string }> = [
-    { value: 'product', label: isHebrew ? 'פוסט מוצר' : 'Product post' },
-    { value: 'offer', label: isHebrew ? 'פוסט מבצע' : 'Offer post' },
-    { value: 'educational', label: isHebrew ? 'פוסט מידע/ערך' : 'Educational post' },
-    { value: 'testimonial', label: isHebrew ? 'פוסט המלצה/עדות' : 'Testimonial post' },
-    { value: 'video', label: isHebrew ? 'פוסט וידאו קצר' : 'Short video post' },
+    { value: 'product', label: isHebrew ? 'מוצר ספציפי' : 'Specific Product' },
+    { value: 'offer', label: isHebrew ? 'מבצע / הנחה' : 'Offer / Discount' },
+    { value: 'educational', label: isHebrew ? 'תוכן חינוכי' : 'Educational Content' },
+    { value: 'testimonial', label: isHebrew ? 'המלצה / ביקורת' : 'Testimonial / Review' },
+    { value: 'video', label: isHebrew ? 'וידאו / ריל' : 'Video / Reel' },
   ];
 
   const productTypeOptions: Array<{ value: ProductType; label: string }> = [
-    { value: 'fashion', label: isHebrew ? 'אופנה' : 'Fashion' },
-    { value: 'beauty', label: isHebrew ? 'ביוטי וטיפוח' : 'Beauty' },
-    { value: 'tech', label: isHebrew ? 'טכנולוגיה' : 'Tech' },
-    { value: 'home', label: isHebrew ? 'בית ועיצוב' : 'Home' },
-    { value: 'fitness', label: isHebrew ? 'כושר וספורט' : 'Fitness' },
-    { value: 'services', label: isHebrew ? 'שירותים' : 'Services' },
+    { value: 'fashion', label: isHebrew ? 'אופנה ואקססוריז' : 'Fashion & Accessories' },
+    { value: 'beauty', label: isHebrew ? 'יופי וטיפוח' : 'Beauty & Grooming' },
+    { value: 'tech', label: isHebrew ? 'טכנולוגיה ואלקטרוניקה' : 'Tech & Electronics' },
+    { value: 'home', label: isHebrew ? 'בית וגינה' : 'Home & Garden' },
+    { value: 'fitness', label: isHebrew ? 'בריאות וכושר' : 'Health & Fitness' },
+    { value: 'services', label: isHebrew ? 'שירותים / B2B' : 'Services / B2B' },
     { value: 'other', label: isHebrew ? 'אחר' : 'Other' },
   ];
 
@@ -435,1434 +442,6 @@ export function Campaigns() {
   const formatHour = (hour: number) => `${String(hour).padStart(2, '0')}:00`;
   const formatHourRange = (startHour: number, endHour: number) =>
     `${formatHour(startHour)}-${formatHour(endHour)}`;
-
-  const effectiveMediaLimits = useMemo(() => {
-    const activePlatforms = selectedPlatforms.filter((p): p is PlatformName =>
-      p === 'Google' || p === 'Meta' || p === 'TikTok'
-    );
-    if (!activePlatforms.length) return PLATFORM_MEDIA_LIMITS.Google;
-    return activePlatforms.reduce<MediaLimits>((acc, platform) => {
-      const current = PLATFORM_MEDIA_LIMITS[platform];
-      return {
-        imageMaxMb: Math.min(acc.imageMaxMb, current.imageMaxMb),
-        videoMaxMb: Math.min(acc.videoMaxMb, current.videoMaxMb),
-        maxImageWidth: Math.min(acc.maxImageWidth, current.maxImageWidth),
-        maxImageHeight: Math.min(acc.maxImageHeight, current.maxImageHeight),
-      };
-    }, PLATFORM_MEDIA_LIMITS[activePlatforms[0]]);
-  }, [selectedPlatforms]);
-
-  const wooCategoryOptions = useMemo(() => {
-    const names = wooProducts.flatMap((product) => product.categories);
-    return [...new Set(names.filter(Boolean))].sort((a, b) => a.localeCompare(b));
-  }, [wooProducts]);
-
-  const wooProductsFiltered = useMemo(() => {
-    if (wooPublishScope !== 'category') return wooProducts;
-    if (!selectedWooCategory) return wooProducts;
-    return wooProducts.filter((product) => product.categories.includes(selectedWooCategory));
-  }, [wooProducts, wooPublishScope, selectedWooCategory]);
-
-  const selectedWooProduct = useMemo(() => {
-    if (!selectedWooProductId) return null;
-    return wooProducts.find((product) => String(product.id) === String(selectedWooProductId)) || null;
-  }, [wooProducts, selectedWooProductId]);
-
-  const inferredWooTitle = useMemo(() => {
-    if (!useWooProductData || !isWooConnected) return '';
-    if (wooPublishScope === 'product' && selectedWooProduct?.name) {
-      return selectedWooProduct.name;
-    }
-    if (wooPublishScope === 'category' && selectedWooCategory) {
-      return `${selectedWooCategory} Campaign`;
-    }
-    return '';
-  }, [useWooProductData, isWooConnected, wooPublishScope, selectedWooProduct?.name, selectedWooCategory]);
-
-  const draftPlatforms = useMemo(
-    () =>
-      (['Google', 'Meta', 'TikTok'] as const).filter((platform) =>
-        Boolean(platformCopyDrafts[platform])
-      ) as PlatformName[],
-    [platformCopyDrafts]
-  );
-
-  const previewPlatforms = useMemo(() => {
-    const base = (selectedPlatforms.length > 0 ? selectedPlatforms : connectedAdPlatforms).filter(
-      (platform): platform is PlatformName =>
-        platform === 'Google' || platform === 'Meta' || platform === 'TikTok'
-    );
-    return base.length > 0 ? base : (['Google'] as PlatformName[]);
-  }, [connectedAdPlatforms, selectedPlatforms]);
-
-  const buildWooProductBrief = (product: WooCampaignProduct): string => {
-    const longDescription =
-      (product.shortDescription && product.shortDescription.trim()) ||
-      (product.description && product.description.trim()) ||
-      '';
-    const compactDescription =
-      longDescription.length > 420 ? `${longDescription.slice(0, 417).trim()}...` : longDescription;
-    const categoryLabel =
-      product.categories.length > 0
-        ? `${isHebrew ? 'קטגוריות' : 'Categories'}: ${product.categories.join(', ')}`
-        : '';
-    const priceLabel = product.price ? `${isHebrew ? 'מחיר' : 'Price'}: ${product.price}` : '';
-    const skuLabel = product.sku ? `SKU: ${product.sku}` : '';
-    const stockLabel =
-      typeof product.stockQuantity === 'number'
-        ? `${isHebrew ? 'מלאי' : 'Stock'}: ${product.stockQuantity}`
-        : '';
-    return [
-      `${isHebrew ? 'מוצר' : 'Product'}: ${product.name}`,
-      categoryLabel,
-      priceLabel,
-      skuLabel,
-      stockLabel,
-      compactDescription,
-    ]
-      .filter((item) => item && item.trim().length > 0)
-      .join('\n');
-  };
-
-  const aiProcessingBrief = useMemo(() => {
-    const baseBrief = campaignBrief.trim();
-    const productBrief =
-      useWooProductData && wooPublishScope === 'product' && selectedWooProduct
-        ? buildWooProductBrief(selectedWooProduct)
-        : '';
-    if (!productBrief) return baseBrief;
-    if (!baseBrief) return productBrief;
-    if (baseBrief.includes(productBrief)) return baseBrief;
-    return `${baseBrief}\n\n${isHebrew ? 'נתוני מוצר מ-WooCommerce:' : 'WooCommerce product data:'}\n${productBrief}`;
-  }, [campaignBrief, useWooProductData, wooPublishScope, selectedWooProduct, isHebrew]);
-
-  const importWooProductToBuilder = (
-    product: WooCampaignProduct,
-    options?: { overwriteExisting?: boolean; notify?: boolean }
-  ) => {
-    const overwriteExisting = options?.overwriteExisting ?? true;
-    const notify = options?.notify ?? false;
-    const productBrief = buildWooProductBrief(product);
-    if (!productBrief.trim()) {
-      if (notify) setBuilderMessage(text.wooProductDataMissing);
-      return;
-    }
-
-    const priceStr = product.price ? ` – ₪${product.price}` : '';
-    const titleWithPrice = `${product.name}${priceStr}`.slice(0, 90);
-    setContentType('product');
-    setShortTitleInput((prev) =>
-      overwriteExisting || !prev.trim() ? titleWithPrice : prev
-    );
-    setCampaignNameInput((prev) =>
-      overwriteExisting || !prev.trim() ? product.name : prev
-    );
-    setServiceTypeInput((prev) => {
-      const nextCategory = product.categories[0] || '';
-      if (!nextCategory) return prev;
-      return overwriteExisting || !prev.trim() ? nextCategory : prev;
-    });
-    setCampaignBrief((prev) =>
-      overwriteExisting || !prev.trim() || prev.trim() === wooAutoBriefRef.current.trim()
-        ? productBrief
-        : prev
-    );
-    wooAutoBriefRef.current = productBrief;
-    if (notify) setBuilderMessage(text.wooImportSuccess);
-  };
-
-  const disableWooImportMode = () => {
-    setUseWooProductData(false);
-    setBuilderMessage(text.manualTextMode);
-    window.setTimeout(() => shortTitleInputRef.current?.focus(), 0);
-  };
-
-  const audienceSuggestions = useMemo(() => {
-    const combined = [
-      ...aiGeneratedAudienceNames,
-      ...SMART_AUDIENCE_BY_CONTENT[contentType],
-      ...SMART_AUDIENCE_BY_PRODUCT[productType],
-      ...SMART_AUDIENCE_BY_OBJECTIVE[objective],
-    ];
-    return [...new Set(combined)];
-  }, [aiGeneratedAudienceNames, contentType, productType, objective]);
-
-  useEffect(() => {
-    if (connectedAdPlatforms.length === 0) {
-      setSelectedPlatforms([]);
-      return;
-    }
-    setSelectedPlatforms((prev) => {
-      const filtered = prev.filter((p) => connectedAdPlatforms.includes(p));
-      return filtered.length ? filtered : [...connectedAdPlatforms];
-    });
-    setSelectedSchedulePlatform((prev) => (connectedAdPlatforms.includes(prev) ? prev : connectedAdPlatforms[0]));
-    setRulePlatform((prev) =>
-      connectedAdPlatforms.includes(prev)
-        ? (prev as PlatformName)
-        : ((connectedAdPlatforms[0] || 'Google') as PlatformName)
-    );
-  }, [connectedAdPlatforms]);
-
-  useEffect(() => {
-    if (!draftPlatforms.length) return;
-    if (!draftPlatforms.includes(selectedCopyPlatform)) {
-      setSelectedCopyPlatform(draftPlatforms[0]);
-    }
-  }, [draftPlatforms, selectedCopyPlatform]);
-
-  useEffect(() => {
-    if (!previewPlatforms.length) return;
-    if (!previewPlatforms.includes(selectedPreviewPlatform)) {
-      setSelectedPreviewPlatform(previewPlatforms[0]);
-    }
-  }, [previewPlatforms, selectedPreviewPlatform]);
-
-  useEffect(() => {
-    if (!wooConnection?.settings) {
-      setWooProducts([]);
-      setSelectedWooCategory('');
-      setSelectedWooProductId('');
-      return;
-    }
-    const { storeUrl, wooKey, wooSecret } = (wooConnection.settings || {}) as Record<string, string>;
-    if (!storeUrl || !wooKey || !wooSecret) {
-      setWooProducts([]);
-      return;
-    }
-    let cancelled = false;
-    setWooLoading(true);
-    fetchWooCommerceProducts(storeUrl, wooKey, wooSecret, { fallbackToMock: false })
-      .then((list) => {
-        if (cancelled) return;
-        const mapped = (Array.isArray(list) ? list : [])
-          .map((item: Record<string, unknown>) => ({
-            id: Number(item?.id || 0),
-            name: stripHtmlToText(String(item?.name || '')),
-            categories: Array.isArray(item?.categories)
-              ? (item.categories as Record<string, unknown>[])
-                  .map((category) => stripHtmlToText(String(category?.name || '')))
-                  .filter(Boolean)
-              : [],
-            price: item?.price != null ? String(item.price) : '',
-            shortDescription: stripHtmlToText(item?.short_description || ''),
-            description: stripHtmlToText(item?.description || ''),
-            sku: stripHtmlToText(item?.sku || ''),
-            stockQuantity:
-              typeof item?.stock_quantity === 'number' && Number.isFinite(item.stock_quantity)
-                ? item.stock_quantity
-                : null,
-          }))
-          .filter((item: WooCampaignProduct) => item.id > 0 && item.name);
-        setWooProducts(mapped);
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setWooProducts([]);
-        }
-      })
-      .finally(() => {
-        if (!cancelled) setWooLoading(false);
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [wooConnection?.settings]);
-
-  useEffect(() => {
-    if (!useWooProductData) return;
-    if (wooPublishScope === 'product') return;
-    if (!selectedWooCategory && wooCategoryOptions.length > 0) {
-      setSelectedWooCategory(wooCategoryOptions[0]);
-    }
-  }, [useWooProductData, wooPublishScope, wooCategoryOptions, selectedWooCategory]);
-
-  useEffect(() => {
-    if (!useWooProductData) return;
-    if (wooPublishScope !== 'product') return;
-    if (!selectedWooProductId && wooProductsFiltered.length > 0) {
-      setSelectedWooProductId(String(wooProductsFiltered[0].id));
-    }
-  }, [useWooProductData, wooPublishScope, selectedWooProductId, wooProductsFiltered]);
-
-  useEffect(() => {
-    if (!useWooProductData) return;
-    if (wooPublishScope !== 'product') return;
-    if (!selectedWooProductId) return;
-    const exists = wooProductsFiltered.some(
-      (product) => String(product.id) === String(selectedWooProductId)
-    );
-    if (!exists) {
-      setSelectedWooProductId(
-        wooProductsFiltered.length > 0 ? String(wooProductsFiltered[0].id) : ''
-      );
-    }
-  }, [useWooProductData, wooPublishScope, selectedWooProductId, wooProductsFiltered]);
-
-  useEffect(() => {
-    if (!useWooProductData) return;
-    if (!inferredWooTitle) return;
-    setShortTitleInput((prev) => (prev.trim() ? prev : inferredWooTitle));
-    setCampaignNameInput((prev) => (prev.trim() ? prev : inferredWooTitle));
-  }, [useWooProductData, inferredWooTitle]);
-
-  useEffect(() => {
-    if (!useWooProductData) return;
-    if (wooPublishScope !== 'product' || !selectedWooProduct) return;
-    importWooProductToBuilder(selectedWooProduct, { overwriteExisting: false, notify: false });
-  }, [useWooProductData, wooPublishScope, selectedWooProduct]);
-
-  useEffect(() => {
-    setWeeklySchedule((prev) => {
-      const next: WeeklySchedule = { ...prev };
-      selectedPlatforms.forEach((platform) => {
-        if (!next[platform]) next[platform] = createEmptyDaySchedule();
-      });
-      Object.keys(next).forEach((platform) => {
-        if (!selectedPlatforms.includes(platform)) delete next[platform];
-      });
-      return next;
-    });
-  }, [selectedPlatforms]);
-
-  useEffect(() => {
-    return () => {
-      uploadedAssets.forEach((asset) => URL.revokeObjectURL(asset.previewUrl));
-    };
-  }, [uploadedAssets]);
-
-  const applyUnifiedPlatformLayer = (platform: PlatformName, incomingLayer: ReturnType<typeof createEmptyUnifiedDataLayer>) => {
-    setUnifiedDataLayer((prev) => {
-      const next = replaceUnifiedPlatformSlice(prev, platform, incomingLayer);
-      const rows = unifiedLayerToCampaignRows(next);
-      if (rows.length > 0) {
-        setRealCampaigns(rows);
-      }
-      return next;
-    });
-  };
-
-  const toggleCampaignExpand = async (campaign: CampaignRow) => {
-    const campaignId = String(campaign?.campaignId || campaign?.id || '');
-    if (!campaignId) return;
-
-    setExpandedCampaigns((prev) => {
-      const next = new Set(prev);
-      if (next.has(campaignId)) {
-        next.delete(campaignId);
-      } else {
-        next.add(campaignId);
-      }
-      return next;
-    });
-
-    // Fetch adsets if not already loaded and this is a Meta campaign
-    if (String(campaign?.platform || '') === 'Meta' && !adsetsByCampaignId[campaignId]) {
-      const metaConn = connections.find((c) => c.id === 'meta');
-      const token = metaConn?.settings?.metaToken || 'server-managed';
-      const adAccountId = metaConn?.settings?.metaAdsId || metaConn?.settings?.adAccountId || '';
-      setLoadingAdsetsCampaignId(campaignId);
-      try {
-        const adsets = await fetchMetaAdsets(token, adAccountId || undefined, [campaignId], startDateIso, endDateIso);
-        setAdsetsByCampaignId((prev) => ({ ...prev, [campaignId]: adsets }));
-      } catch (err) {
-        console.warn('Failed to fetch adsets for campaign', campaignId, err);
-        setAdsetsByCampaignId((prev) => ({ ...prev, [campaignId]: [] }));
-      } finally {
-        setLoadingAdsetsCampaignId(null);
-      }
-    }
-  };
-
-  const fetchRecommendations = async () => {
-    setLoading(true);
-    try {
-      const aiKeys = getAIKeysFromConnections(connections);
-      if (!hasAnyAIKey(aiKeys)) {
-        setRecommendations([]);
-        setExpandedRecs([]);
-      } else {
-        const dataToAnalyze = realCampaigns.length > 0 ? realCampaigns : mockCampaignData;
-        const dataStr = JSON.stringify(dataToAnalyze);
-        const recommendationLanguage =
-          language === 'he'
-            ? 'Hebrew'
-            : language === 'ru'
-              ? 'Russian'
-              : language === 'pt'
-                ? 'Portuguese'
-                : language === 'fr'
-                  ? 'French'
-                  : 'English';
-        const res = await getOptimizationRecommendations(dataStr, aiKeys, recommendationLanguage);
-        const normalized = Array.isArray(res?.recommendations)
-          ? res.recommendations.filter(Boolean)
-          : [];
-        setRecommendations(normalized);
-        setExpandedRecs([]);
-      }
-    } catch (error) {
-      console.error("Failed to fetch recommendations", error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const syncTikTokData = async () => {
-    const tiktokConn = connections.find(c => c.id === 'tiktok');
-    const token = tiktokConn?.settings?.tiktokToken || tiktokConn?.settings?.tiktokAccessToken;
-    const advertiserId = tiktokConn?.settings?.tiktokAdvertiserId || tiktokConn?.settings?.advertiserId;
-    if (tiktokConn?.status === 'connected' && token && advertiserId) {
-      try {
-        const campaigns = await fetchTikTokCampaigns(
-          token,
-          advertiserId,
-          startDateIso,
-          endDateIso
-        );
-        const unifiedLayer = mapTikTokCampaignRowsToUnifiedLayer(campaigns, {
-          accountExternalId: String(advertiserId),
-          dateRange: { startDate: startDateIso, endDate: endDateIso },
-        });
-        applyUnifiedPlatformLayer('TikTok', unifiedLayer);
-      } catch (err) {
-        console.error("Failed to sync TikTok data:", err);
-      }
-    }
-  };
-
-  const syncMetaData = async () => {
-    const metaConn = connections.find(c => c.id === 'meta');
-    const token = metaConn?.status === 'connected' ? metaConn?.settings?.metaToken || 'server-managed' : '';
-    const adAccountId =
-      metaConn?.settings?.metaAdsId ||
-      metaConn?.settings?.adAccountId ||
-      metaConn?.settings?.metaAdAccountId;
-    if (metaConn?.status === 'connected' && token) {
-      try {
-        const campaigns = await fetchMetaCampaigns(
-          token,
-          adAccountId || undefined,
-          startDateIso,
-          endDateIso
-        );
-        const unifiedLayer = mapMetaCampaignRowsToUnifiedLayer(campaigns, {
-          accountExternalId: String(adAccountId || ''),
-          dateRange: { startDate: startDateIso, endDate: endDateIso },
-        });
-        const mappedRows = unifiedLayerToCampaignRows(unifiedLayer);
-        const hasAnyMetaRow = mappedRows.some((row) => String(row?.platform || '') === 'Meta');
-        if (hasAnyMetaRow || campaigns.length === 0) {
-          applyUnifiedPlatformLayer('Meta', unifiedLayer);
-        }
-        setMetaSyncNotice(null);
-      } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
-        if (isMetaRateLimitMessage(message)) {
-          setMetaSyncNotice(
-            isHebrew
-              ? 'מטא מגביל כרגע קריאות API. מוצגים נתונים אחרונים זמינים.'
-              : 'Meta is currently rate-limiting API calls. Showing the latest available data.'
-          );
-        } else {
-          console.error("Failed to sync Meta data:", err);
-        }
-      }
-    }
-  };
-
-  const syncGoogleData = async () => {
-    const googleConn = connections.find(c => c.id === 'google');
-    const token = googleConn?.status === 'connected' ? googleConn?.settings?.googleAccessToken || 'server-managed' : '';
-    const customerId =
-      googleConn?.settings?.googleAdsId ||
-      googleConn?.settings?.customerId ||
-      googleConn?.settings?.googleCustomerId;
-    const loginCustomerId = googleConn?.settings?.loginCustomerId;
-    if (googleConn?.status === 'connected' && token) {
-      try {
-        const campaigns = await fetchGoogleCampaigns(
-          token,
-          customerId || undefined,
-          loginCustomerId,
-          startDateIso,
-          endDateIso
-        );
-        const unifiedLayer = mapGoogleCampaignRowsToUnifiedLayer(campaigns, {
-          accountExternalId: String(customerId || ''),
-          dateRange: { startDate: startDateIso, endDate: endDateIso },
-        });
-        applyUnifiedPlatformLayer('Google', unifiedLayer);
-      } catch (err) {
-        console.error("Failed to sync Google data:", err);
-      }
-    }
-  };
-
-  useEffect(() => {
-    let cancelled = false;
-    let lastSyncAt = 0;
-    const syncAll = async () => {
-      if (cancelled) return;
-      const now = Date.now();
-      if (now - lastSyncAt < 60_000) return;
-      lastSyncAt = now;
-      setIsSyncing(true);
-      try {
-        await Promise.all([syncTikTokData(), syncMetaData(), syncGoogleData()]);
-      } finally {
-        if (!cancelled) {
-          setIsSyncing(false);
-        }
-      }
-    };
-
-    void syncAll();
-
-    const intervalId = window.setInterval(() => {
-      void syncAll();
-    }, 120_000);
-
-    const handleFocus = () => {
-      void syncAll();
-    };
-    window.addEventListener('focus', handleFocus);
-
-    return () => {
-      cancelled = true;
-      window.clearInterval(intervalId);
-      window.removeEventListener('focus', handleFocus);
-    };
-  }, [connections, startDateIso, endDateIso]);
-
-  const handleApply = (index: number) => {
-    setAppliedRecs([...appliedRecs, index]);
-  };
-
-  const toggleRecExpanded = (index: number) => {
-    setExpandedRecs((prev) =>
-      prev.includes(index) ? prev.filter((item) => item !== index) : [...prev, index]
-    );
-  };
-
-  const handleSendEmail = async () => {
-    const googleConn = connections.find(c => c.id === 'google');
-    if (!googleConn?.settings?.googleAccessToken) {
-      alert("Please connect Google Workspace first to send emails.");
-      return;
-    }
-
-    setSendingEmail(true);
-    try {
-      const emailBody = `
-        <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e5e7eb; rounded: 12px;">
-          <h2 style="color: #4f46e5;">BScale AI: Optimization Recommendations</h2>
-          <p>Here are the latest AI-generated recommendations for your advertising campaigns:</p>
-          <hr style="border: 0; border-top: 1px solid #e5e7eb; margin: 20px 0;" />
-          ${recommendations.map(rec => `
-            <div style="margin-bottom: 20px; padding: 15px; background-color: #f9fafb; border-radius: 8px;">
-              <div style="display: flex; align-items: center; margin-bottom: 8px;">
-                <span style="font-size: 10px; font-weight: bold; padding: 2px 8px; border-radius: 4px; background-color: ${rec.impact === 'High' ? '#fee2e2' : rec.impact === 'Medium' ? '#fef3c7' : '#dcfce7'}; color: ${rec.impact === 'High' ? '#991b1b' : rec.impact === 'Medium' ? '#92400e' : '#166534'}; margin-right: 8px;">
-                  IMPACT: ${rec.impact}
-                </span>
-                <span style="font-size: 12px; color: #6b7280;">${rec.platform}</span>
-              </div>
-              <h3 style="margin: 0 0 8px 0; font-size: 16px; color: #111827;">${rec.title}</h3>
-              <p style="margin: 0; font-size: 14px; color: #4b5563;">${rec.description}</p>
-            </div>
-          `).join('')}
-          <p style="font-size: 12px; color: #9ca3af; margin-top: 30px;">
-            Sent from BScale AI Dashboard.
-          </p>
-        </div>
-      `;
-      
-      await sendGmailNotification(
-        googleConn.settings.googleAccessToken,
-        auth.currentUser?.email || '',
-        'BScale AI: Your Campaign Recommendations',
-        emailBody
-      );
-      alert("Recommendations sent to your email!");
-    } catch (err) {
-      console.error("Failed to send email:", err);
-      alert("Failed to send email. Please try again.");
-    } finally {
-      setSendingEmail(false);
-    }
-  };
-
-  const togglePlatformSelection = (platform: string) => {
-    setSelectedPlatforms((prev) =>
-      prev.includes(platform) ? prev.filter((p) => p !== platform) : [...prev, platform]
-    );
-  };
-
-  const toggleAudienceSelection = (audience: string) => {
-    setSelectedAudiences((prev) =>
-      prev.includes(audience) ? prev.filter((a) => a !== audience) : [...prev, audience]
-    );
-  };
-
-  const addCustomAudience = () => {
-    const value = customAudience.trim();
-    if (!value) return;
-    if (!selectedAudiences.includes(value)) {
-      setSelectedAudiences((prev) => [...prev, value]);
-    }
-    setCustomAudience('');
-  };
-
-  const ensureManagedApiSession = async () => {
-    const currentUser =
-      auth.currentUser ||
-      (await new Promise<import('firebase/auth').User | null>((resolve) => {
-        const timeoutId = window.setTimeout(() => {
-          unsubscribe();
-          resolve(auth.currentUser);
-        }, 3000);
-        const unsubscribe = onAuthStateChanged(auth, (nextUser) => {
-          window.clearTimeout(timeoutId);
-          unsubscribe();
-          resolve(nextUser);
-        });
-      }));
-
-    if (!currentUser) {
-      throw new Error(
-        isHebrew
-          ? 'נדרש להתחבר מחדש למערכת לפני יצירת קמפיין.'
-          : 'Please sign in again before creating a campaign.'
-      );
-    }
-
-    const idToken = await currentUser.getIdToken(true);
-    const response = await fetch('/api/auth/session/bootstrap', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ idToken }),
-    });
-    const payload = await response.json().catch(() => ({}));
-    if (!response.ok || payload?.success === false) {
-      throw new Error(
-        payload?.message ||
-          (isHebrew ? 'אימות הסשן נכשל. התחבר מחדש ונסה שוב.' : 'Session bootstrap failed. Please sign in again.')
-      );
-    }
-  };
-
-  const normalizeHour = (value: number) => {
-    if (!Number.isFinite(value)) return 0;
-    return Math.max(0, Math.min(23, Math.round(value)));
-  };
-
-  const sanitizeHours = (hours: number[]) =>
-    [...new Set(hours.map((hour) => normalizeHour(hour)))].sort((a, b) => a - b);
-
-  const loadImageElement = (file: File) =>
-    new Promise<HTMLImageElement>((resolve, reject) => {
-      const url = URL.createObjectURL(file);
-      const img = new Image();
-      img.onload = () => {
-        URL.revokeObjectURL(url);
-        resolve(img);
-      };
-      img.onerror = () => {
-        URL.revokeObjectURL(url);
-        reject(new Error('Failed to load image for optimization.'));
-      };
-      img.src = url;
-    });
-
-  const resizeImageForPlatforms = async (file: File) => {
-    const img = await loadImageElement(file);
-    const { width, height } = img;
-    const scale = Math.min(
-      1,
-      effectiveMediaLimits.maxImageWidth / Math.max(width, 1),
-      effectiveMediaLimits.maxImageHeight / Math.max(height, 1)
-    );
-    if (scale >= 1) {
-      return {
-        file,
-        width,
-        height,
-      };
-    }
-
-    const targetWidth = Math.max(1, Math.round(width * scale));
-    const targetHeight = Math.max(1, Math.round(height * scale));
-    const canvas = document.createElement('canvas');
-    canvas.width = targetWidth;
-    canvas.height = targetHeight;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) {
-      return { file, width, height };
-    }
-    ctx.imageSmoothingEnabled = true;
-    ctx.imageSmoothingQuality = 'high';
-    ctx.drawImage(img, 0, 0, targetWidth, targetHeight);
-
-    const preferredType = file.type === 'image/png' ? 'image/png' : 'image/jpeg';
-    const quality = preferredType === 'image/png' ? undefined : 0.92;
-    const blob = await new Promise<Blob | null>((resolve) =>
-      canvas.toBlob(resolve, preferredType, quality)
-    );
-    if (!blob) return { file, width, height };
-    const ext = preferredType === 'image/png' ? '.png' : '.jpg';
-    const baseName = file.name.replace(/\.[^.]+$/, '');
-    const nextFile = new File([blob], `${baseName}${ext}`, {
-      type: preferredType,
-      lastModified: Date.now(),
-    });
-    return {
-      file: nextFile,
-      width: targetWidth,
-      height: targetHeight,
-    };
-  };
-
-  const handleAssetUpload: React.ChangeEventHandler<HTMLInputElement> = async (event) => {
-    const files = Array.from(event.target.files || []) as File[];
-    if (!files.length) return;
-    const imageMaxBytes = effectiveMediaLimits.imageMaxMb * 1024 * 1024;
-    const videoMaxBytes = effectiveMediaLimits.videoMaxMb * 1024 * 1024;
-
-    const mapped: UploadedAsset[] = [];
-    for (const file of files) {
-      const isImage = file.type.startsWith('image/');
-      const isVideo = file.type.startsWith('video/');
-      if (!isImage && !isVideo) continue;
-
-      if (isImage && file.size > imageMaxBytes) {
-        setBuilderMessage(
-          isHebrew
-            ? `קובץ תמונה "${file.name}" גדול מדי לתנאי הפלטפורמות שנבחרו.`
-            : `Image "${file.name}" is too large for selected platform requirements.`
-        );
-        continue;
-      }
-      if (isVideo && file.size > videoMaxBytes) {
-        setBuilderMessage(
-          isHebrew
-            ? `קובץ וידאו "${file.name}" גדול מדי לתנאי הפלטפורמות שנבחרו.`
-            : `Video "${file.name}" is too large for selected platform requirements.`
-        );
-        continue;
-      }
-
-      let optimizedFile = file;
-      let width: number | undefined;
-      let height: number | undefined;
-      if (isImage) {
-        try {
-          const optimized = await resizeImageForPlatforms(file);
-          optimizedFile = optimized.file;
-          width = optimized.width;
-          height = optimized.height;
-        } catch {
-          optimizedFile = file;
-        }
-      }
-
-      mapped.push({
-        id: `${optimizedFile.name}-${optimizedFile.size}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-        name: optimizedFile.name,
-        size: optimizedFile.size,
-        type: optimizedFile.type,
-        file: optimizedFile,
-        previewUrl: URL.createObjectURL(optimizedFile),
-        mediaType: isVideo ? 'video' : 'image',
-        width,
-        height,
-      });
-    }
-
-    if (mapped.length > 0) {
-      setUploadedAssets((prev) => [...prev, ...mapped].slice(0, 12));
-      setBuilderMessage(null);
-    }
-    event.target.value = '';
-  };
-
-  const removeAsset = (id: string) => {
-    setUploadedAssets((prev) => {
-      const target = prev.find((asset) => asset.id === id);
-      if (target) URL.revokeObjectURL(target.previewUrl);
-      return prev.filter((asset) => asset.id !== id);
-    });
-  };
-
-  const clearUploadedMedia = () => {
-    setUploadedAssets((prev) => {
-      prev.forEach((asset) => URL.revokeObjectURL(asset.previewUrl));
-      return [];
-    });
-  };
-
-  const toggleScheduleHour = (platform: string, day: DayKey, hour: number) => {
-    setWeeklySchedule((prev) => {
-      const next: WeeklySchedule = { ...prev };
-      if (!next[platform]) next[platform] = createEmptyDaySchedule();
-      const normalizedHour = normalizeHour(hour);
-      const currentHours = Array.isArray(next[platform][day]) ? next[platform][day] : [];
-      const hasHour = currentHours.includes(normalizedHour);
-      next[platform] = {
-        ...next[platform],
-        [day]: hasHour
-          ? currentHours.filter((value) => value !== normalizedHour)
-          : sanitizeHours([...currentHours, normalizedHour]),
-      };
-      return next;
-    });
-  };
-
-  const isFullDaySelected = (platform: string, day: DayKey) => {
-    const hours = weeklySchedule[platform]?.[day] || [];
-    return Array.isArray(hours) && hours.length === 24;
-  };
-
-  const toggleFullDay = (platform: string, day: DayKey) => {
-    setWeeklySchedule((prev) => {
-      const next: WeeklySchedule = { ...prev };
-      if (!next[platform]) next[platform] = createEmptyDaySchedule();
-      const currentHours = Array.isArray(next[platform][day]) ? next[platform][day] : [];
-      const fullDay = Array.from({ length: 24 }, (_, hour) => hour);
-      next[platform] = {
-        ...next[platform],
-        [day]: currentHours.length === 24 ? [] : fullDay,
-      };
-      return next;
-    });
-  };
-
-  const getActiveSlotsCount = (platform: string): number => {
-    const schedule = weeklySchedule[platform];
-    if (!schedule) return 0;
-    return DAY_KEYS.reduce((sum, day) => sum + (schedule[day]?.length || 0), 0);
-  };
-
-  const addTimeRule = () => {
-    if (!rulePlatform) return;
-    const startHour = normalizeHour(ruleStartHour);
-    const endHour = normalizeHour(ruleEndHour);
-    if (endHour <= startHour) {
-      setBuilderMessage(
-        isHebrew
-          ? 'שעת סיום חייבת להיות גדולה משעת התחלה.'
-          : 'End hour must be greater than start hour.'
-      );
-      return;
-    }
-    const next: TimeRule = {
-      id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-      platform: rulePlatform,
-      startHour,
-      endHour,
-      action: ruleAction,
-      minRoas: ruleMinRoas,
-      reason: ruleReason.trim() || undefined,
-    };
-    setTimeRules((prev) => [next, ...prev]);
-    setRuleReason('');
-  };
-
-  const removeTimeRule = (id: string) => {
-    setTimeRules((prev) => prev.filter((rule) => rule.id !== id));
-  };
-
-  const isEditablePlatformCampaign = (campaign: CampaignRow) => {
-    const platform = String(campaign?.platform || '');
-    if (platform !== 'Google' && platform !== 'Meta' && platform !== 'TikTok') return false;
-    const idValue = String(campaign?.campaignId || campaign?.id || '').trim();
-    if (!idValue) return false;
-    if (idValue.startsWith('local-') || idValue.startsWith('live-')) return false;
-    return true;
-  };
-
-  const openEditCampaign = (campaign: CampaignRow) => {
-    const platform = String(campaign?.platform || '') as PlatformName;
-    const campaignId = String(campaign?.campaignId || campaign?.id || '').trim();
-    if (!campaignId || !isEditablePlatformCampaign(campaign)) {
-      setEditMessage(text.editNotAvailable);
-      return;
-    }
-    const normalizedStatus = normalizeCampaignStatus(campaign?.status);
-    const status: EditableStatus = normalizedStatus === 'Paused' ? 'Paused' : 'Active';
-    setEditMessage(null);
-    setEditApplyToAds(false);
-    setEditingCampaign({
-      rowKey: `${platform}-${campaignId}`,
-      platform,
-      campaignId,
-      name: String(campaign?.name || '').trim(),
-      status,
-      dailyBudget: toAmount(campaign?.budget) > 0 ? String(toAmount(campaign?.budget)) : '',
-    });
-  };
-
-  const closeEditCampaign = () => {
-    setEditingCampaign(null);
-    setEditApplyToAds(false);
-    setEditLoading(false);
-  };
-
-  const saveEditedCampaign = async () => {
-    if (!editingCampaign) return;
-    const trimmedName = editingCampaign.name.trim();
-    if (!trimmedName) {
-      setEditMessage(text.requireFields);
-      return;
-    }
-    setEditLoading(true);
-    setEditMessage(null);
-    try {
-      await ensureManagedApiSession();
-      const parsedBudget = Number(editingCampaign.dailyBudget);
-      const dailyBudget =
-        editingCampaign.dailyBudget.trim().length > 0 && Number.isFinite(parsedBudget) && parsedBudget >= 0
-          ? parsedBudget
-          : null;
-      const response = await fetch('/api/campaigns/update', {
-        method: 'POST',
-        headers: {
-          'content-type': 'application/json',
-        },
-        body: JSON.stringify({
-          platform: editingCampaign.platform,
-          campaignId: editingCampaign.campaignId,
-          name: trimmedName,
-          status: editingCampaign.status,
-          dailyBudget,
-          applyToAds: editApplyToAds,
-        }),
-      });
-      const payload = await response.json().catch(() => ({}));
-      if (!response.ok || payload?.success !== true) {
-        throw new Error(payload?.message || text.updateFailed);
-      }
-
-      const updateRow = (row: CampaignRow) => {
-        const rowId = String(row?.campaignId || row?.id || '').trim();
-        const samePlatform = String(row?.platform || '') === editingCampaign.platform;
-        if (!samePlatform || rowId !== editingCampaign.campaignId) return row;
-        return {
-          ...row,
-          name: trimmedName,
-          status: editingCampaign.status,
-          budget: dailyBudget != null ? dailyBudget : row?.budget,
-        };
-      };
-
-      setRealCampaigns((prev) => prev.map(updateRow));
-      setCreatedCampaigns((prev) => prev.map(updateRow));
-      setEditMessage(payload?.message || text.updateSuccess);
-      setTimeout(() => {
-        setEditingCampaign(null);
-        setEditApplyToAds(false);
-      }, 250);
-    } catch (error) {
-      setEditMessage(error instanceof Error ? error.message : text.updateFailed);
-    } finally {
-      setEditLoading(false);
-    }
-  };
-
-  const handleAutoAudienceAndStrategy = async () => {
-    const runStartedAt = Date.now();
-    setBuilderMessage(null);
-    setSmartAdRunStartedAt(runStartedAt);
-    setSmartAdElapsedMs(0);
-    setAiAudienceLoading(true);
-    try {
-      const aiKeys = getAIKeysFromConnections(connections);
-      if (!hasAnyAIKey(aiKeys)) {
-        setBuilderMessage(text.aiMissing);
-        return;
-      }
-      const responseLanguage =
-        language === 'he'
-          ? 'Hebrew'
-          : language === 'ru'
-          ? 'Russian'
-          : language === 'pt'
-          ? 'Portuguese'
-          : language === 'fr'
-          ? 'French'
-          : 'English';
-
-      const platformTextRules = {
-        Google: {
-          titleMax: 30,
-          descriptionMax: 90,
-          note: 'Search-style short headline and concise value description.',
-        },
-        Meta: {
-          titleMax: 40,
-          descriptionMax: 125,
-          note: 'Feed/Reels style hook headline and conversational primary text.',
-        },
-        TikTok: {
-          titleMax: 40,
-          descriptionMax: 100,
-          note: 'Short hook and mobile-first caption style.',
-        },
-      };
-
-      const wooContext = isWooConnected && useWooProductData
-        ? {
-            publishScope: wooPublishScope,
-            category: selectedWooCategory || null,
-            product:
-              wooPublishScope === 'product' && selectedWooProduct
-                ? {
-                    id: selectedWooProduct.id,
-                    name: selectedWooProduct.name,
-                    categories: selectedWooProduct.categories,
-                    price: selectedWooProduct.price || null,
-                    shortDescription: selectedWooProduct.shortDescription || null,
-                    description: selectedWooProduct.description || null,
-                    sku: selectedWooProduct.sku || null,
-                    stockQuantity: selectedWooProduct.stockQuantity ?? null,
-                  }
-                : null,
-          }
-        : null;
-
-      const fallbackTitle =
-        shortTitleInput.trim() ||
-        inferredWooTitle ||
-        selectedWooProduct?.name ||
-        campaignNameInput.trim();
-
-      const contextPayload = {
-        shortTitle: fallbackTitle,
-        currentForm: {
-          campaignNameInput,
-          objective,
-          contentType,
-          productType,
-          serviceTypeInput,
-          campaignBrief: aiProcessingBrief,
-        },
-        connectedPlatforms: connectedAdPlatforms,
-        selectedPlatforms,
-        campaignData: realCampaigns.slice(0, 120),
-        wooContext,
-        aiInputText: aiProcessingBrief,
-        platformTextRules,
-      };
-
-      const [strategyResult, audienceResult] = await Promise.all([
-        getCampaignBuilderSuggestions(JSON.stringify(contextPayload), aiKeys, responseLanguage),
-        getAudienceRecommendations(JSON.stringify(contextPayload), aiKeys),
-      ]);
-
-      setAiAudienceProvider('AI');
-
-      if (strategyResult?.shortTitle) {
-        setShortTitleInput(String(strategyResult.shortTitle).trim());
-      } else if (!shortTitleInput.trim() && inferredWooTitle) {
-        setShortTitleInput(inferredWooTitle);
-      }
-      if (strategyResult?.campaignName) setCampaignNameInput(strategyResult.campaignName);
-      if (
-        strategyResult?.objective &&
-        ['sales', 'traffic', 'leads', 'awareness', 'retargeting'].includes(strategyResult.objective)
-      ) {
-        setObjective(strategyResult.objective);
-      }
-      if (
-        strategyResult?.contentType &&
-        ['product', 'offer', 'educational', 'testimonial', 'video'].includes(strategyResult.contentType)
-      ) {
-        setContentType(strategyResult.contentType);
-      }
-      if (
-        strategyResult?.productType &&
-        ['fashion', 'beauty', 'tech', 'home', 'fitness', 'services', 'other'].includes(strategyResult.productType)
-      ) {
-        setProductType(strategyResult.productType);
-      }
-      if (strategyResult?.serviceType) setServiceTypeInput(strategyResult.serviceType);
-
-      const nextPlatformCopy: Partial<Record<PlatformName, PlatformCopyDraft>> = {};
-      (['Google', 'Meta', 'TikTok'] as const).forEach((platform) => {
-        const item = strategyResult?.platformCopy?.[platform];
-        if (!item) return;
-        nextPlatformCopy[platform] = {
-          title: String(item.title || '').trim(),
-          description: String(item.description || '').trim(),
-        };
-      });
-      if (Object.keys(nextPlatformCopy).length > 0) {
-        setPlatformCopyDrafts(nextPlatformCopy);
-        const primaryPlatform = (selectedPlatforms[0] || 'Google') as PlatformName;
-        const primaryCopy = nextPlatformCopy[primaryPlatform] || nextPlatformCopy.Google || null;
-        if (primaryCopy) {
-          if (primaryCopy.title) setCampaignNameInput(primaryCopy.title);
-          if (primaryCopy.description) setCampaignBrief(primaryCopy.description);
-        }
-      } else {
-        setPlatformCopyDrafts({});
-      }
-
-      const strategyAudiences = Array.isArray(strategyResult?.audiences)
-        ? strategyResult.audiences.map((value) => String(value).trim()).filter(Boolean)
-        : [];
-      const aiAudienceNames =
-        Array.isArray(audienceResult?.recommendations) && audienceResult.recommendations.length > 0
-          ? audienceResult.recommendations
-              .map((item) => String(item?.suggestedName || item?.title || '').trim())
-              .filter(Boolean)
-          : [];
-      const mergedAudienceNames = [...new Set([...strategyAudiences, ...aiAudienceNames])];
-      if (mergedAudienceNames.length > 0) {
-        setAiGeneratedAudienceNames(mergedAudienceNames);
-        setSelectedAudiences((prev) => [...new Set([...prev, ...mergedAudienceNames])]);
-      }
-
-      const recommendedHoursByPlatform = strategyResult?.recommendedHoursByPlatform || {};
-      const sanitizedHourMap: Record<string, number[]> = {};
-      (Object.keys(recommendedHoursByPlatform) as Array<'Google' | 'Meta' | 'TikTok'>).forEach((platform) => {
-        const raw = Array.isArray(recommendedHoursByPlatform[platform])
-          ? recommendedHoursByPlatform[platform]
-          : [];
-        sanitizedHourMap[platform] = sanitizeHours(raw.map((hour) => Number(hour)));
-      });
-      setAiRecommendedHoursByPlatform(sanitizedHourMap);
-      if (Object.keys(sanitizedHourMap).length > 0) {
-        setWeeklySchedule((prev) => {
-          const next: WeeklySchedule = { ...prev };
-          Object.entries(sanitizedHourMap).forEach(([platform, hours]) => {
-            if (!next[platform]) next[platform] = createEmptyDaySchedule();
-            DAY_KEYS.forEach((day) => {
-              next[platform][day] = hours;
-            });
-          });
-          return next;
-        });
-      }
-
-      if (Array.isArray(strategyResult?.targetingRules) && strategyResult.targetingRules.length > 0) {
-        const aiRules: TimeRule[] = strategyResult.targetingRules
-          .map((rule, index) => {
-            const platform = String(rule.platform || '').trim();
-            if (!['Google', 'Meta', 'TikTok'].includes(platform)) return null;
-            const startHour = normalizeHour(Number(rule.startHour));
-            const endHour = normalizeHour(Number(rule.endHour));
-            if (endHour <= startHour) return null;
-            const action: RuleAction =
-              rule.action === 'boost' || rule.action === 'limit' || rule.action === 'pause'
-                ? rule.action
-                : 'boost';
-            return {
-              id: `ai-rule-${Date.now()}-${index}`,
-              platform: platform as PlatformName,
-              startHour,
-              endHour,
-              action,
-              minRoas: toAmount(rule.minRoas) || 2,
-              reason: rule.reason ? String(rule.reason) : undefined,
-            };
-          })
-          .filter(Boolean) as TimeRule[];
-        if (aiRules.length > 0) {
-          setTimeRules((prev) => [...aiRules, ...prev]);
-        }
-      }
-    } catch (error) {
-      setBuilderMessage(error instanceof Error ? error.message : 'AI generation failed.');
-    } finally {
-      setSmartAdElapsedMs(Date.now() - runStartedAt);
-      setAiAudienceLoading(false);
-    }
-  };
-
-  const applyPlatformCopyToFields = (platform: PlatformName) => {
-    const draft = platformCopyDrafts[platform];
-    if (!draft) return;
-    if (draft.title) {
-      setCampaignNameInput(draft.title);
-      setShortTitleInput(draft.title);
-    }
-    if (draft.description) setCampaignBrief(draft.description);
-    setSelectedPreviewPlatform(platform);
-    setBuilderMessage(text.applyPlatformCopyDone);
-  };
-
-  const getPlatformTitleLimit = (platform: PlatformName) => (platform === 'Google' ? 30 : 40);
-  const getPlatformDescriptionLimit = (platform: PlatformName) =>
-    platform === 'Google' ? 90 : platform === 'Meta' ? 125 : 100;
-
-  const buildLocalPlatformCopyDrafts = (): Partial<Record<PlatformName, PlatformCopyDraft>> => {
-    const platforms = (selectedPlatforms.filter((p): p is PlatformName =>
-      p === 'Google' || p === 'Meta' || p === 'TikTok'
-    ) as PlatformName[]);
-    const activePlatforms = platforms.length > 0 ? platforms : ['Google'];
-    const baseTitle = shortTitleInput.trim() || campaignNameInput.trim();
-    const baseDescription = campaignBrief.trim() || serviceTypeInput.trim();
-    const trimByLength = (value: string, max: number) =>
-      value.length > max ? `${value.slice(0, Math.max(0, max - 1)).trim()}…` : value;
-    const drafts: Partial<Record<PlatformName, PlatformCopyDraft>> = {};
-
-    activePlatforms.forEach((platform) => {
-      if (platform === 'Google') {
-        drafts.Google = {
-          title: trimByLength(baseTitle || 'Google Ad', 30),
-          description: trimByLength(baseDescription || 'High-intent ad copy for search traffic.', 90),
-        };
-      }
-      if (platform === 'Meta') {
-        drafts.Meta = {
-          title: trimByLength(baseTitle || 'Meta Ad', 40),
-          description: trimByLength(
-            baseDescription || 'Engaging social-first primary text for Meta placements.',
-            125
-          ),
-        };
-      }
-      if (platform === 'TikTok') {
-        drafts.TikTok = {
-          title: trimByLength(baseTitle || 'TikTok Ad', 40),
-          description: trimByLength(
-            baseDescription || 'Short hook-focused caption for TikTok audiences.',
-            100
-          ),
-        };
-      }
-    });
-
-    return drafts;
-  };
-
-  const handleGeneratePlatformAdCopies = async () => {
-    setBuilderMessage(null);
-    setAiAudienceLoading(true);
-    try {
-      if (!shortTitleInput.trim() && !campaignNameInput.trim()) {
-        setBuilderMessage(text.requireFields);
-        return;
-      }
-      const aiKeys = getAIKeysFromConnections(connections);
-      if (!hasAnyAIKey(aiKeys)) {
-        const fallbackDrafts = buildLocalPlatformCopyDrafts();
-        setPlatformCopyDrafts(fallbackDrafts);
-        setBuilderMessage(
-          isHebrew
-            ? 'אין חיבור AI פעיל, נוצרו מודעות מותאמות לפי כללי פלטפורמה מקומיים.'
-            : 'No active AI connection. Platform-fit ads were generated using local rules.'
-        );
-        return;
-      }
-
-      const responseLanguage =
-        language === 'he'
-          ? 'Hebrew'
-          : language === 'ru'
-          ? 'Russian'
-          : language === 'pt'
-          ? 'Portuguese'
-          : language === 'fr'
-          ? 'French'
-          : 'English';
-      const contextPayload = {
-        shortTitle:
-          shortTitleInput.trim() || selectedWooProduct?.name || inferredWooTitle || campaignNameInput.trim(),
-        currentForm: {
-          campaignNameInput,
-          objective,
-          contentType,
-          productType,
-          serviceTypeInput,
-          campaignBrief: aiProcessingBrief,
-        },
-        connectedPlatforms: connectedAdPlatforms,
-        selectedPlatforms,
-        aiInputText: aiProcessingBrief,
-      };
-      const strategyResult = await getCampaignBuilderSuggestions(
-        JSON.stringify(contextPayload),
-        aiKeys,
-        responseLanguage
-      );
-      const nextPlatformCopy: Partial<Record<PlatformName, PlatformCopyDraft>> = {};
-      (['Google', 'Meta', 'TikTok'] as const).forEach((platform) => {
-        const item = strategyResult?.platformCopy?.[platform];
-        if (!item) return;
-        nextPlatformCopy[platform] = {
-          title: String(item.title || '').trim(),
-          description: String(item.description || '').trim(),
-        };
-      });
-      if (Object.keys(nextPlatformCopy).length > 0) {
-        setPlatformCopyDrafts(nextPlatformCopy);
-      } else {
-        const fallbackDrafts = buildLocalPlatformCopyDrafts();
-        setPlatformCopyDrafts(fallbackDrafts);
-      }
-    } catch (error) {
-      setBuilderMessage(
-        error instanceof Error ? error.message : isHebrew ? 'יצירת מודעות נכשלה.' : 'Ad generation failed.'
-      );
-    } finally {
-      setAiAudienceLoading(false);
-    }
-  };
-
-  const scrollToBuilderSection = () => {
-    builderSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  };
-
-  const handleCreateScheduledCampaign = async () => {
-    setBuilderMessage(null);
-    setPublishResults([]);
-    const resolvedPlatforms = (
-      (selectedPlatforms.length > 0 ? selectedPlatforms : connectedAdPlatforms).filter((platform) =>
-        connectedAdPlatforms.includes(platform)
-      ) as PlatformName[]
-    );
-    const resolvedCampaignName =
-      campaignNameInput.trim() ||
-      shortTitleInput.trim() ||
-      inferredWooTitle ||
-      selectedWooProduct?.name ||
-      '';
-
-    if (!resolvedCampaignName || resolvedPlatforms.length === 0) {
-      setBuilderMessage(text.requireFields);
-      return;
-    }
-    if (uploadedAssets.length === 0) {
-      setBuilderMessage(text.requireAsset);
-      return;
-    }
-    if (useWooProductData && isWooConnected && wooProducts.length > 0) {
-      if (wooPublishScope === 'category' && !selectedWooCategory) {
-        setBuilderMessage(text.wooRequireTarget);
-        return;
-      }
-      if (wooPublishScope === 'product' && !selectedWooProductId) {
-        setBuilderMessage(text.wooRequireTarget);
-        return;
-      }
-    }
-
-    setIsCreatingCampaign(true);
-    const mediaCount = uploadedAssets.length;
-    try {
-      await ensureManagedApiSession();
-      const response = await fetch('/api/campaigns/scheduled', {
-        method: 'POST',
-        headers: {
-          'content-type': 'application/json',
-        },
-        body: JSON.stringify({
-          campaignName: resolvedCampaignName,
-          shortTitle: shortTitleInput.trim(),
-          objective,
-          contentType,
-          productType,
-          serviceType: serviceTypeInput.trim(),
-          brief: campaignBrief.trim(),
-          platforms: resolvedPlatforms,
-          audiences: selectedAudiences,
-          timeRules,
-          weeklySchedule,
-          wooPublishMode: isWooConnected && useWooProductData ? wooPublishScope : null,
-          wooCategory:
-            isWooConnected && useWooProductData && wooPublishScope === 'category'
-              ? selectedWooCategory || null
-              : null,
-          wooProductId:
-            isWooConnected && useWooProductData && wooPublishScope === 'product'
-              ? selectedWooProductId || null
-              : null,
-          wooProductName:
-            isWooConnected && useWooProductData && wooPublishScope === 'product'
-              ? selectedWooProduct?.name || null
-              : null,
-          platformCopyDrafts,
-        }),
-      });
-      const payload = await response.json().catch(() => ({}));
-      if (!response.ok) {
-        throw new Error(
-          payload?.message ||
-            (isHebrew
-              ? `יצירת קמפיין נכשלה (קוד ${response.status}).`
-              : `Campaign creation failed (status ${response.status}).`)
-        );
-      }
-      const results = Array.isArray(payload?.results) ? payload.results : [];
-      if (results.length === 0 && payload?.success !== true) {
-        throw new Error(
-          payload?.message ||
-            (isHebrew
-              ? 'לא התקבלו תוצאות יצירה מהשרת. בדוק חיבורים ונסה שוב.'
-              : 'No campaign creation results were returned by the server. Check your connections and retry.')
-        );
-      }
-      setPublishResults(results);
-
-      const created = resolvedPlatforms.map((platform) => {
-        const activeHours = getActiveSlotsCount(platform);
-        const platformResult = results.find((item: Record<string, unknown>) => String(item?.platform || '') === platform);
-        return {
-          id: `live-${platform}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-          name: resolvedCampaignName,
-          platform,
-          status:
-            platformResult?.ok === true
-              ? activeHours > 0
-                ? 'Scheduled'
-                : 'Draft'
-              : 'Error',
-          spend: 0,
-          roas: 0,
-          cpa: 0,
-          objective,
-          brief: campaignBrief.trim(),
-          audiences: selectedAudiences,
-          mediaCount,
-          wooPublishMode: isWooConnected && useWooProductData ? wooPublishScope : null,
-          wooCategory:
-            isWooConnected && useWooProductData && wooPublishScope === 'category'
-              ? selectedWooCategory || null
-              : null,
-          wooProductName:
-            isWooConnected && useWooProductData && wooPublishScope === 'product'
-              ? selectedWooProduct?.name || null
-              : null,
-        };
-      });
-      setCreatedCampaigns((prev) => [...created, ...prev]);
-
-      const successCount = results.filter((item: Record<string, unknown>) => item?.ok).length;
-      setBuilderMessage(
-        successCount === resolvedPlatforms.length
-          ? text.publishedOk
-          : successCount > 0
-            ? text.publishedPartial
-            : payload?.message || text.publishedPartial
-      );
-
-      setCampaignNameInput('');
-      setShortTitleInput('');
-      setCampaignBrief('');
-      setSelectedAudiences([]);
-      setAiGeneratedAudienceNames([]);
-      setPlatformCopyDrafts({});
-      setTimeRules([]);
-    } catch (error) {
-      setBuilderMessage(error instanceof Error ? error.message : 'Failed to create scheduled campaign.');
-    } finally {
-      // Privacy-safe behavior: remove uploaded media after publish submission attempt.
-      clearUploadedMedia();
-      setIsCreatingCampaign(false);
-    }
-  };
 
   const hasConnectedAdPlatform = Boolean(
     connections.find(
