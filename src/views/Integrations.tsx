@@ -6,7 +6,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
 import { useConnections, Connection } from '../contexts/ConnectionsContext';
 import { useLanguage } from '../contexts/LanguageContext';
-import { auth, onAuthStateChanged } from '../lib/firebase';
+import { useIntegrationsLogic } from './integrations/useIntegrationsLogic';
 import { OverviewTab } from './integrations/OverviewTab';
 import { GoogleTab } from './integrations/GoogleTab';
 import { MetaTab } from './integrations/MetaTab';
@@ -14,31 +14,14 @@ import { TikTokTab } from './integrations/TikTokTab';
 import { EcommerceTab } from './integrations/EcommerceTab';
 import { ConnectionWizard } from './integrations/ConnectionWizard';
 import { IntegrationSettingsPanel } from './integrations/IntegrationSettingsPanel';
-import type {
-  ManagedGoogleAdsAccount,
-  MetaAssetsPayload,
-} from './integrations/integrationUtils';
 import {
   parseManagedGoogleAdsAccounts,
   formatGoogleAdsAccountId,
-  normalizeMetaAccountId,
-  normalizeGoogleAdsAccountId,
 } from './integrations/integrationUtils';
-
-const viteEnv =
-  typeof import.meta !== 'undefined'
-    ? ((import.meta as unknown as { env?: Record<string, unknown> }).env ?? undefined)
-    : undefined;
-const configuredApiBase = (typeof viteEnv?.VITE_APP_URL === 'string' && viteEnv.VITE_APP_URL.trim()) || '';
-const API_BASE = (() => {
-  if (!configuredApiBase || typeof window === 'undefined') return '';
-  try {
-    const configuredOrigin = new URL(configuredApiBase, window.location.origin).origin;
-    return configuredOrigin === window.location.origin ? configuredOrigin : '';
-  } catch {
-    return '';
-  }
-})();
+import {
+  type WizardPlatform,
+  WIZARD_FIELDS,
+} from './integrations/wizardTypes';
 
 
 const getActiveAccountSummary = (integration: Connection): string | null => {
@@ -97,65 +80,6 @@ const brandStyles: Record<string, { bg: string, text: string, border: string, li
   'shopify': { bg: 'bg-gradient-to-br from-emerald-500 to-green-600', text: 'text-white', border: 'border-emerald-200', lightBg: 'bg-emerald-50' },
 };
 
-type WizardPlatform = 'google' | 'meta' | 'tiktok' | 'woocommerce' | 'shopify';
-type WizardStep = 1 | 2 | 3;
-
-type WizardField = {
-  key: string;
-  labelHe: string;
-  labelEn: string;
-  placeholder: string;
-  required?: boolean;
-  type?: 'text' | 'password' | 'url';
-};
-
-type WizardDraft = {
-  platform: WizardPlatform;
-  step: WizardStep;
-  values: Record<string, string>;
-  completedPlatforms: WizardPlatform[];
-  updatedAt: number;
-};
-
-const WIZARD_STORAGE_PREFIX = 'bscale.integrations.wizardDraft';
-
-const WIZARD_PLATFORM_OPTIONS: Array<{ id: WizardPlatform; label: string }> = [
-  { id: 'google', label: 'Google' },
-  { id: 'meta', label: 'Meta' },
-  { id: 'tiktok', label: 'TikTok' },
-  { id: 'woocommerce', label: 'WooCommerce' },
-  { id: 'shopify', label: 'Shopify' },
-];
-
-const WIZARD_FIELDS: Record<WizardPlatform, WizardField[]> = {
-  google: [
-    { key: 'googleAdsId', labelHe: 'מזהה חשבון מודעות', labelEn: 'Ads account ID', placeholder: '123-456-7890', required: true },
-    { key: 'loginCustomerId', labelHe: 'Login Customer ID', labelEn: 'Login Customer ID', placeholder: '123-456-7890' },
-    { key: 'ga4Id', labelHe: 'GA4 Property ID', labelEn: 'GA4 Property ID', placeholder: '123456789' },
-    { key: 'siteUrl', labelHe: 'Site URL ל-GSC', labelEn: 'Site URL for GSC', placeholder: 'https://example.com', type: 'url' },
-    { key: 'googleAccessToken', labelHe: 'Google Access Token', labelEn: 'Google Access Token', placeholder: 'ya29...' },
-  ],
-  meta: [
-    { key: 'metaAdsId', labelHe: 'מזהה חשבון מודעות', labelEn: 'Ads account ID', placeholder: 'act_123456789', required: true },
-    { key: 'pixelId', labelHe: 'Pixel ID', labelEn: 'Pixel ID', placeholder: '123456789012345', required: true },
-    { key: 'businessId', labelHe: 'Business Manager ID', labelEn: 'Business Manager ID', placeholder: '112233445566778' },
-    { key: 'metaToken', labelHe: 'Meta Access Token', labelEn: 'Meta Access Token', placeholder: 'EAAB...' },
-  ],
-  tiktok: [
-    { key: 'tiktokAdvertiserId', labelHe: 'Advertiser ID', labelEn: 'Advertiser ID', placeholder: '7012345678901234567', required: true },
-    { key: 'tiktokPixelId', labelHe: 'Pixel ID', labelEn: 'Pixel ID', placeholder: 'TT-PIXEL-123' },
-  ],
-  woocommerce: [
-    { key: 'storeUrl', labelHe: 'כתובת החנות', labelEn: 'Store URL', placeholder: 'https://mystore.com', type: 'url', required: true },
-    { key: 'wooKey', labelHe: 'Consumer Key', labelEn: 'Consumer Key', placeholder: 'ck_...', required: true },
-    { key: 'wooSecret', labelHe: 'Consumer Secret', labelEn: 'Consumer Secret', placeholder: 'cs_...', required: true, type: 'password' },
-  ],
-  shopify: [
-    { key: 'storeUrl', labelHe: 'כתובת החנות', labelEn: 'Store URL', placeholder: 'https://mystore.myshopify.com', type: 'url', required: true },
-    { key: 'shopifyToken', labelHe: 'Admin API Access Token', labelEn: 'Admin API Access Token', placeholder: 'shpat_...', required: true, type: 'password' },
-  ],
-};
-
 export function Integrations({ userProfile }: { userProfile?: { role?: string; subscriptionStatus?: string } | null }) {
   const isAdmin = userProfile?.role === 'admin';
   const isDemo = userProfile?.subscriptionStatus === 'demo';
@@ -170,843 +94,74 @@ export function Integrations({ userProfile }: { userProfile?: { role?: string; s
     migrateAiConnectionsFromUser,
     isWorkspaceReadOnly,
   } = useConnections();
+  const isHebrew = language === 'he';
   type TabId = 'overview' | 'google' | 'meta' | 'tiktok' | 'whatsapp' | 'more';
   const [activeTab, setActiveTab] = useState<TabId>('overview');
-  const [error, setError] = useState<{ id: string; message: string } | null>(null);
-  const [expandedId, setExpandedId] = useState<string | null>(null);
-  const [formValues, setFormValues] = useState<Record<string, string>>({});
-  const [testingId, setTestingId] = useState<string | null>(null);
-
-  const [success, setSuccess] = useState<string | null>(null);
-
-  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
-  const [metaAssets, setMetaAssets] = useState<MetaAssetsPayload | null>(null);
-  const [metaAssetsLoading, setMetaAssetsLoading] = useState(false);
-  const [metaAssetsError, setMetaAssetsError] = useState<string | null>(null);
-  const [tiktokAccounts, setTiktokAccounts] = useState<Array<{ externalAccountId: string; name?: string }>>([]);
-  const [tiktokAccountsLoading, setTiktokAccountsLoading] = useState(false);
-  const [tiktokAccountsError, setTiktokAccountsError] = useState<string | null>(null);
-  const [reinstallingManagedPlatform, setReinstallingManagedPlatform] = useState<
-    'google' | 'meta' | 'tiktok' | null
-  >(null);
-  const [reinstallingGoogleAndMeta, setReinstallingGoogleAndMeta] = useState(false);
-  const [isWizardOpen, setIsWizardOpen] = useState(false);
-  const [wizardStep, setWizardStep] = useState<WizardStep>(1);
-  const [wizardPlatform, setWizardPlatform] = useState<WizardPlatform>('google');
-  const [wizardSaving, setWizardSaving] = useState(false);
-  const [wizardValues, setWizardValues] = useState<Record<string, string>>({
-    wizardBusinessName: '',
-    wizardMainGoal: '',
-    wizardNotes: '',
+  const {
+    error, setError,
+    expandedId, setExpandedId,
+    formValues, setFormValues,
+    testingId,
+    success, setSuccess,
+    toast, setToast,
+    metaAssets, metaAssetsLoading, metaAssetsError,
+    tiktokAccounts, tiktokAccountsLoading, tiktokAccountsError,
+    reinstallingManagedPlatform,
+    reinstallingGoogleAndMeta,
+    isWizardOpen, setIsWizardOpen,
+    wizardStep,
+    wizardPlatform,
+    wizardSaving,
+    wizardValues, setWizardValues,
+    wizardResumeAvailable,
+    wizardLastSavedAt,
+    wizardPlatforms,
+    completedWizardPlatforms,
+    wizardCompletedCount,
+    wizardTotalCount,
+    wizardHasPendingPlatforms,
+    wizardProgressPercent,
+    wizardLastSavedLabel,
+    openConnectionWizard,
+    handleWizardInput,
+    handleWizardNext,
+    handleWizardBack,
+    handleWizardSubmit,
+    runOAuthForWizard,
+    clearWizardDraft,
+    pauseWizardForLater,
+    resumeWizard,
+    loadManagedMetaAssets,
+    loadManagedTikTokAccounts,
+    handleGoogleConnect,
+    handleMetaConnect,
+    handleTikTokConnect,
+    handleReinstallManagedConnection,
+    handleReinstallGoogleAndMeta,
+    handleMigrateAi,
+    handleSave,
+    handleTest,
+    handleHardResetConnection,
+    handleExpand,
+    handleInputChange,
+    blockIfReadOnly,
+    languageSafeText,
+    setWizardPlatform,
+    isWizardPlatformDone,
+    getConnectionSettingsById,
+  } = useIntegrationsLogic({
+    connections,
+    dataOwnerUid,
+    isWorkspaceReadOnly,
+    isHebrew,
+    language,
+    t,
+    updateConnectionSettings,
+    clearConnectionSettings,
+    testConnection,
+    migrateAiConnectionsFromUser,
   });
-  const [wizardResumeAvailable, setWizardResumeAvailable] = useState(false);
-  const [wizardLastSavedAt, setWizardLastSavedAt] = useState<number | null>(null);
-  const [wizardLoadedStorageKey, setWizardLoadedStorageKey] = useState<string | null>(null);
-  const blockIfReadOnly = (): boolean => {
-    if (!isWorkspaceReadOnly) return false;
-    setToast({
-      message:
-        languageSafeText(t('integrations.readOnlyWorkspace'), 'Workspace is view only for this user.'),
-      type: 'error',
-    });
-    setTimeout(() => setToast(null), 3000);
-    return true;
-  };
-  const languageSafeText = (value: string, fallback: string) => (value && value !== 'integrations.readOnlyWorkspace' ? value : fallback);
-  const isHebrew = language === 'he';
-  const wizardStorageKey = `${WIZARD_STORAGE_PREFIX}:${dataOwnerUid || 'default'}`;
 
-  const getConnectionSettingsById = (id: string): Record<string, string> => {
-    return connections.find((c) => c.id === id)?.settings || {};
-  };
-
-  const isWizardPlatformDone = (platform: WizardPlatform, sourceSettings?: Record<string, string>) => {
-    const connection = connections.find((c) => c.id === platform);
-    const settings = sourceSettings || connection?.settings || {};
-    const required = WIZARD_FIELDS[platform].filter((field) => field.required);
-    const requiredComplete = required.every((field) => String(settings[field.key] || '').trim());
-    const anyFieldFilled = Object.keys(settings).some((key) => String(settings[key] || '').trim());
-    return Boolean(connection?.status === 'connected' || requiredComplete || anyFieldFilled);
-  };
-
-  const isWizardValuesMeaningful = (values: Record<string, string>) => {
-    const nonEmptyKeys = Object.keys(values).filter((key) => String(values[key] || '').trim());
-    return nonEmptyKeys.length > 0;
-  };
-
-  const clearWizardDraft = () => {
-    try {
-      localStorage.removeItem(wizardStorageKey);
-    } catch (err) {
-      console.error('Failed to clear wizard draft:', err);
-    }
-    setWizardResumeAvailable(false);
-    setWizardLastSavedAt(null);
-    setWizardStep(1);
-    setWizardPlatform('google');
-    setWizardValues({
-      wizardBusinessName: '',
-      wizardMainGoal: '',
-      wizardNotes: '',
-    });
-  };
-
-  const pauseWizardForLater = () => {
-    setIsWizardOpen(false);
-    setWizardResumeAvailable(true);
-    setToast({
-      message: isHebrew ? 'ההתקדמות נשמרה. אפשר להמשיך מהנקודה הזו בהמשך.' : 'Progress saved. You can continue from this point later.',
-      type: 'success',
-    });
-    setTimeout(() => setToast(null), 3000);
-  };
-
-  const resumeWizard = () => {
-    if (blockIfReadOnly()) return;
-    setIsWizardOpen(true);
-  };
-
-  const wizardPlatforms = React.useMemo(
-    () => WIZARD_PLATFORM_OPTIONS.map((platform) => platform.id),
-    []
-  );
-  const completedWizardPlatforms = React.useMemo(
-    () => wizardPlatforms.filter((platform) => isWizardPlatformDone(platform)),
-    [wizardPlatforms, connections]
-  );
-  const wizardCompletedCount = completedWizardPlatforms.length;
-  const wizardTotalCount = wizardPlatforms.length;
-  const wizardHasPendingPlatforms = wizardCompletedCount < wizardTotalCount;
-  const wizardProgressPercent = Math.round((wizardCompletedCount / Math.max(wizardTotalCount, 1)) * 100);
-  const wizardLastSavedLabel = wizardLastSavedAt
-    ? new Date(wizardLastSavedAt).toLocaleString(isHebrew ? 'he-IL' : 'en-US')
-    : null;
-
-  const openConnectionWizard = (platform: WizardPlatform) => {
-    if (blockIfReadOnly()) return;
-    const base = getConnectionSettingsById(platform);
-    setWizardPlatform(platform);
-    setWizardStep(1);
-    setWizardValues((prev) => ({
-      wizardBusinessName: prev.wizardBusinessName || '',
-      wizardMainGoal: prev.wizardMainGoal || '',
-      wizardNotes: prev.wizardNotes || '',
-      ...base,
-    }));
-    setIsWizardOpen(true);
-  };
-
-  const handleWizardInput = (key: string, value: string) => {
-    setWizardValues((prev) => ({ ...prev, [key]: value }));
-  };
-
-  const runOAuthForWizard = async () => {
-    if (wizardPlatform === 'google') {
-      await handleGoogleConnect();
-      return;
-    }
-    if (wizardPlatform === 'meta') {
-      await handleMetaConnect();
-      return;
-    }
-    if (wizardPlatform === 'tiktok') {
-      await handleTikTokConnect();
-    }
-  };
-
-  const validateWizardStep = (): boolean => {
-    if (wizardStep === 1) {
-      if (!wizardValues.wizardBusinessName?.trim()) {
-        setToast({
-          message: isHebrew ? 'יש להזין שם עסק/חשבון לחיבור.' : 'Please enter business/account name.',
-          type: 'error',
-        });
-        return false;
-      }
-      return true;
-    }
-
-    if (wizardStep === 2) {
-      const missingRequired = WIZARD_FIELDS[wizardPlatform].filter(
-        (field) => field.required && !String(wizardValues[field.key] || '').trim()
-      );
-      if (missingRequired.length > 0) {
-        setToast({
-          message: isHebrew
-            ? 'חסרים פרטי נכסים נדרשים לחיבור (כמו חשבון מודעות/פיקסל).'
-            : 'Missing required asset details (e.g. ad account / pixel).',
-          type: 'error',
-        });
-        return false;
-      }
-    }
-    return true;
-  };
-
-  const handleWizardNext = () => {
-    if (!validateWizardStep()) return;
-    setWizardStep((prev) => (prev < 3 ? ((prev + 1) as WizardStep) : prev));
-  };
-
-  const handleWizardBack = () => {
-    setWizardStep((prev) => (prev > 1 ? ((prev - 1) as WizardStep) : prev));
-  };
-
-  const handleWizardSubmit = async () => {
-    if (blockIfReadOnly()) return;
-    if (!validateWizardStep()) return;
-    setWizardSaving(true);
-    try {
-      const payload: Record<string, string> = {
-        ...getConnectionSettingsById(wizardPlatform),
-        ...wizardValues,
-      };
-      await handleSave(wizardPlatform, payload);
-      setIsWizardOpen(false);
-      setWizardStep(1);
-      setWizardResumeAvailable(true);
-      setWizardLastSavedAt(Date.now());
-      setToast({
-        message: isHebrew
-          ? 'שאלון ההתחברות הושלם והנכסים נשמרו לחיבור.'
-          : 'Connection questionnaire completed and assets were saved.',
-        type: 'success',
-      });
-      setTimeout(() => setToast(null), 3000);
-    } catch (err) {
-      setToast({
-        message: isHebrew
-          ? 'שמירת שאלון ההתחברות נכשלה. נסה שוב.'
-          : 'Failed saving connection questionnaire. Please try again.',
-        type: 'error',
-      });
-      setTimeout(() => setToast(null), 3000);
-    } finally {
-      setWizardSaving(false);
-    }
-  };
-
-  React.useEffect(() => {
-    if (wizardLoadedStorageKey === wizardStorageKey) return;
-    setWizardLoadedStorageKey(wizardStorageKey);
-    setWizardStep(1);
-    setWizardPlatform('google');
-    setWizardValues({
-      wizardBusinessName: '',
-      wizardMainGoal: '',
-      wizardNotes: '',
-    });
-    setWizardLastSavedAt(null);
-    try {
-      const raw = localStorage.getItem(wizardStorageKey);
-      if (!raw) {
-        setWizardResumeAvailable(false);
-        return;
-      }
-      const parsed = JSON.parse(raw) as Partial<WizardDraft>;
-      const parsedPlatform = parsed.platform;
-      const parsedStep = parsed.step;
-      const parsedValues = parsed.values;
-      const platformIsValid = parsedPlatform && WIZARD_PLATFORM_OPTIONS.some((item) => item.id === parsedPlatform);
-      const stepIsValid = parsedStep === 1 || parsedStep === 2 || parsedStep === 3;
-      if (platformIsValid) {
-        setWizardPlatform(parsedPlatform);
-      }
-      if (stepIsValid) {
-        setWizardStep(parsedStep);
-      }
-      if (parsedValues && typeof parsedValues === 'object') {
-        setWizardValues((prev) => ({ ...prev, ...parsedValues }));
-        setWizardResumeAvailable(isWizardValuesMeaningful(parsedValues));
-      }
-      if (typeof parsed.updatedAt === 'number') {
-        setWizardLastSavedAt(parsed.updatedAt);
-      }
-    } catch (err) {
-      console.error('Failed to hydrate wizard draft:', err);
-      setWizardResumeAvailable(false);
-    }
-  }, [wizardStorageKey, wizardLoadedStorageKey]);
-
-  React.useEffect(() => {
-    const draft: WizardDraft = {
-      platform: wizardPlatform,
-      step: wizardStep,
-      values: wizardValues,
-      completedPlatforms: completedWizardPlatforms,
-      updatedAt: Date.now(),
-    };
-    try {
-      localStorage.setItem(wizardStorageKey, JSON.stringify(draft));
-      setWizardLastSavedAt(draft.updatedAt);
-      setWizardResumeAvailable(isWizardValuesMeaningful(wizardValues) || completedWizardPlatforms.length > 0);
-    } catch (err) {
-      console.error('Failed to persist wizard draft:', err);
-    }
-  }, [wizardPlatform, wizardStep, wizardValues, completedWizardPlatforms, wizardStorageKey]);
-
-  const handleMigrateAi = async () => {
-    if (blockIfReadOnly()) return;
-    try {
-      const result = await migrateAiConnectionsFromUser();
-      setToast({ message: result.message, type: result.success ? 'success' : 'error' });
-    } catch (err) {
-      setToast({ message: t('common.error'), type: 'error' });
-    } finally {
-      setTimeout(() => setToast(null), 3000);
-    }
-  };
-
-  const bootstrapManagedSession = async (timeoutMs = 3000): Promise<boolean> => {
-    // Fast-path: if the server session cookie is already valid, skip bootstrap.
-    try {
-      const sessionCheck = await fetch(`${API_BASE}/api/connections`, {
-        method: 'GET',
-        cache: 'no-store',
-      });
-      if (sessionCheck.ok) return true;
-    } catch {
-      // Ignore network errors and proceed to re-bootstrap below.
-    }
-
-    // Wait for Firebase auth to initialize before reading currentUser.
-    // A plain auth.currentUser check races with Firebase's async initialization
-    // and returns null immediately after a redirect, causing 401s on the next API call.
-    const currentUser =
-      auth.currentUser ||
-      (await new Promise<import('firebase/auth').User | null>((resolve) => {
-        let settled = false;
-        const timeoutId = window.setTimeout(() => {
-          if (settled) return;
-          settled = true;
-          unsubscribe();
-          resolve(auth.currentUser);
-        }, timeoutMs);
-        const unsubscribe = onAuthStateChanged(auth, (nextUser) => {
-          if (settled) return;
-          settled = true;
-          window.clearTimeout(timeoutId);
-          unsubscribe();
-          resolve(nextUser);
-        });
-      }));
-    if (!currentUser) return false;
-    // Force-refresh the Firebase ID token to avoid using a stale cached token.
-    const idToken = await currentUser.getIdToken(true);
-    const bootstrapRes = await fetch(`${API_BASE}/api/auth/session/bootstrap`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ idToken }),
-    });
-    return bootstrapRes.ok;
-  };
-
-  const persistManagedGoogleSelection = async (googleAdsId: string) => {
-    const normalizedId = normalizeGoogleAdsAccountId(googleAdsId);
-    if (!normalizedId) return;
-    await bootstrapManagedSession();
-    await fetch(`${API_BASE}/api/connections/google-ads/select-accounts`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ accountIds: [normalizedId] }),
-    });
-  };
-
-  const loadManagedTikTokAccounts = async (seedValues?: Record<string, string>) => {
-    await bootstrapManagedSession();
-    setTiktokAccountsLoading(true);
-    setTiktokAccountsError(null);
-    try {
-      let response = await fetch(`${API_BASE}/api/connections/tiktok/accounts`, {
-        method: 'GET',
-        headers: { accept: 'application/json' },
-        cache: 'no-store',
-      });
-      // If the session was not yet ready (e.g. right after an OAuth redirect),
-      // re-bootstrap with a longer timeout and retry once.
-      if (response.status === 401) {
-        await bootstrapManagedSession(8000);
-        response = await fetch(`${API_BASE}/api/connections/tiktok/accounts`, {
-          method: 'GET',
-          headers: { accept: 'application/json' },
-          cache: 'no-store',
-        });
-      }
-      const payload = await response.json() as { success?: boolean; message?: string; data?: { accounts?: Array<{ externalAccountId: string; name?: string }> } };
-      if (!response.ok || !payload?.success) {
-        setTiktokAccountsError(payload?.message || 'Failed to load TikTok advertiser accounts.');
-        return;
-      }
-      const accounts = payload?.data?.accounts ?? [];
-      setTiktokAccounts(accounts);
-      if (!accounts.length) return;
-      setFormValues((prev) => {
-        const source = seedValues || prev;
-        if (String(source.tiktokAdvertiserId || '').trim()) return prev;
-        // Auto-fill the first discovered advertiser ID.
-        return { ...prev, tiktokAdvertiserId: accounts[0].externalAccountId };
-      });
-    } catch (err) {
-      setTiktokAccountsError(err instanceof Error ? err.message : 'Failed to load TikTok advertiser accounts.');
-    } finally {
-      setTiktokAccountsLoading(false);
-    }
-  };
-
-  const persistManagedTikTokSelection = async (advertiserId: string) => {
-    const id = String(advertiserId || '').trim();
-    if (!id) return;
-    await bootstrapManagedSession();
-    await fetch(`${API_BASE}/api/connections/tiktok/select-accounts`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ accountIds: [id] }),
-    });
-  };
-
-  const loadManagedMetaAssets = async (seedValues?: Record<string, string>) => {
-    await bootstrapManagedSession();
-    setMetaAssetsLoading(true);
-    setMetaAssetsError(null);
-    try {
-      const response = await fetch(`${API_BASE}/api/connections/meta/assets`, {
-        method: 'GET',
-        headers: { accept: 'application/json' },
-        cache: 'no-store',
-      });
-      const text = await response.text();
-      let payload:
-        | {
-            success?: boolean;
-            message?: string;
-            data?: MetaAssetsPayload;
-          }
-        | null = null;
-      try {
-        payload = text ? JSON.parse(text) : null;
-      } catch {
-        payload = null;
-      }
-
-      if (!response.ok || !payload?.success || !payload?.data) {
-        throw new Error(payload?.message || `Failed to load Meta assets (${response.status}).`);
-      }
-
-      const assets = payload.data;
-      setMetaAssets(assets);
-
-      setFormValues((prev) => {
-        const source = seedValues || prev;
-        const next = { ...prev };
-        if (!String(source.metaAdsId || '').trim() && assets.defaultAdAccountId) {
-          next.metaAdsId = assets.defaultAdAccountId;
-        }
-        if (!String(source.businessId || '').trim() && assets.defaultBusinessId) {
-          next.businessId = assets.defaultBusinessId;
-        }
-        if (!String(source.messageAccountId || '').trim() && assets.defaultMessageAccountId) {
-          next.messageAccountId = assets.defaultMessageAccountId;
-        }
-        if (!String(source.pixelId || '').trim() && assets.defaultPixelId) {
-          next.pixelId = assets.defaultPixelId;
-        }
-        return next;
-      });
-    } catch (err) {
-      setMetaAssets(null);
-      setMetaAssetsError(err instanceof Error ? err.message : 'Failed to load Meta assets.');
-    } finally {
-      setMetaAssetsLoading(false);
-    }
-  };
-
-  const startManagedOAuth = async (
-    platformSlug: 'google-ads' | 'meta' | 'tiktok',
-    failureMessage: string
-  ) => {
-    await bootstrapManagedSession();
-
-    const parsePayload = async (
-      response: Response
-    ): Promise<
-      | {
-          success?: boolean;
-          message?: string;
-          errorCode?: string;
-          data?: { authorizationUrl?: string };
-        }
-      | null
-    > => {
-      const text = await response.text();
-      try {
-        return text ? JSON.parse(text) : null;
-      } catch {
-        return null;
-      }
-    };
-
-    // Start with GET to avoid method rewrite edge-cases behind domain redirects/proxies.
-    let response = await fetch(`${API_BASE}/api/connections/${platformSlug}/start`, {
-      method: 'GET',
-      headers: { accept: 'application/json' },
-      cache: 'no-store',
-    });
-    let payload = await parsePayload(response);
-
-    if (response.status === 405) {
-      response = await fetch(`${API_BASE}/api/connections/${platformSlug}/start`, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({}),
-      });
-      payload = await parsePayload(response);
-    }
-
-    if (!response.ok || !payload?.success || !payload?.data?.authorizationUrl) {
-      const detailedMessage = payload?.message || `${failureMessage} (${response.status})`;
-      throw new Error(detailedMessage);
-    }
-
-    window.location.assign(payload.data.authorizationUrl);
-  };
-
-  const handleTikTokConnect = async () => {
-    if (blockIfReadOnly()) return;
-    try {
-      await startManagedOAuth('tiktok', 'Failed to start TikTok authentication');
-    } catch (err) {
-      console.error("Failed to get TikTok auth URL:", err);
-      setToast({ message: err instanceof Error && err.message ? err.message : 'Failed to start TikTok authentication', type: 'error' });
-      setTimeout(() => setToast(null), 5000);
-    }
-  };
-
-  const handleMetaConnect = async () => {
-    if (blockIfReadOnly()) return;
-    try {
-      await startManagedOAuth('meta', 'Failed to start Meta authentication');
-    } catch (err) {
-      console.error("Failed to get Meta auth URL:", err);
-      setToast({ message: err instanceof Error && err.message ? err.message : 'Failed to start Meta authentication', type: 'error' });
-      setTimeout(() => setToast(null), 5000);
-    }
-  };
-
-  const handleGoogleConnect = async () => {
-    if (blockIfReadOnly()) return;
-    try {
-      await startManagedOAuth('google-ads', 'Failed to start Google authentication');
-    } catch (err) {
-      console.error("Failed to get Google auth URL:", err);
-      setToast({ message: err instanceof Error && err.message ? err.message : 'Failed to start Google authentication', type: 'error' });
-      setTimeout(() => setToast(null), 5000);
-    }
-  };
-
-  const handleReinstallManagedConnection = async (platform: 'google' | 'meta' | 'tiktok') => {
-    if (blockIfReadOnly()) return;
-
-    const confirmMessage =
-      platform === 'google'
-        ? isHebrew
-          ? 'לבצע התקנה מחדש לחיבור Google? הפעולה תנתק את החיבור הנוכחי (Ads/GA4/GSC/Gmail) ותפתח התחברות מחדש.'
-          : 'Re-install Google connection? This will disconnect the current Google link (Ads/GA4/GSC/Gmail) and start OAuth again.'
-        : platform === 'meta'
-        ? isHebrew
-          ? 'לבצע התקנה מחדש לחיבור Meta? הפעולה תנתק את החיבור הנוכחי ותפתח התחברות מחדש.'
-          : 'Re-install Meta connection? This will disconnect the current Meta link and start OAuth again.'
-        : isHebrew
-        ? 'לבצע התקנה מחדש לחיבור TikTok? הפעולה תנתק את החיבור הנוכחי ותפתח התחברות מחדש.'
-        : 'Re-install TikTok connection? This will disconnect the current TikTok link and start OAuth again.';
-
-    if (!window.confirm(confirmMessage)) return;
-
-    setError(null);
-    setSuccess(null);
-    setReinstallingManagedPlatform(platform);
-    try {
-      await clearConnectionSettings(platform);
-      setExpandedId(null);
-      setFormValues({});
-
-      if (platform === 'google') {
-        await startManagedOAuth('google-ads', 'Failed to start Google authentication');
-      } else if (platform === 'meta') {
-        await startManagedOAuth('meta', 'Failed to start Meta authentication');
-      } else {
-        await startManagedOAuth('tiktok', 'Failed to start TikTok authentication');
-      }
-    } catch (err) {
-      setToast({
-        message:
-          err instanceof Error && err.message
-            ? err.message
-            : isHebrew
-            ? 'התקנה מחדש נכשלה. נסה שוב.'
-            : 'Re-install failed. Please try again.',
-        type: 'error',
-      });
-      setTimeout(() => setToast(null), 3000);
-    } finally {
-      setReinstallingManagedPlatform(null);
-    }
-  };
-
-  const handleReinstallGoogleAndMeta = async () => {
-    if (blockIfReadOnly()) return;
-
-    const confirmMessage = isHebrew
-      ? 'לבצע התקנה מחדש גם ל-Google וגם ל-Meta? הפעולה תמחק את החיבורים הקיימים ותתחיל התחברות מחדש.'
-      : 'Re-install both Google and Meta? This will delete existing connections and start OAuth setup again.';
-
-    if (!window.confirm(confirmMessage)) return;
-
-    setError(null);
-    setSuccess(null);
-    setReinstallingGoogleAndMeta(true);
-    try {
-      await clearConnectionSettings('google');
-      await clearConnectionSettings('meta');
-      setExpandedId(null);
-      setFormValues({});
-
-      setToast({
-        message: isHebrew
-          ? 'החיבורים הישנים נמחקו. ממשיך להתחברות Google מחדש...'
-          : 'Previous connections deleted. Continuing with Google re-authentication...',
-        type: 'success',
-      });
-
-      await startManagedOAuth('google-ads', 'Failed to start Google authentication');
-    } catch (err) {
-      setToast({
-        message:
-          err instanceof Error && err.message
-            ? err.message
-            : isHebrew
-            ? 'התקנה מחדש ל-Google+Meta נכשלה. נסה שוב.'
-            : 'Google+Meta re-install failed. Please retry.',
-        type: 'error',
-      });
-      setTimeout(() => setToast(null), 3500);
-    } finally {
-      setReinstallingGoogleAndMeta(false);
-    }
-  };
-
-  React.useEffect(() => {
-    const url = new URL(window.location.href);
-    const connected = url.searchParams.get('connected');
-    const errorMessage = url.searchParams.get('error');
-
-    if (!connected && !errorMessage) return;
-
-    if (connected === '1') {
-      setToast({
-        message: isHebrew ? 'החיבור הושלם בהצלחה.' : 'Connection completed successfully.',
-        type: 'success',
-      });
-      setTimeout(() => setToast(null), 3000);
-    } else if (errorMessage) {
-      setToast({ message: errorMessage, type: 'error' });
-      setTimeout(() => setToast(null), 4000);
-    }
-
-    url.searchParams.delete('connected');
-    url.searchParams.delete('error');
-    url.searchParams.delete('platform');
-    const nextQuery = url.searchParams.toString();
-    const nextUrl = `${url.pathname}${nextQuery ? `?${nextQuery}` : ''}${url.hash || ''}`;
-    window.history.replaceState({}, '', nextUrl);
-  }, [isHebrew]);
-
-  React.useEffect(() => {
-    const handleMessage = (event: MessageEvent) => {
-      // Simple origin check for development and production
-      const isAllowedOrigin = event.origin.includes(window.location.hostname) || 
-                             event.origin.includes('localhost') ||
-                             event.origin.includes('.run.app');
-      
-      if (!isAllowedOrigin) return;
-
-      if (event.data?.type === 'OAUTH_AUTH_SUCCESS' && event.data?.platform === 'meta') {
-        const { data } = event.data;
-        // Update connection settings with the new token
-        handleSave('meta', { 
-          metaToken: data.access_token,
-        });
-        setWizardValues((prev) => ({ ...prev, metaToken: data.access_token || '' }));
-        setToast({ message: "Successfully connected to Meta Ads!", type: 'success' });
-        setTimeout(() => setToast(null), 3000);
-      }
-
-      if (event.data?.type === 'OAUTH_AUTH_SUCCESS' && event.data?.platform === 'google') {
-        const { tokens } = event.data;
-        // Update connection settings with the new tokens
-        handleSave('google', { 
-          googleAccessToken: tokens.access_token,
-          googleRefreshToken: tokens.refresh_token || '',
-          googleExpiry: (Date.now() + tokens.expires_in * 1000).toString(),
-        });
-        setWizardValues((prev) => ({
-          ...prev,
-          googleAccessToken: tokens.access_token || '',
-          googleRefreshToken: tokens.refresh_token || '',
-        }));
-        setToast({ message: t('integrations.googleEcosystemConnected'), type: 'success' });
-        setTimeout(() => setToast(null), 3000);
-      }
-
-      if (event.data?.type === 'OAUTH_AUTH_ERROR') {
-        setToast({ message: event.data.error || "TikTok authentication failed", type: 'error' });
-        setTimeout(() => setToast(null), 3000);
-      }
-    };
-
-    window.addEventListener('message', handleMessage);
-    return () => window.removeEventListener('message', handleMessage);
-  }, [formValues]);
-
-  const handleExpand = (integration: Connection) => {
-    if (isWorkspaceReadOnly) return;
-    if (expandedId === integration.id) {
-      setExpandedId(null);
-    } else {
-      setExpandedId(integration.id);
-      setFormValues(integration.settings || {});
-      setSuccess(null);
-      if (integration.id === 'meta' && integration.status === 'connected') {
-        void loadManagedMetaAssets(integration.settings || {});
-      } else {
-        setMetaAssets(null);
-        setMetaAssetsError(null);
-      }
-      if (integration.id === 'tiktok' && integration.status === 'connected') {
-        void loadManagedTikTokAccounts(integration.settings || {});
-      } else {
-        setTiktokAccounts([]);
-        setTiktokAccountsError(null);
-      }
-    }
-  };
-
-  const handleInputChange = (key: string, value: string) => {
-    if (isWorkspaceReadOnly) return;
-    setFormValues(prev => ({ ...prev, [key]: value }));
-  };
-
-  const handleSave = async (id: string, overrideSettings?: Record<string, string>) => {
-    if (blockIfReadOnly()) return;
-    setError(null);
-    setSuccess(null);
-    const settingsToSave = overrideSettings || formValues;
-    try {
-      // Show a more realistic verification process
-      await updateConnectionSettings(id, settingsToSave);
-      if (id === 'tiktok' && settingsToSave.tiktokAdvertiserId) {
-        try {
-          await persistManagedTikTokSelection(settingsToSave.tiktokAdvertiserId);
-        } catch (selectionError) {
-          console.warn('Failed to persist TikTok advertiser selection:', selectionError);
-        }
-      }
-      if (id === 'google' && settingsToSave.googleAdsId) {
-        try {
-          await persistManagedGoogleSelection(settingsToSave.googleAdsId);
-        } catch (selectionError) {
-          setToast({
-            message:
-              language === 'he'
-                ? 'החיבור נשמר, אך בחירת חשבון ברירת המחדל ל-Google Ads נכשלה. נסה שוב.'
-                : 'Connection was saved, but default Google Ads account selection failed. Please retry.',
-            type: 'error',
-          });
-          setTimeout(() => setToast(null), 3500);
-          console.warn('Failed to persist managed Google Ads selection:', selectionError);
-        }
-      }
-      setExpandedId(null);
-      const connectionName = connections.find((c) => c.id === id)?.name || '';
-      const successTemplate = t('integrations.success');
-      setSuccess(
-        successTemplate.includes('{{name}}')
-          ? successTemplate.replace('{{name}}', connectionName)
-          : `${successTemplate} ${connectionName}`.trim()
-      );
-      setTimeout(() => setSuccess(null), 3000);
-    } catch (err) {
-      const connectionName = connections.find((c) => c.id === id)?.name || '';
-      const errorTemplate = t('integrations.error');
-      setError({
-        id,
-        message: errorTemplate.includes('{{name}}')
-          ? errorTemplate.replace('{{name}}', connectionName)
-          : `${errorTemplate} ${connectionName}`.trim(),
-      });
-    }
-  };
-
-  const handleTest = async (id: string) => {
-    if (blockIfReadOnly()) return;
-    setTestingId(id);
-    setError(null);
-    setSuccess(null);
-    try {
-      const result = await testConnection(id);
-      if (result.success) {
-        setSuccess(result.message);
-        setToast({ message: result.message, type: 'success' });
-        setTimeout(() => {
-          setSuccess(null);
-          setToast(null);
-        }, 3000);
-      } else {
-        setError({ id, message: result.message });
-        setToast({ message: result.message, type: 'error' });
-        setTimeout(() => setToast(null), 3000);
-      }
-    } catch (err) {
-      setError({ id, message: t('common.error') });
-      setToast({ message: t('common.error'), type: 'error' });
-      setTimeout(() => setToast(null), 3000);
-    } finally {
-      setTestingId(null);
-    }
-  };
-
-  const handleHardResetConnection = async (id: string) => {
-    if (blockIfReadOnly()) return;
-    const confirmDelete = window.confirm(
-      isHebrew
-        ? 'למחוק את החיבור וההגדרות שנשמרו לפלטפורמה זו?'
-        : 'Delete this connection and its saved settings?'
-    );
-    if (!confirmDelete) return;
-
-    setError(null);
-    setSuccess(null);
-    try {
-      await clearConnectionSettings(id);
-      setExpandedId(id);
-      setFormValues({});
-      setToast({
-        message: isHebrew ? 'החיבור אופס בהצלחה.' : 'Connection reset successfully.',
-        type: 'success',
-      });
-    } catch (err) {
-      setToast({
-        message:
-          err instanceof Error && err.message
-            ? err.message
-            : isHebrew
-            ? 'איפוס החיבור נכשל. נסה שוב.'
-            : 'Failed to reset connection. Please retry.',
-        type: 'error',
-      });
-    } finally {
-      setTimeout(() => setToast(null), 3000);
-    }
-  };
 
   const renderIntegrationSettings = (integration: Connection) => (
     <IntegrationSettingsPanel
