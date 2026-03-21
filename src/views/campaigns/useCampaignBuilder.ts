@@ -34,6 +34,7 @@ import {
 } from './types';
 import type { Connection } from '../../contexts/ConnectionsContext';
 import { fetchWooCommerceProducts } from '../../services/woocommerceService';
+import { resolveWooCredentials } from '../../lib/integrations/woocommerceCredentials';
 
 export interface UseCampaignBuilderProps {
   connections: Connection[];
@@ -214,7 +215,9 @@ export function useCampaignBuilder({
       setSelectedWooProductId('');
       return;
     }
-    const { storeUrl, wooKey, wooSecret } = (wooConnection.settings || {}) as Record<string, string>;
+    const { storeUrl, wooKey, wooSecret } = resolveWooCredentials(
+      wooConnection.settings as Record<string, unknown>
+    );
     if (!storeUrl || !wooKey || !wooSecret) {
       setWooProducts([]);
       return;

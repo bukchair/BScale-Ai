@@ -8,6 +8,7 @@ import {
   fetchWooCommerceSalesByRange,
   type WooCommerceOrder,
 } from '../../services/woocommerceService';
+import { resolveWooCredentials } from '../../lib/integrations/woocommerceCredentials';
 import {
   COPY,
   type CampaignSnapshot,
@@ -208,10 +209,13 @@ export function useDashboard({ connections, language, dateRange, startDate, endD
       const startIsoDateOnly = startDate.toISOString().slice(0, 10);
       const endIsoDateOnly = endDate.toISOString().slice(0, 10);
 
-      if (woo?.settings?.storeUrl && woo.settings.wooKey && woo.settings.wooSecret) {
+      const wooCredentials = resolveWooCredentials(woo?.settings as Record<string, unknown> | undefined);
+      if (wooCredentials.storeUrl && wooCredentials.wooKey && wooCredentials.wooSecret) {
         try {
           const salesRows = await fetchWooCommerceSalesByRange(
-            woo.settings.storeUrl, woo.settings.wooKey, woo.settings.wooSecret,
+            wooCredentials.storeUrl,
+            wooCredentials.wooKey,
+            wooCredentials.wooSecret,
             startIsoDateOnly, endIsoDateOnly
           );
           liveRevenue = salesRows.reduce((sum, row) => sum + toNumber(row.netSales || row.totalSales, 0), 0);
@@ -222,7 +226,10 @@ export function useDashboard({ connections, language, dateRange, startDate, endD
 
         try {
           const orders = await fetchWooCommerceLatestOrders(
-            woo.settings.storeUrl, woo.settings.wooKey, woo.settings.wooSecret, 5
+            wooCredentials.storeUrl,
+            wooCredentials.wooKey,
+            wooCredentials.wooSecret,
+            5
           );
           if (orders.length > 0) {
             latestOrdersLive = [...orders]

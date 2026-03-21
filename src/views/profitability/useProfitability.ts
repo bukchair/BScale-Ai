@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { fetchWooCommerceSalesByRange, type WooCommerceSalesPoint } from '../../services/woocommerceService';
 import { loadUnifiedCampaignLayerFromConnections } from '../../lib/unified-data/loaders';
 import type { Connection } from '../../contexts/ConnectionsContext';
+import { resolveWooCredentials } from '../../lib/integrations/woocommerceCredentials';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -62,7 +63,9 @@ export function useProfitability({ connections, startDate, endDate, periodLabel 
 
         let nextWoo: WooCommerceSalesPoint[] = [];
         if (wooConnection?.settings) {
-          const { storeUrl, wooKey, wooSecret } = wooConnection.settings as any;
+          const { storeUrl, wooKey, wooSecret } = resolveWooCredentials(
+            wooConnection.settings as Record<string, unknown>
+          );
           if (storeUrl && wooKey && wooSecret) {
             nextWoo = await fetchWooCommerceSalesByRange(storeUrl, wooKey, wooSecret, startIso, endIso).catch(() => []);
           }

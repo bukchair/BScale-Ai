@@ -4,6 +4,10 @@ import { normalizeGoogleAdsAccountId } from './integrationUtils';
 import type { Connection } from '../../contexts/ConnectionsContext';
 import type { MetaAssetsPayload } from './integrationUtils';
 import {
+  isMaskedWooCredential,
+  resolveWooCredentials,
+} from '../../lib/integrations/woocommerceCredentials';
+import {
   type WizardPlatform,
   type WizardStep,
   type WizardDraft,
@@ -512,7 +516,23 @@ export function useIntegrationsLogic({
     if (blockIfReadOnly()) return;
     setError(null);
     setSuccess(null);
-    const settingsToSave = overrideSettings || formValues;
+    const rawSettings = overrideSettings || formValues;
+    const settingsToSave =
+      id === 'woocommerce'
+        ? (() => {
+            const merged = { ...getConnectionSettingsById(id), ...rawSettings };
+            const normalized = { ...merged } as Record<string, string>;
+            const { storeUrl, wooKey, wooSecret } = resolveWooCredentials(
+              merged as Record<string, unknown>
+            );
+            if (storeUrl) normalized.storeUrl = storeUrl;
+            if (wooKey) normalized.wooKey = wooKey;
+            if (wooSecret) normalized.wooSecret = wooSecret;
+            if (isMaskedWooCredential(String(normalized.wooKey || ''))) delete normalized.wooKey;
+            if (isMaskedWooCredential(String(normalized.wooSecret || ''))) delete normalized.wooSecret;
+            return normalized;
+          })()
+        : rawSettings;
     try {
       await updateConnectionSettings(id, settingsToSave);
       if (id === 'tiktok' && settingsToSave.tiktokAdvertiserId) {

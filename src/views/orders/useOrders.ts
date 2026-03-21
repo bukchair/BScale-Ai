@@ -5,6 +5,7 @@ import {
   type WooCommerceOrder,
 } from '../../services/woocommerceService';
 import type { Connection } from '../../contexts/ConnectionsContext';
+import { resolveWooCredentials } from '../../lib/integrations/woocommerceCredentials';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -164,7 +165,9 @@ export function useOrders({ connections, isWorkspaceReadOnly, language, startDat
   // ── WooCommerce connection ─────────────────────────────────────────────────
   const wooConnection = connections.find((c) => c.id === 'woocommerce');
   const isConnected = wooConnection?.status === 'connected';
-  const { storeUrl, wooKey, wooSecret } = wooConnection?.settings || {};
+  const { storeUrl, wooKey, wooSecret } = resolveWooCredentials(
+    wooConnection?.settings as Record<string, unknown> | undefined
+  );
 
   const isoMin = useMemo(() => startDate.toISOString(), [startDate]);
   const isoMax = useMemo(() => endDate.toISOString(), [endDate]);

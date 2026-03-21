@@ -3,6 +3,7 @@ import { generateCreativeCopy, getAIKeysFromConnections } from '../../lib/gemini
 import { auth, saveAdToFirestore, getSavedAds, type SavedAd } from '../../lib/firebase';
 import { fetchWooCommerceProducts } from '../../services/woocommerceService';
 import type { Connection } from '../../contexts/ConnectionsContext';
+import { resolveWooCredentials } from '../../lib/integrations/woocommerceCredentials';
 
 export type CreativeProduct = {
   id: number;
@@ -82,7 +83,9 @@ export function useCreativeLab({ connections, dataOwnerUid, isWorkspaceReadOnly,
       setProducts(mockProductsFallback);
       return;
     }
-    const { storeUrl, wooKey, wooSecret } = wooConnection!.settings || {};
+    const { storeUrl, wooKey, wooSecret } = resolveWooCredentials(
+      wooConnection?.settings as Record<string, unknown> | undefined
+    );
     if (!storeUrl || !wooKey || !wooSecret) return;
     setProductsLoading(true);
     fetchWooCommerceProducts(storeUrl, wooKey, wooSecret)
@@ -106,7 +109,7 @@ export function useCreativeLab({ connections, dataOwnerUid, isWorkspaceReadOnly,
       })
       .catch(() => setProducts(mockProductsFallback))
       .finally(() => setProductsLoading(false));
-  }, [isWooConnected, wooConnection?.settings?.storeUrl]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [isWooConnected, wooConnection?.settings]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Load saved ads
   useEffect(() => {

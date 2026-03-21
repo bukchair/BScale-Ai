@@ -8,6 +8,7 @@ import { fetchMetaAdAccounts } from '../services/metaService';
 import { fetchGoogleAdAccounts } from '../services/googleService';
 import { AI_CONNECTION_IDS, PLATFORM_CONNECTION_IDS, ADMIN_SALES_EMAIL, initialConnections } from './connectionsData';
 import { isValidDateValue, isExpiredTrialStatus, stripUndefinedDeep, isPermissionDeniedError } from './connectionsUtils';
+import { resolveWooCredentials } from '../lib/integrations/woocommerceCredentials';
 
 export type ConnectionStatus = 'connected' | 'disconnected' | 'error' | 'connecting';
 
@@ -958,7 +959,9 @@ export function ConnectionsProvider({ children }: { children: ReactNode }) {
 
     // Special logic for WooCommerce real verification
     if (id === 'woocommerce' && connection.settings) {
-      const { storeUrl, wooKey, wooSecret } = connection.settings;
+      const { storeUrl, wooKey, wooSecret } = resolveWooCredentials(
+        connection.settings as Record<string, unknown>
+      );
       try {
         await verifyWooCommerceConnection(storeUrl, wooKey, wooSecret);
         const updatedConnections = connections.map(c => 

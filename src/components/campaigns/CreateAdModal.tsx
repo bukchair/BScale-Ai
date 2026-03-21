@@ -18,6 +18,7 @@ import {
 import { cn } from '../../lib/utils';
 import { generateAdCopy, getAIKeysFromConnections } from '../../lib/gemini';
 import { fetchWooCommerceProducts } from '../../services/woocommerceService';
+import { resolveWooCredentials } from '../../lib/integrations/woocommerceCredentials';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -178,7 +179,9 @@ export function CreateAdModal({ open, onClose, connections, isHebrew }: CreateAd
 
   const loadWooProducts = useCallback(async () => {
     if (!wooConnection?.settings) return;
-    const { storeUrl, wooKey, wooSecret } = wooConnection.settings;
+    const { storeUrl, wooKey, wooSecret } = resolveWooCredentials(
+      wooConnection.settings as Record<string, unknown>
+    );
     if (!storeUrl || !wooKey || !wooSecret) return;
     setWooLoading(true);
     setWooError('');
