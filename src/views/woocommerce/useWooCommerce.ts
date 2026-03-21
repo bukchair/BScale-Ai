@@ -3,6 +3,7 @@ import { fetchWooCommerceProducts, updateWooCommerceProduct } from '../../servic
 import { getAIKeysFromConnections } from '../../lib/gemini';
 import { requestJSON, type AIKeys } from '../../lib/multiAI';
 import type { Connection } from '../../contexts/ConnectionsContext';
+import { resolveWooCredentials } from '../../lib/integrations/woocommerceCredentials';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -38,7 +39,9 @@ export interface UseWooCommerceProps {
 export function useWooCommerce({ connections, errorLoadingLabel }: UseWooCommerceProps) {
   const wooConnection = connections.find((c) => c.id === 'woocommerce');
   const isConnected = wooConnection?.status === 'connected';
-  const { storeUrl, wooKey, wooSecret } = wooConnection?.settings || {};
+  const { storeUrl, wooKey, wooSecret } = resolveWooCredentials(
+    wooConnection?.settings as Record<string, unknown> | undefined
+  );
   const aiKeys = getAIKeysFromConnections(connections);
 
   // ── State ──────────────────────────────────────────────────────────────────
@@ -223,7 +226,7 @@ export function useWooCommerce({ connections, errorLoadingLabel }: UseWooCommerc
   // ── Effects ────────────────────────────────────────────────────────────────
   useEffect(() => {
     if (isConnected) void fetchProducts();
-  }, [isConnected]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [isConnected, storeUrl, wooKey, wooSecret]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     setSeoSuggestions([]);

@@ -4,6 +4,7 @@ import { getAutoAdsSchedule, setAutoAdsSchedule, saveAdToFirestore, type AutoAds
 import { fetchWooCommerceProducts } from '../services/woocommerceService';
 import { getAIKeysFromConnections } from './gemini';
 import { generateCreativeCopy } from './gemini';
+import { resolveWooCredentials } from './integrations/woocommerceCredentials';
 
 function nextRunAt(schedule: AutoAdsSchedule): string {
   const now = new Date();
@@ -25,12 +26,14 @@ export async function runAutoAdsIfNeeded(uid: string, runNow = false): Promise<{
   const items = settingsSnap.data()?.items as Array<{ id: string; settings?: Record<string, string> }> | undefined;
   const woo = items?.find((c) => c.id === 'woocommerce');
   const aiKeys = items ? getAIKeysFromConnections(items) : {};
-  if (!woo?.settings?.storeUrl || !woo?.settings?.wooKey || !woo?.settings?.wooSecret) {
+  const { storeUrl, wooKey, wooSecret } = resolveWooCredentials(
+    woo?.settings as Record<string, unknown> | undefined
+  );
+  if (!storeUrl || !wooKey || !wooSecret) {
     if (schedule?.enabled) await setAutoAdsSchedule(uid, { lastRunAt: now, nextRunAt: nextRunAt(schedule!) });
     return { ran: false };
   }
 
-  const { storeUrl, wooKey, wooSecret } = woo.settings;
   let products: Array<{ id: number; name: string; short_description?: string; description?: string }>;
   try {
     products = await fetchWooCommerceProducts(storeUrl, wooKey, wooSecret);

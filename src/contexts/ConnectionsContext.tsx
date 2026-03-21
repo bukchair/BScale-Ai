@@ -25,8 +25,7 @@ import {
   persistGlobalAiConnections,
   persistConnections,
 } from './connections/persistConnections';
-
-// ── Types ─────────────────────────────────────────────────────────────────────
+import { resolveWooCredentials } from '../lib/integrations/woocommerceCredentials';
 
 export type ConnectionStatus = 'connected' | 'disconnected' | 'error' | 'connecting';
 
@@ -496,7 +495,9 @@ export function ConnectionsProvider({ children }: { children: ReactNode }) {
     }
 
     if (id === 'woocommerce' && connection.settings) {
-      const { storeUrl, wooKey, wooSecret } = connection.settings;
+      const { storeUrl, wooKey, wooSecret } = resolveWooCredentials(
+        connection.settings as Record<string, unknown>
+      );
       try {
         await verifyWooCommerceConnection(storeUrl, wooKey, wooSecret);
         const updated = connections.map((c) => (c.id === id ? { ...c, status: 'connected' as ConnectionStatus, score: 100 } : c));

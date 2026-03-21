@@ -31,6 +31,7 @@ import type { Connection } from '../../contexts/ConnectionsContext';
 import { useWooProducts } from './useWooProducts';
 import { useMediaAssets } from './useMediaAssets';
 import { useCampaignSchedule, normalizeHour, sanitizeHours } from './useCampaignSchedule';
+import { resolveWooCredentials } from '../../lib/integrations/woocommerceCredentials';
 
 export interface UseCampaignBuilderProps {
   connections: Connection[];
@@ -546,10 +547,6 @@ export function useCampaignBuilder({
       setBuilderMessage(isHebrew ? 'נדרש שם קמפיין ובחירת לפחות פלטפורמה אחת.' : 'Campaign name and at least one platform are required.');
       return;
     }
-    if (media.uploadedAssets.length === 0) {
-      setBuilderMessage(isHebrew ? 'יש להעלות לפחות קובץ מדיה אחד כדי ליצור קמפיין.' : 'Upload at least one media file to create campaign.');
-      return;
-    }
     if (woo.useWooProductData && isWooConnected && woo.wooProducts.length > 0) {
       if (woo.wooPublishScope === 'category' && !woo.selectedWooCategory) {
         setBuilderMessage(isHebrew ? 'בחר קטגוריה או מוצר לפרסום מתוך WooCommerce.' : 'Select a WooCommerce category or product to promote.');
@@ -562,39 +559,106 @@ export function useCampaignBuilder({
     }
     setIsCreatingCampaign(true);
     const mediaCount = media.uploadedAssets.length;
+    const selectedImageAsset =
+      media.uploadedAssets.find((asset) => asset.mediaType === 'image') || null;
+    const hasTikTokTarget = resolvedPlatforms.includes('TikTok');
+    const hasWooImage = Boolean(woo.selectedWooProduct?.imageUrl);
+    if (hasTikTokTarget && !selectedImageAsset && !hasWooImage) {
+      setBuilderMessage(
+        isHebrew
+          ? 'כדי לפרסם ב-TikTok נדרשת לפחות תמונה אחת (או תמונת מוצר מ-WooCommerce).'
+          : 'TikTok publishing requires at least one image (or a WooCommerce product image).'
+      );
+      return;
+    }
     try {
       await ensureManagedApiSession();
-      const response = await fetch('/api/campaigns/scheduled', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({
-          campaignName: resolvedCampaignName,
-          shortTitle: shortTitleInput.trim(),
-          objective, contentType, productType,
-          serviceType: serviceTypeInput.trim(),
-          brief: campaignBrief.trim(),
-          platforms: resolvedPlatforms,
-          audiences: selectedAudiences,
-          timeRules: schedule.timeRules,
-          weeklySchedule: schedule.weeklySchedule,
-          wooPublishMode: isWooConnected && woo.useWooProductData ? woo.wooPublishScope : null,
-          wooCategory: isWooConnected && woo.useWooProductData && woo.wooPublishScope === 'category' ? woo.selectedWooCategory || null : null,
-          wooProductId: isWooConnected && woo.useWooProductData && woo.wooPublishScope === 'product' ? woo.selectedWooProductId || null : null,
-          wooProductName: isWooConnected && woo.useWooProductData && woo.wooPublishScope === 'product' ? woo.selectedWooProduct?.name || null : null,
-          platformCopyDrafts,
-        }),
-      });
-      const payload = await response.json().catch(() => ({}));
+      const { storeUrl: resolvedStoreUrl } = resolveWooCredentials(
+        wooConnection?.settings as Record<string, unknown> | undefined
+      );
+      const productPayload = {
+        name:
+          (isWooConnected && woo.useWooProductData ? woo.selectedWooProduct?.name : '') ||
+          woo.inferredWooTitle ||
+          shortTitleInput.trim() ||
+          resolvedCampaignName,
+        description: (
+          isWooConnected && woo.useWooProductData && woo.selectedWooProduct
+            ? woo.buildWooProductBrief(woo.selectedWooProduct)
+            : aiProcessingBrief || campaignBrief.trim()
+        ).slice(0, 500),
+        price:
+          isWooConnected && woo.useWooProductData && woo.selectedWooProduct?.price
+            ? woo.selectedWooProduct.price
+            : '',
+        url:
+          (isWooConnected && woo.useWooProductData ? woo.selectedWooProduct?.productUrl : '') ||
+          resolvedStoreUrl ||
+          '',
+        imageUrl:
+          isWooConnected && woo.useWooProductData && woo.selectedWooProduct?.imageUrl
+            ? woo.selectedWooProduct.imageUrl
+            : '',
+      };
+      const requestPayload = {
+        campaignName: resolvedCampaignName,
+        shortTitle: shortTitleInput.trim(),
+        objective,
+        contentType,
+        productType,
+        serviceType: serviceTypeInput.trim(),
+        brief: campaignBrief.trim(),
+        platforms: resolvedPlatforms,
+        audiences: selectedAudiences,
+        timeRules: schedule.timeRules,
+        weeklySchedule: schedule.weeklySchedule,
+        country: language === 'he' ? 'IL' : 'US',
+        dailyBudget: 20,
+        wooPublishMode: isWooConnected && woo.useWooProductData ? woo.wooPublishScope : null,
+        wooCategory:
+          isWooConnected && woo.useWooProductData && woo.wooPublishScope === 'category'
+            ? woo.selectedWooCategory || null
+            : null,
+        wooProductId:
+          isWooConnected && woo.useWooProductData && woo.wooPublishScope === 'product'
+            ? woo.selectedWooProductId || null
+            : null,
+        wooProductName:
+          isWooConnected && woo.useWooProductData && woo.wooPublishScope === 'product'
+            ? woo.selectedWooProduct?.name || null
+            : null,
+        platformCopyDrafts,
+        product:
+          productPayload.name || productPayload.description || productPayload.url || productPayload.imageUrl
+            ? productPayload
+            : undefined,
+      };
+      const response = selectedImageAsset
+        ? await (() => {
+            const form = new FormData();
+            form.append('body', JSON.stringify(requestPayload));
+            form.append('media', selectedImageAsset.file, selectedImageAsset.name);
+            return fetch('/api/campaigns/scheduled', {
+              method: 'POST',
+              body: form,
+            });
+          })()
+        : await fetch('/api/campaigns/scheduled', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify(requestPayload),
+          });
+      const responsePayload = await response.json().catch(() => ({}));
       if (!response.ok) {
         throw new Error(
-          payload?.message ||
+          responsePayload?.message ||
             (isHebrew ? `יצירת קמפיין נכשלה (קוד ${response.status}).` : `Campaign creation failed (status ${response.status}).`)
         );
       }
-      const results = Array.isArray(payload?.results) ? payload.results : [];
-      if (results.length === 0 && payload?.success !== true) {
+      const results = Array.isArray(responsePayload?.results) ? responsePayload.results : [];
+      if (results.length === 0 && responsePayload?.success !== true) {
         throw new Error(
-          payload?.message ||
+          responsePayload?.message ||
             (isHebrew
               ? 'לא התקבלו תוצאות יצירה מהשרת. בדוק חיבורים ונסה שוב.'
               : 'No campaign creation results were returned by the server. Check your connections and retry.')
@@ -626,7 +690,7 @@ export function useCampaignBuilder({
           ? (isHebrew ? 'הקמפיינים נוצרו בהצלחה בפלטפורמות שנבחרו.' : 'Campaigns were created successfully on selected platforms.')
           : successCount > 0
           ? (isHebrew ? 'חלק מהפלטפורמות נכשלו. בדוק פירוט תוצאות.' : 'Some platforms failed. Check detailed results.')
-          : payload?.message || (isHebrew ? 'חלק מהפלטפורמות נכשלו. בדוק פירוט תוצאות.' : 'Some platforms failed. Check detailed results.')
+          : responsePayload?.message || (isHebrew ? 'חלק מהפלטפורמות נכשלו. בדוק פירוט תוצאות.' : 'Some platforms failed. Check detailed results.')
       );
       setCampaignNameInput('');
       setShortTitleInput('');

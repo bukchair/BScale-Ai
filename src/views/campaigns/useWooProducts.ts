@@ -3,6 +3,7 @@
  */
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { fetchWooCommerceProducts } from '../../services/woocommerceService';
+import { resolveWooCredentials } from '../../lib/integrations/woocommerceCredentials';
 import { stripHtmlToText } from './types';
 import type { WooCampaignProduct, WooPublishScope, ContentType } from './types';
 import type { Connection } from '../../contexts/ConnectionsContext';
@@ -66,7 +67,9 @@ export function useWooProducts({
       setWooProducts([]); setSelectedWooCategory(''); setSelectedWooProductId('');
       return;
     }
-    const { storeUrl, wooKey, wooSecret } = (wooConnection.settings || {}) as Record<string, string>;
+    const { storeUrl, wooKey, wooSecret } = resolveWooCredentials(
+      wooConnection.settings as Record<string, unknown>
+    );
     if (!storeUrl || !wooKey || !wooSecret) { setWooProducts([]); return; }
     let cancelled = false;
     setWooLoading(true);
@@ -87,6 +90,12 @@ export function useWooProducts({
             stockQuantity:
               typeof item?.stock_quantity === 'number' && Number.isFinite(item.stock_quantity)
                 ? item.stock_quantity : null,
+            productUrl: stripHtmlToText(item?.permalink || ''),
+            imageUrl: Array.isArray(item?.images)
+              ? stripHtmlToText(
+                  String((((item.images as Array<Record<string, unknown>>)[0] || {}).src) || '')
+                )
+              : '',
           }))
           .filter((item: WooCampaignProduct) => item.id > 0 && item.name);
         setWooProducts(mapped);

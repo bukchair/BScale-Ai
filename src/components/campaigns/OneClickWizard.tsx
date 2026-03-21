@@ -29,6 +29,7 @@ import { useConnections } from '../../contexts/ConnectionsContext';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { fetchWooCommerceProducts } from '../../services/woocommerceService';
 import { API_BASE } from '../../lib/utils/client-api-base';
+import { resolveWooCredentials } from '../../lib/integrations/woocommerceCredentials';
 import type {
   OneClickObjective,
   OneClickPlatform,
@@ -161,7 +162,9 @@ export function OneClickWizard({ open, onClose, onSuccess }: OneClickWizardProps
   // ── Load WooCommerce products ────────────────────────────────────────────
   useEffect(() => {
     if (!wooConnection?.settings) return;
-    const { storeUrl, wooKey, wooSecret } = wooConnection.settings as Record<string, string>;
+    const { storeUrl, wooKey, wooSecret } = resolveWooCredentials(
+      wooConnection.settings as Record<string, unknown>
+    );
     if (!storeUrl || !wooKey || !wooSecret) return;
     let cancelled = false;
     setWooLoading(true);
