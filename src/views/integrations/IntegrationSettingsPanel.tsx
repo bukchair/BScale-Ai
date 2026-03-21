@@ -184,7 +184,76 @@ export function IntegrationSettingsPanel({
           {/* Fields column — filled in next steps */}
           <div className="flex-1 space-y-4">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {/* platform fields — step 2ג–2ו */}
+
+              {/* ── AI: Gemini ── */}
+              {integration.id === 'gemini' && (
+                <>
+                  <div className="sm:col-span-2">
+                    <label className="block text-[10px] font-bold text-gray-500 mb-1 uppercase tracking-wider">{t('integrations.apiKey')}</label>
+                    <div className="relative">
+                      <div className="absolute inset-y-0 left-0 pl-2.5 flex items-center pointer-events-none">
+                        <Key className="h-3.5 w-3.5 text-gray-400" />
+                      </div>
+                      <input type="password" placeholder="AIzaSy..." className="w-full pl-9 pr-3 py-1.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-xs text-left" dir="ltr" value={formValues.apiKey || (isConnected ? '••••••••••••••••' : '')} onChange={(e) => onInputChange('apiKey', e.target.value)} />
+                    </div>
+                  </div>
+                  <div className="sm:col-span-2">
+                    <label className="block text-[10px] font-bold text-gray-500 mb-1 uppercase tracking-wider">{t('integrations.defaultModel')}</label>
+                    <select className="w-full px-3 py-1.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 bg-white text-xs" value={formValues.model || 'Gemini 1.5 Pro'} onChange={(e) => onInputChange('model', e.target.value)}>
+                      <option>Gemini 1.5 Pro</option>
+                      <option>Gemini 1.5 Flash</option>
+                    </select>
+                  </div>
+                </>
+              )}
+
+              {/* ── AI: OpenAI ── */}
+              {integration.id === 'openai' && (
+                <>
+                  <div className="sm:col-span-2">
+                    <label className="block text-[10px] font-bold text-gray-500 mb-1 uppercase tracking-wider">{t('integrations.apiKey')}</label>
+                    <div className="relative">
+                      <div className="absolute inset-y-0 left-0 pl-2.5 flex items-center pointer-events-none">
+                        <Key className="h-3.5 w-3.5 text-gray-400" />
+                      </div>
+                      <input type="password" placeholder="sk-..." className="w-full pl-9 pr-3 py-1.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-xs text-left" dir="ltr" value={formValues.apiKey || (isConnected ? '••••••••••••••••' : '')} onChange={(e) => onInputChange('apiKey', e.target.value)} />
+                    </div>
+                  </div>
+                  <div className="sm:col-span-2">
+                    <label className="block text-[10px] font-bold text-gray-500 mb-1 uppercase tracking-wider">{t('integrations.defaultModel')}</label>
+                    <select className="w-full px-3 py-1.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 bg-white text-xs" value={formValues.model || 'gpt-4o'} onChange={(e) => onInputChange('model', e.target.value)}>
+                      <option>gpt-4o</option>
+                      <option>gpt-4o-mini</option>
+                      <option>gpt-4-turbo</option>
+                    </select>
+                  </div>
+                </>
+              )}
+
+              {/* ── AI: Claude ── */}
+              {integration.id === 'claude' && (
+                <>
+                  <div className="sm:col-span-2">
+                    <label className="block text-[10px] font-bold text-gray-500 mb-1 uppercase tracking-wider">{t('integrations.apiKey')}</label>
+                    <div className="relative">
+                      <div className="absolute inset-y-0 left-0 pl-2.5 flex items-center pointer-events-none">
+                        <Key className="h-3.5 w-3.5 text-gray-400" />
+                      </div>
+                      <input type="password" placeholder="sk-ant-..." className="w-full pl-9 pr-3 py-1.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-xs text-left" dir="ltr" value={formValues.apiKey || (isConnected ? '••••••••••••••••' : '')} onChange={(e) => onInputChange('apiKey', e.target.value)} />
+                    </div>
+                  </div>
+                  <div className="sm:col-span-2">
+                    <label className="block text-[10px] font-bold text-gray-500 mb-1 uppercase tracking-wider">{t('integrations.defaultModel')}</label>
+                    <select className="w-full px-3 py-1.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 bg-white text-xs" value={formValues.model || 'claude-sonnet-4-20250514'} onChange={(e) => onInputChange('model', e.target.value)}>
+                      <option>claude-sonnet-4-20250514</option>
+                      <option>claude-3-5-sonnet-20241022</option>
+                      <option>claude-3-haiku-20240307</option>
+                    </select>
+                  </div>
+                </>
+              )}
+
+              {/* platform fields Google/Meta/TikTok/Woo/Shopify — steps 2ד–2ו */}
             </div>
             {/* action buttons — step 2ז */}
           </div>
