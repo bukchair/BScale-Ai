@@ -341,6 +341,12 @@ export class TikTokProvider implements IntegrationProvider {
     };
   }
 
+  /** Resolve a valid access token for API routes (e.g. campaign list) when the client only has `server-managed`. */
+  async getAccessTokenForConnection(connectionId: string, userId: string): Promise<string> {
+    const { accessToken } = await this.getValidAccessToken(connectionId, userId);
+    return accessToken;
+  }
+
   private async getValidAccessToken(connectionId: string, userId: string): Promise<{ accessToken: string }> {
     const connection = await prisma.platformConnection.findFirst({
       where: { id: connectionId, userId },

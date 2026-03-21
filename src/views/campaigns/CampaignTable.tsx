@@ -17,6 +17,7 @@ type CampaignTableProps = {
   sortOrder: 'asc' | 'desc';
   isSyncing: boolean;
   metaSyncNotice: string | null;
+  tikTokSyncNotice: string | null;
   editMessage: string | null;
   hasConnectedAdPlatform: boolean;
   expandedCampaigns: Set<string>;
@@ -53,6 +54,7 @@ export function CampaignTable({
   sortOrder,
   isSyncing,
   metaSyncNotice,
+  tikTokSyncNotice,
   editMessage,
   hasConnectedAdPlatform,
   expandedCampaigns,
@@ -149,6 +151,11 @@ export function CampaignTable({
         {metaSyncNotice && (
           <div className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-800">
             {metaSyncNotice}
+          </div>
+        )}
+        {tikTokSyncNotice && (
+          <div className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+            {tikTokSyncNotice}
           </div>
         )}
         {editMessage && (

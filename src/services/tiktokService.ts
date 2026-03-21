@@ -12,9 +12,10 @@ export async function fetchTikTokCampaigns(
   if (endDate) query.set('end_date', endDate);
 
   const response = await fetch(`${API_BASE}/api/connections/tiktok/campaigns?${query.toString()}`, {
+    credentials: 'include',
     headers: {
-      'Authorization': `Bearer ${accessToken}`
-    }
+      Authorization: `Bearer ${accessToken}`,
+    },
   });
   
   if (!response.ok) {

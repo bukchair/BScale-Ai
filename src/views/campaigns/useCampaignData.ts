@@ -51,6 +51,7 @@ export function useCampaignData({
   const [loadingAdsetsCampaignId, setLoadingAdsetsCampaignId] = useState<string | null>(null);
   const [isSyncing, setIsSyncing] = useState(false);
   const [metaSyncNotice, setMetaSyncNotice] = useState<string | null>(null);
+  const [tikTokSyncNotice, setTikTokSyncNotice] = useState<string | null>(null);
   const [recommendations, setRecommendations] = useState<Record<string, unknown>[]>([]);
   const [loading, setLoading] = useState(false);
   const [appliedRecs, setAppliedRecs] = useState<number[]>([]);
@@ -131,6 +132,7 @@ export function useCampaignData({
     const advertiserId = tiktokConn?.settings?.tiktokAdvertiserId || tiktokConn?.settings?.advertiserId;
     if (tiktokConn?.status === 'connected' && token && advertiserId) {
       try {
+        setTikTokSyncNotice(null);
         const campaigns = await fetchTikTokCampaigns(token, advertiserId, startDateIso, endDateIso);
         const unifiedLayer = mapTikTokCampaignRowsToUnifiedLayer(campaigns, {
           accountExternalId: String(advertiserId),
@@ -139,7 +141,21 @@ export function useCampaignData({
         applyUnifiedPlatformLayer('TikTok', unifiedLayer);
       } catch (err) {
         console.error('Failed to sync TikTok data:', err);
+        const msg = err instanceof Error ? err.message : String(err);
+        setTikTokSyncNotice(
+          isHebrew
+            ? `טיקטוק: לא ניתן לטעון קמפיינים (${msg}). בדקו חיבור וחשבון מפרסם.`
+            : `TikTok: could not load campaigns (${msg}). Check connection and advertiser account.`
+        );
       }
+    } else if (tiktokConn?.status === 'connected' && !advertiserId) {
+      setTikTokSyncNotice(
+        isHebrew
+          ? 'טיקטוק: לא נבחר חשבון מפרסם. בחרו מפרסם במסך חיבורים.'
+          : 'TikTok: no advertiser account selected. Choose an advertiser in Connections.'
+      );
+    } else {
+      setTikTokSyncNotice(null);
     }
   };
 
@@ -325,6 +341,7 @@ export function useCampaignData({
     // sync
     isSyncing,
     metaSyncNotice,
+    tikTokSyncNotice,
     // expanded / adsets
     expandedCampaigns,
     adsetsByCampaignId,

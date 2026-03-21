@@ -257,6 +257,7 @@ export function Campaigns() {
     createdCampaigns, setCreatedCampaigns,
     isSyncing,
     metaSyncNotice,
+    tikTokSyncNotice,
     expandedCampaigns,
     adsetsByCampaignId,
     loadingAdsetsCampaignId,
@@ -504,7 +505,20 @@ export function Campaigns() {
       return 0;
     });
 
-  const platforms = ['All', ...new Set(allCampaigns.map(c => String(c.platform || '')))];
+  const platforms = useMemo(() => {
+    const platformSet = new Set(
+      allCampaigns.map((c) => String(c.platform || '')).filter(Boolean)
+    );
+    if (connections.some((c) => c.id === 'tiktok' && c.status === 'connected')) {
+      platformSet.add('TikTok');
+    }
+    const order = ['Google', 'Meta', 'TikTok'];
+    const ordered = [
+      ...order.filter((p) => platformSet.has(p)),
+      ...[...platformSet].filter((p) => !order.includes(p)).sort(),
+    ];
+    return ['All', ...ordered];
+  }, [allCampaigns, connections]);
   const statuses = ['All', ...new Set(allCampaigns.map(c => normalizeCampaignStatus(c.status)))];
 
   return (
@@ -547,6 +561,7 @@ export function Campaigns() {
         sortOrder={sortOrder}
         isSyncing={isSyncing}
         metaSyncNotice={metaSyncNotice}
+        tikTokSyncNotice={tikTokSyncNotice}
         editMessage={editMessage}
         hasConnectedAdPlatform={hasConnectedAdPlatform}
         expandedCampaigns={expandedCampaigns}
