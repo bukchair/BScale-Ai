@@ -12,10 +12,13 @@ interface UserProfile {
   role: 'admin' | 'agency' | 'owner' | 'editor' | 'viewer';
   createdAt: string;
   storeIds?: string[];
+  storeRoles?: Partial<Record<string, 'owner' | 'editor' | 'viewer'>>;
   photoURL?: string;
 }
 
 type BasicMembershipUser = Pick<UserProfile, 'uid' | 'name' | 'email' | 'role'>;
+type StoreMemberRole = 'owner' | 'editor' | 'viewer';
+type StoreRoleMap = Record<string, StoreMemberRole>;
 
 const roleLabels: Record<UserProfile['role'], { labelKey: string, icon: React.ElementType, color: string, bg: string }> = {
   admin: { labelKey: 'users.roles.admin', icon: Shield, color: 'text-purple-700', bg: 'bg-purple-50 border-purple-200' },
@@ -23,6 +26,14 @@ const roleLabels: Record<UserProfile['role'], { labelKey: string, icon: React.El
   owner: { labelKey: 'users.roles.owner', icon: Building, color: 'text-indigo-700', bg: 'bg-indigo-50 border-indigo-200' },
   editor: { labelKey: 'users.roles.editor', icon: Edit2, color: 'text-emerald-700', bg: 'bg-emerald-50 border-emerald-200' },
   viewer: { labelKey: 'users.roles.viewer', icon: Search, color: 'text-gray-700', bg: 'bg-gray-50 border-gray-200' },
+};
+
+const toStoreMemberRole = (value: unknown, fallback: StoreMemberRole): StoreMemberRole => {
+  const normalized = String(value || '').trim().toLowerCase();
+  if (normalized === 'owner' || normalized === 'editor' || normalized === 'viewer') {
+    return normalized;
+  }
+  return fallback;
 };
 
 export function Users() {
@@ -72,7 +83,14 @@ export function Users() {
       const existingUids = new Set(users.map((user) => user.uid));
       users.forEach((user) => {
         if (typeof next[user.uid] === 'string') return;
-        next[user.uid] = Array.isArray(user.storeIds) ? user.storeIds.join(', ') : '';
+        const fallbackRole = toStoreMemberRole(user.role, 'viewer');
+        const storeIds = Array.isArray(user.storeIds) ? user.storeIds.filter(Boolean) : [];
+        const draft = storeIds.map((storeId) => {
+          const explicitRole = user.storeRoles?.[storeId];
+          const role = toStoreMemberRole(explicitRole, fallbackRole);
+          return `${storeId}:${role}`;
+        });
+        next[user.uid] = draft.join(', ');
       });
       Object.keys(next).forEach((uid) => {
         if (!existingUids.has(uid)) delete next[uid];
@@ -81,28 +99,60 @@ export function Users() {
     });
   }, [users]);
 
-  const parseStoreIdsInput = (value: string): string[] =>
-    [...new Set(String(value || '')
+  const parseStoreAssignmentsInput = (value: string, fallbackRole: StoreMemberRole) => {
+    const entries = String(value || '')
       .split(',')
       .map((item) => item.trim())
-      .filter(Boolean))];
+      .filter(Boolean);
+    const storeRoles: StoreRoleMap = {};
+    for (const entry of entries) {
+      const [storeRaw, roleRaw] = entry.split(':');
+      const storeId = String(storeRaw || '').trim();
+      if (!storeId) continue;
+      storeRoles[storeId] = toStoreMemberRole(roleRaw, fallbackRole);
+    }
+    return {
+      storeIds: Object.keys(storeRoles),
+      storeRoles,
+    };
+  };
+
+  const getStoreRolesForUser = (user: UserProfile): StoreRoleMap => {
+    const fallbackRole = toStoreMemberRole(user.role, 'viewer');
+    const storeIds = Array.isArray(user.storeIds) ? user.storeIds.filter(Boolean) : [];
+    const roles: StoreRoleMap = {};
+    for (const storeId of storeIds) {
+      roles[storeId] = toStoreMemberRole(user.storeRoles?.[storeId], fallbackRole);
+    }
+    return roles;
+  };
 
   const hasDraftStoreChanges = (user: UserProfile): boolean => {
-    const saved = [...new Set((user.storeIds || []).filter(Boolean))].sort();
-    const draft = parseStoreIdsInput(storeIdDraftByUser[user.uid] || '').sort();
-    if (saved.length !== draft.length) return true;
-    return saved.some((item, index) => item !== draft[index]);
+    const savedRoles = getStoreRolesForUser(user);
+    const fallbackRole = toStoreMemberRole(user.role, 'viewer');
+    const draftParsed = parseStoreAssignmentsInput(storeIdDraftByUser[user.uid] || '', fallbackRole);
+    const savedIds = Object.keys(savedRoles).sort();
+    const draftIds = Object.keys(draftParsed.storeRoles).sort();
+    if (savedIds.length !== draftIds.length) return true;
+    for (let index = 0; index < savedIds.length; index += 1) {
+      if (savedIds[index] !== draftIds[index]) return true;
+      const storeId = savedIds[index];
+      if (savedRoles[storeId] !== draftParsed.storeRoles[storeId]) return true;
+    }
+    return false;
   };
 
   const syncStoreMembershipDocs = async (
     user: BasicMembershipUser,
-    previousStoreIds: string[],
-    nextStoreIds: string[]
+    previousStoreRoles: StoreRoleMap,
+    nextStoreRoles: StoreRoleMap
   ) => {
-    const previous = new Set(previousStoreIds.filter(Boolean));
-    const next = new Set(nextStoreIds.filter(Boolean));
-    const toRemove = [...previous].filter((storeId) => !next.has(storeId));
-    const toUpsert = [...next];
+    const previousIds = Object.keys(previousStoreRoles);
+    const nextIds = Object.keys(nextStoreRoles);
+    const previous = new Set(previousIds);
+    const next = new Set(nextIds);
+    const toRemove = previousIds.filter((storeId) => !next.has(storeId));
+    const toUpsert = nextIds;
     if (toRemove.length === 0 && toUpsert.length === 0) return;
 
     const batch = writeBatch(db);
@@ -111,13 +161,15 @@ export function Users() {
 
     for (const storeId of toUpsert) {
       const memberRef = doc(db, 'stores', storeId, 'members', user.uid);
+      const membershipRole = toStoreMemberRole(nextStoreRoles[storeId], toStoreMemberRole(user.role, 'viewer'));
       batch.set(
         memberRef,
         {
           uid: user.uid,
           name: user.name || '',
           email: user.email || '',
-          role: user.role,
+          role: membershipRole,
+          globalRole: user.role,
           updatedAt: nowIso,
           updatedByUid: actorUid,
         },
@@ -138,10 +190,16 @@ export function Users() {
       await updateDoc(doc(db, 'users', userId), { role: newRole });
       const targetUser = users.find((item) => item.uid === userId);
       if (targetUser) {
+        const previousStoreRoles = getStoreRolesForUser(targetUser);
+        const fallbackRole = toStoreMemberRole(newRole, 'viewer');
+        const nextStoreRoles = Object.keys(previousStoreRoles).reduce<StoreRoleMap>((acc, storeId) => {
+          acc[storeId] = toStoreMemberRole(previousStoreRoles[storeId], fallbackRole);
+          return acc;
+        }, {});
         await syncStoreMembershipDocs(
           { uid: targetUser.uid, name: targetUser.name, email: targetUser.email, role: newRole },
-          targetUser.storeIds || [],
-          targetUser.storeIds || []
+          previousStoreRoles,
+          nextStoreRoles
         );
       }
     } catch (error) {
@@ -156,7 +214,11 @@ export function Users() {
       const targetUser = users.find((item) => item.uid === userId);
       const batch = writeBatch(db);
       batch.delete(doc(db, 'users', userId));
-      (targetUser?.storeIds || []).forEach((storeId) => {
+      const linkedStoreIds = new Set([
+        ...((targetUser?.storeIds || []).filter(Boolean)),
+        ...Object.keys(targetUser?.storeRoles || {}),
+      ]);
+      linkedStoreIds.forEach((storeId) => {
         if (!storeId) return;
         batch.delete(doc(db, 'stores', storeId, 'members', userId));
       });
@@ -175,7 +237,8 @@ export function Users() {
       return;
     }
 
-    const normalizedStoreIds = parseStoreIdsInput(newUserStoreIds);
+    const fallbackRole = toStoreMemberRole(newUserRole, 'viewer');
+    const parsedAssignments = parseStoreAssignmentsInput(newUserStoreIds, fallbackRole);
     try {
       const existing = await getDoc(doc(db, 'users', uid));
       if (existing.exists()) {
@@ -190,7 +253,8 @@ export function Users() {
         email: newUserEmail.trim(),
         role: newUserRole,
         createdAt: new Date().toISOString(),
-        storeIds: normalizedStoreIds,
+        storeIds: parsedAssignments.storeIds,
+        storeRoles: parsedAssignments.storeRoles,
       });
       await syncStoreMembershipDocs(
         {
@@ -199,8 +263,8 @@ export function Users() {
           email: newUserEmail.trim(),
           role: newUserRole,
         },
-        [],
-        normalizedStoreIds
+        {},
+        parsedAssignments.storeRoles
       );
       setIsCreateModalOpen(false);
       setNewUserUid('');
@@ -223,8 +287,13 @@ export function Users() {
         setStoreIdSaveState((prev) => ({ ...prev, [userId]: 'error' }));
         return;
       }
-      const normalizedStoreIds = parseStoreIdsInput(storeIdDraftByUser[userId] || '');
-      await updateDoc(doc(db, 'users', userId), { storeIds: normalizedStoreIds });
+      const fallbackRole = toStoreMemberRole(targetUser.role, 'viewer');
+      const parsedAssignments = parseStoreAssignmentsInput(storeIdDraftByUser[userId] || '', fallbackRole);
+      const previousStoreRoles = getStoreRolesForUser(targetUser);
+      await updateDoc(doc(db, 'users', userId), {
+        storeIds: parsedAssignments.storeIds,
+        storeRoles: parsedAssignments.storeRoles,
+      });
       await syncStoreMembershipDocs(
         {
           uid: targetUser.uid,
@@ -232,8 +301,8 @@ export function Users() {
           email: targetUser.email,
           role: targetUser.role,
         },
-        targetUser.storeIds || [],
-        normalizedStoreIds
+        previousStoreRoles,
+        parsedAssignments.storeRoles
       );
       setStoreIdSaveState((prev) => ({ ...prev, [userId]: 'saved' }));
       window.setTimeout(() => {
@@ -251,7 +320,7 @@ export function Users() {
   const handleMembershipResync = async (user: UserProfile) => {
     setMembershipSyncStateByUser((prev) => ({ ...prev, [user.uid]: 'syncing' }));
     try {
-      const normalizedStoreIds = [...new Set((user.storeIds || []).filter(Boolean))];
+      const normalizedStoreRoles = getStoreRolesForUser(user);
       await syncStoreMembershipDocs(
         {
           uid: user.uid,
@@ -259,8 +328,8 @@ export function Users() {
           email: user.email,
           role: user.role,
         },
-        normalizedStoreIds,
-        normalizedStoreIds
+        normalizedStoreRoles,
+        normalizedStoreRoles
       );
       setMembershipSyncStateByUser((prev) => ({ ...prev, [user.uid]: 'synced' }));
       window.setTimeout(() => {
@@ -529,14 +598,20 @@ export function Users() {
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex flex-wrap gap-1.5 mb-2">
-                        {(user.storeIds || []).slice(0, 2).map((store, idx) => (
+                        {(user.storeIds || []).slice(0, 2).map((store, idx) => {
+                          const storeRole = toStoreMemberRole(
+                            user.storeRoles?.[store],
+                            toStoreMemberRole(user.role, 'viewer')
+                          );
+                          return (
                           <span key={idx} className="inline-flex items-center gap-1 bg-gray-100 text-gray-700 px-2 py-1 rounded-md text-xs font-medium border border-gray-200/50">
                             <span>{store}</span>
                             <span className="text-[10px] text-gray-500">
-                              · {t(roleLabels[user.role].labelKey)}
+                              · {t(roleLabels[storeRole].labelKey)}
                             </span>
                           </span>
-                        ))}
+                          );
+                        })}
                         {(user.storeIds || []).length > 2 && (
                           <span className="bg-gray-100 text-gray-500 px-2 py-1 rounded-md text-xs font-medium border border-gray-200/50">
                             +{(user.storeIds || []).length - 2}
@@ -548,7 +623,7 @@ export function Users() {
                       </div>
                       {hasDraftStoreChanges(user) && (
                         <p className="mb-2 text-[11px] font-bold text-amber-700">
-                          {isHebrew ? 'יש שינויים שלא נשמרו ב־Store IDs' : 'Unsaved Store IDs changes'}
+                          {isHebrew ? 'יש שינויים שלא נשמרו בהקצאת חנויות/תפקידים' : 'Unsaved store assignment changes'}
                         </p>
                       )}
                       <div className="flex items-center gap-1.5">
@@ -560,8 +635,8 @@ export function Users() {
                           className="w-full border border-gray-200 bg-gray-50 rounded-md px-2 py-1 text-[11px] focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
                           placeholder={
                             isHebrew
-                              ? 'Store IDs מופרדים בפסיק'
-                              : 'Comma-separated store IDs'
+                              ? 'storeId:role, storeId:role (לדוגמה: demo-store:owner)'
+                              : 'storeId:role, storeId:role (e.g. demo-store:owner)'
                           }
                         />
                         <button
@@ -623,6 +698,11 @@ export function Users() {
                             : 'Sync membership'}
                         </button>
                       </div>
+                      <p className="mt-1 text-[10px] text-gray-500">
+                        {isHebrew
+                          ? 'אפשר גם רק storeId — ברירת המחדל תהיה לפי תפקיד המשתמש.'
+                          : 'You can also provide only storeId; role defaults to the user role.'}
+                      </p>
                     </td>
                     <td className="px-6 py-4">
                       <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
@@ -830,9 +910,18 @@ export function Users() {
               <input
                 value={newUserStoreIds}
                 onChange={(e) => setNewUserStoreIds(e.target.value)}
-                placeholder={isHebrew ? 'Store IDs (מופרד בפסיק)' : 'Store IDs (comma-separated)'}
+                placeholder={
+                  isHebrew
+                    ? 'storeId:role, storeId:role (לדוגמה: demo-store:viewer)'
+                    : 'storeId:role, storeId:role (e.g. demo-store:viewer)'
+                }
                 className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm"
               />
+              <p className="text-[11px] text-gray-500">
+                {isHebrew
+                  ? 'דוגמה: store-1:owner, store-2:viewer (או רק store-3)'
+                  : 'Example: store-1:owner, store-2:viewer (or only store-3)'}
+              </p>
             </div>
             {createUserError && (
               <p className="mt-3 text-xs text-red-700 bg-red-50 border border-red-200 rounded-md px-2.5 py-1.5">

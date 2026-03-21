@@ -72,6 +72,8 @@ service cloud.firestore {
              data.email is string && data.email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$") &&
              data.name is string && data.name.size() > 0 && data.name.size() < 100 &&
              data.role in ['admin', 'agency', 'owner', 'editor', 'viewer'] &&
+             (!('storeIds' in data) || data.storeIds is list) &&
+             (!('storeRoles' in data) || data.storeRoles is map) &&
              data.createdAt is string;
     }
 
