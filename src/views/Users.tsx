@@ -469,7 +469,6 @@ export function Users() {
 
                         {user.role !== 'agency' &&
                           user.role !== 'owner' &&
-                          user.role !== 'admin' &&
                           incoming.length === 0 && (
                             <p className="text-gray-400 italic">{t('users.noWorkspaceAccess')}</p>
                           )}
