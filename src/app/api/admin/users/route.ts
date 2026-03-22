@@ -17,29 +17,35 @@ export async function GET() {
     return NextResponse.json({ error: msg }, { status: msg === 'Forbidden' ? 403 : 401 });
   }
 
-  const users = await prisma.user.findMany({
-    select: {
-      id: true,
-      email: true,
-      name: true,
-      role: true,
-      subscriptionStatus: true,
-      plan: true,
-      trialStartedAt: true,
-      trialEndsAt: true,
-      createdAt: true,
-      settings: true,
-    },
-    orderBy: { createdAt: 'desc' },
-  });
+  let users;
+  try {
+    users = await prisma.user.findMany({
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        role: true,
+        subscriptionStatus: true,
+        plan: true,
+        trialStartedAt: true,
+        trialEndsAt: true,
+        createdAt: true,
+        settings: true,
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+  } catch (err) {
+    console.error('[/api/admin/users GET] DB error:', err);
+    return NextResponse.json({ error: 'Database error', detail: err instanceof Error ? err.message : String(err) }, { status: 500 });
+  }
 
   return NextResponse.json({ users: users.map((u) => ({
     uid: u.id,
     email: u.email,
     name: u.name ?? '',
     role: u.role,
-    subscriptionStatus: u.subscriptionStatus,
-    plan: u.plan,
+    subscriptionStatus: (u as Record<string, unknown>).subscriptionStatus ?? 'demo',
+    plan: (u as Record<string, unknown>).plan ?? 'demo',
     trialStartedAt: u.trialStartedAt?.toISOString() ?? null,
     trialEndsAt: u.trialEndsAt?.toISOString() ?? null,
     createdAt: u.createdAt.toISOString(),

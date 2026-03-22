@@ -12,10 +12,16 @@ export async function GET() {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const dbUser = await prisma.user.findUnique({
-    where: { id: user.id },
-    select: { settings: true },
-  });
+  let dbUser;
+  try {
+    dbUser = await prisma.user.findUnique({
+      where: { id: user.id },
+      select: { settings: true },
+    });
+  } catch (err) {
+    console.error('[/api/user/connections GET] DB error:', err);
+    return NextResponse.json({ error: 'Database error', detail: err instanceof Error ? err.message : String(err) }, { status: 500 });
+  }
 
   const settings = (dbUser?.settings ?? {}) as Record<string, unknown>;
   const connections = (settings.connections as unknown[]) ?? [];
@@ -43,16 +49,27 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ error: 'connections must be an array' }, { status: 400 });
   }
 
-  const dbUser = await prisma.user.findUnique({
-    where: { id: user.id },
-    select: { settings: true },
-  });
+  let dbUser2;
+  try {
+    dbUser2 = await prisma.user.findUnique({
+      where: { id: user.id },
+      select: { settings: true },
+    });
+  } catch (err) {
+    console.error('[/api/user/connections PATCH] DB findUnique error:', err);
+    return NextResponse.json({ error: 'Database error', detail: err instanceof Error ? err.message : String(err) }, { status: 500 });
+  }
 
-  const currentSettings = (dbUser?.settings ?? {}) as Record<string, unknown>;
-  await prisma.user.update({
-    where: { id: user.id },
-    data: { settings: { ...currentSettings, connections: body.connections } as Prisma.InputJsonValue },
-  });
+  const currentSettings = (dbUser2?.settings ?? {}) as Record<string, unknown>;
+  try {
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { settings: { ...currentSettings, connections: body.connections } as Prisma.InputJsonValue },
+    });
+  } catch (err) {
+    console.error('[/api/user/connections PATCH] DB update error:', err);
+    return NextResponse.json({ error: 'Database error', detail: err instanceof Error ? err.message : String(err) }, { status: 500 });
+  }
 
   return NextResponse.json({ success: true });
 }
