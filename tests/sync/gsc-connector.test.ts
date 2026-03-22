@@ -37,7 +37,7 @@ describe('gscConnector.fetchSearchMetricsByDay', () => {
       makeGscResponse([{ date: '2026-03-01', clicks: 120, impressions: 5000, ctr: 0.024, position: 8.5 }])
     );
 
-    const rows = await gscConnector.fetchSearchMetricsByDay('conn1', 'https://example.com/', '2026-03-01', '2026-03-15');
+    const rows = await gscConnector.fetchSearchMetricsByDay('conn1', 'user-test', 'https://example.com/', '2026-03-01', '2026-03-15');
 
     expect(rows).toHaveLength(1);
     expect(rows[0]).toMatchObject({ date: '2026-03-01', clicks: 120, impressions: 5000, ctr: 0.024, position: 8.5 });
@@ -46,7 +46,7 @@ describe('gscConnector.fetchSearchMetricsByDay', () => {
   it('returns empty array when API returns no rows', async () => {
     mockFetch.mockResolvedValueOnce(new Response(JSON.stringify({}), { status: 200 }));
 
-    const rows = await gscConnector.fetchSearchMetricsByDay('conn1', 'https://example.com/', '2026-03-01', '2026-03-15');
+    const rows = await gscConnector.fetchSearchMetricsByDay('conn1', 'user-test', 'https://example.com/', '2026-03-01', '2026-03-15');
 
     expect(rows).toEqual([]);
   });
@@ -54,7 +54,7 @@ describe('gscConnector.fetchSearchMetricsByDay', () => {
   it('URL-encodes the siteUrl before calling the API', async () => {
     mockFetch.mockResolvedValueOnce(new Response(JSON.stringify({ rows: [] }), { status: 200 }));
 
-    await gscConnector.fetchSearchMetricsByDay('conn1', 'https://example.com/', '2026-01-01', '2026-01-31');
+    await gscConnector.fetchSearchMetricsByDay('conn1', 'user-test', 'https://example.com/', '2026-01-01', '2026-01-31');
 
     const [url] = mockFetch.mock.calls[0] as [string];
     expect(url).toContain(encodeURIComponent('https://example.com/'));
@@ -63,7 +63,7 @@ describe('gscConnector.fetchSearchMetricsByDay', () => {
   it('sends date and dimensions in the POST body', async () => {
     mockFetch.mockResolvedValueOnce(new Response(JSON.stringify({ rows: [] }), { status: 200 }));
 
-    await gscConnector.fetchSearchMetricsByDay('conn1', 'https://site.com', '2026-02-01', '2026-02-28');
+    await gscConnector.fetchSearchMetricsByDay('conn1', 'user-test', 'https://site.com', '2026-02-01', '2026-02-28');
 
     const [, init] = mockFetch.mock.calls[0] as [string, RequestInit];
     const body = JSON.parse(init.body as string);

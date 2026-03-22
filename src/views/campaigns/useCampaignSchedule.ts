@@ -2,7 +2,7 @@
  * Weekly schedule + time-targeting rules for the campaign builder.
  */
 import { useEffect, useState } from 'react';
-import type { TimeRule, WeeklySchedule, DayKey, PlatformName, RuleAction } from './types';
+import type { TimeRule, WeeklySchedule, DayKey, DayHours, PlatformName, RuleAction } from './types';
 import { DAY_KEYS, createEmptyDaySchedule } from './types';
 
 export interface UseCampaignScheduleProps {
@@ -136,6 +136,39 @@ export function useCampaignSchedule({
     setTimeRules((prev) => prev.filter((r) => r.id !== id));
   };
 
+  /** Deep-clone one platform's day/hour map (independent copies per day). */
+  const clonePlatformSchedule = (source: DayHours | undefined): DayHours => {
+    const base = createEmptyDaySchedule();
+    if (!source) return base;
+    DAY_KEYS.forEach((d) => {
+      const h = source[d];
+      base[d] = Array.isArray(h) ? sanitizeHours([...h]) : [];
+    });
+    return base;
+  };
+
+  /** Copy the currently selected platform's weekly grid to every other selected platform (each can be edited after). */
+  const syncScheduleToAllSelectedPlatforms = () => {
+    const src = weeklySchedule[selectedSchedulePlatform];
+    if (!src) {
+      onMessage(isHebrew ? 'אין לוח זמנים במקור להעתקה.' : 'No schedule on the source platform to copy.');
+      return;
+    }
+    const template = clonePlatformSchedule(src);
+    setWeeklySchedule((prev) => {
+      const next: WeeklySchedule = { ...prev };
+      selectedPlatforms.forEach((p) => {
+        next[p] = clonePlatformSchedule(template);
+      });
+      return next;
+    });
+    onMessage(
+      isHebrew
+        ? `לוח הזמנים של ${selectedSchedulePlatform} הועתק לכל הפלטפורמות שנבחרו. ניתן לערוך כל אחת בנפרד.`
+        : `${selectedSchedulePlatform} schedule copied to all selected platforms. You can edit each one separately.`
+    );
+  };
+
   return {
     weeklySchedule, setWeeklySchedule,
     selectedSchedulePlatform, setSelectedSchedulePlatform,
@@ -153,5 +186,6 @@ export function useCampaignSchedule({
     ruleReason, setRuleReason,
     addTimeRule,
     removeTimeRule,
+    syncScheduleToAllSelectedPlatforms,
   };
 }

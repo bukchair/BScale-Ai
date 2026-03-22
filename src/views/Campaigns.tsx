@@ -232,6 +232,16 @@ export function Campaigns() {
     previewAudiences: isHebrew ? 'קהלים' : 'Audiences',
     previewSchedule: isHebrew ? 'שעות פעילות' : 'Scheduled active slots',
     previewNoText: isHebrew ? 'אין עדיין טקסט. הזן כותרת ותיאור.' : 'No text yet. Enter title and description.',
+    autoMergeAudiencesLabel: isHebrew ? 'טירגוט קהלים אוטומטי' : 'Auto-target suggested audiences',
+    autoMergeAudiencesHint: isHebrew
+      ? 'מוסיף אוטומטית את כל ההמלצות (כולל מ-AI) לרשימת הקהלים הנבחרים. כבוי: בחירה ידנית בלבד.'
+      : 'Automatically adds every suggestion (including from AI) to selected audiences. Off: manual selection only.',
+    generateAiImage: isHebrew ? 'צור תמונת מודעה ב-AI' : 'Generate ad image with AI',
+    generateAiImageHint: isHebrew
+      ? 'לפי הכותרת והתיאור — התמונה תתווסף למדיה לפני הפרסום.'
+      : 'From your title and brief — the image is added to media before publish.',
+    generatingAiImage: isHebrew ? 'יוצר תמונה...' : 'Generating image...',
+    syncScheduleButton: isHebrew ? 'העתק לוח לכל הפלטפורמות' : 'Copy schedule to all platforms',
   };
 
   const periodLabel = dateRange === 'today' ? t('dashboard.today') : dateRange === '7days' ? t('dashboard.last7Days') : dateRange === '30days' ? t('dashboard.last30Days') : t('dashboard.customRange');
@@ -359,6 +369,11 @@ export function Campaigns() {
     applyPlatformCopyToFields,
     handleAutoAudienceAndStrategy,
     handleGeneratePlatformAdCopies,
+    autoMergeSmartAudiences,
+    setAutoMergeSmartAudiences,
+    generateAiImageLoading,
+    handleGenerateCreativeImage,
+    syncScheduleToAllSelectedPlatforms,
     isCreatingCampaign,
     publishResults,
     handleCreateScheduledCampaign,
@@ -603,6 +618,8 @@ export function Campaigns() {
         builderSectionRef={builderSectionRef}
         shortTitleInputRef={shortTitleInputRef}
         aiAudienceLoading={aiAudienceLoading}
+        autoMergeSmartAudiences={autoMergeSmartAudiences}
+        generateAiImageLoading={generateAiImageLoading}
         isCreatingCampaign={isCreatingCampaign}
         isHebrew={isHebrew}
         isWooConnected={isWooConnected}
@@ -686,6 +703,7 @@ export function Campaigns() {
         setActivateImmediately={setActivateImmediately}
         setUseWooProductData={setUseWooProductData}
         setWooPublishScope={setWooPublishScope}
+        setAutoMergeSmartAudiences={setAutoMergeSmartAudiences}
         addCustomAudience={addCustomAudience}
         addTimeRule={addTimeRule}
         applyPlatformCopyToFields={applyPlatformCopyToFields}
@@ -698,7 +716,9 @@ export function Campaigns() {
         getPlatformTitleLimit={getPlatformTitleLimit}
         handleAssetUpload={handleAssetUpload}
         handleAutoAudienceAndStrategy={handleAutoAudienceAndStrategy}
+        handleGenerateCreativeImage={handleGenerateCreativeImage}
         handleCreateScheduledCampaign={handleCreateScheduledCampaign}
+        syncScheduleToAllSelectedPlatforms={syncScheduleToAllSelectedPlatforms}
         importWooProductToBuilder={importWooProductToBuilder}
         isFullDaySelected={isFullDaySelected}
         removeAsset={removeAsset}

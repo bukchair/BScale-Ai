@@ -1,7 +1,20 @@
 'use client';
 
 import React from 'react';
-import { Check, DollarSign, Globe, ImagePlus, Loader2, PlusCircle, Target, Trash2, Video } from 'lucide-react';
+import {
+  Check,
+  DollarSign,
+  Globe,
+  ImagePlus,
+  Loader2,
+  PlusCircle,
+  Sparkles,
+  Target,
+  Trash2,
+  Users,
+  Video,
+  Wand2,
+} from 'lucide-react';
 import { COUNTRIES, LANGUAGES } from '../../components/campaigns/wizard-steps/wizard-types';
 import { cn } from '../../lib/utils';
 import type {
@@ -22,6 +35,8 @@ type CampaignBuilderProps = {
   shortTitleInputRef: React.RefObject<HTMLInputElement | null>;
   // state - booleans
   aiAudienceLoading: boolean;
+  autoMergeSmartAudiences: boolean;
+  generateAiImageLoading: boolean;
   isCreatingCampaign: boolean;
   isHebrew: boolean;
   isWooConnected: boolean;
@@ -109,6 +124,7 @@ type CampaignBuilderProps = {
   setActivateImmediately: (v: boolean) => void;
   setUseWooProductData: (v: boolean) => void;
   setWooPublishScope: (v: WooPublishScope) => void;
+  setAutoMergeSmartAudiences: (v: boolean) => void;
   // handlers
   addCustomAudience: () => void;
   addTimeRule: () => void;
@@ -122,7 +138,9 @@ type CampaignBuilderProps = {
   getPlatformTitleLimit: (platform: PlatformName) => number;
   handleAssetUpload: (e: React.ChangeEvent<HTMLInputElement>) => void;
   handleAutoAudienceAndStrategy: () => void;
+  handleGenerateCreativeImage: () => void | Promise<void>;
   handleCreateScheduledCampaign: () => void;
+  syncScheduleToAllSelectedPlatforms: () => void;
   importWooProductToBuilder: (product: WooCampaignProduct, opts?: { overwriteExisting?: boolean; notify?: boolean }) => void;
   isFullDaySelected: (platform: string, day: DayKey) => boolean;
   removeAsset: (id: string) => void;
@@ -135,7 +153,7 @@ type CampaignBuilderProps = {
 
 export function CampaignBuilder({
   builderSectionRef, shortTitleInputRef,
-  aiAudienceLoading, isCreatingCampaign, isHebrew, isWooConnected, useWooProductData, wooLoading,
+  aiAudienceLoading, autoMergeSmartAudiences, generateAiImageLoading, isCreatingCampaign, isHebrew, isWooConnected, useWooProductData, wooLoading,
   aiAudienceProvider, builderMessage, campaignBrief, campaignNameInput, contentType, customAudience,
   objective, productType, ruleAction, ruleReason, rulePlatform, selectedCopyPlatform,
   selectedPreviewPlatform, selectedScheduleDay, selectedSchedulePlatform, selectedWooCategory,
@@ -153,22 +171,30 @@ export function CampaignBuilder({
   setSelectedPreviewPlatform, setSelectedScheduleDay, setSelectedSchedulePlatform,
   setSelectedWooCategory,   setSelectedWooProductId, setServiceTypeInput, setShortTitleInput,
   setDailyBudgetInput, setTargetCountry, setCampaignLanguage, setActivateImmediately,
-  setUseWooProductData, setWooPublishScope,
+  setUseWooProductData, setWooPublishScope, setAutoMergeSmartAudiences,
   addCustomAudience, addTimeRule, applyPlatformCopyToFields, disableWooImportMode,
   formatHour, formatHourRange, formatSmartElapsed, getActiveSlotsCount,
   getPlatformDescriptionLimit, getPlatformTitleLimit, handleAssetUpload,
-  handleAutoAudienceAndStrategy, handleCreateScheduledCampaign, importWooProductToBuilder,
+  handleAutoAudienceAndStrategy, handleGenerateCreativeImage, handleCreateScheduledCampaign, importWooProductToBuilder,
+  syncScheduleToAllSelectedPlatforms,
   isFullDaySelected, removeAsset, removeTimeRule, toggleAudienceSelection, toggleFullDay,
   togglePlatformSelection, toggleScheduleHour,
 }: CampaignBuilderProps) {
+  const syncScheduleHint = isHebrew
+    ? `הלחיצה מעתיקה את לוח השעות של ${selectedSchedulePlatform} לכל הפלטפורמות שסימנת. אחר כך אפשר לערוך כל פלטפורמה בנפרד.`
+    : `Copies the weekly hour grid from ${selectedSchedulePlatform} to every selected platform. You can then fine-tune each platform on its own tab.`;
+
   return (
-    <section ref={builderSectionRef} className="bg-white shadow rounded-lg overflow-hidden border border-gray-200">
-      <div className="px-4 py-5 sm:px-6 border-b border-gray-200 bg-indigo-50/60">
+    <section
+      ref={builderSectionRef}
+      className="bg-white shadow-lg shadow-indigo-100/40 rounded-2xl overflow-hidden border border-indigo-100/80 ring-1 ring-black/5"
+    >
+      <div className="px-4 py-5 sm:px-6 border-b border-indigo-100/90 bg-gradient-to-r from-indigo-50 via-violet-50/80 to-fuchsia-50/50">
         <h3 className="text-lg font-bold text-indigo-900 flex items-center gap-2">
           <Target className="w-5 h-5 text-indigo-600" />
           {text.builderTitle}
         </h3>
-        <p className="text-sm text-indigo-200 mt-0.5">{text.builderSubtitle}</p>
+        <p className="text-sm text-indigo-700/80 mt-0.5 max-w-3xl">{text.builderSubtitle}</p>
       </div>
 
       <div className="p-4 sm:p-6 space-y-6">
@@ -476,9 +502,41 @@ export function CampaignBuilder({
         </div>
 
         {/* Audience selector */}
-        <div className="rounded-xl border border-indigo-100 bg-indigo-50/40 p-4">
-          <h4 className="text-sm font-bold text-indigo-900 mb-1">{text.smartAudienceTitle}</h4>
-          <p className="text-xs text-indigo-700 mb-3">{text.smartAudienceSubtitle}</p>
+        <div className="rounded-2xl border border-indigo-200/70 bg-gradient-to-br from-indigo-50/90 via-white to-violet-50/40 p-4 sm:p-5 shadow-sm">
+          <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4 mb-4">
+            <div className="flex items-start gap-3 min-w-0">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-indigo-600 text-white shadow-md shadow-indigo-200">
+                <Users className="w-5 h-5" />
+              </div>
+              <div>
+                <h4 className="text-sm font-bold text-indigo-950">{text.smartAudienceTitle}</h4>
+                <p className="text-xs text-indigo-800/80 mt-0.5 max-w-xl">{text.smartAudienceSubtitle}</p>
+              </div>
+            </div>
+            <div className="flex flex-col sm:flex-row sm:items-center gap-3 rounded-xl border border-indigo-200/60 bg-white/80 px-3 py-2.5">
+              <div className="min-w-0">
+                <p className="text-[11px] font-bold text-indigo-900">{text.autoMergeAudiencesLabel}</p>
+                <p className="text-[10px] text-indigo-700/80 leading-snug max-w-xs">{text.autoMergeAudiencesHint}</p>
+              </div>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={autoMergeSmartAudiences}
+                onClick={() => setAutoMergeSmartAudiences(!autoMergeSmartAudiences)}
+                className={cn(
+                  'relative inline-flex h-8 w-14 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors self-start sm:self-center',
+                  autoMergeSmartAudiences ? 'bg-indigo-600' : 'bg-gray-300'
+                )}
+              >
+                <span
+                  className={cn(
+                    'pointer-events-none inline-block h-7 w-7 transform rounded-full bg-white shadow ring-0 transition',
+                    autoMergeSmartAudiences ? 'translate-x-6' : 'translate-x-0.5'
+                  )}
+                />
+              </button>
+            </div>
+          </div>
           <div className="flex flex-wrap gap-2">
             {audienceSuggestions.map((audience) => {
               const selected = selectedAudiences.includes(audience);
@@ -488,10 +546,10 @@ export function CampaignBuilder({
                   type="button"
                   onClick={() => toggleAudienceSelection(audience)}
                   className={cn(
-                    'px-3 py-1.5 rounded-full text-xs font-bold border transition-colors',
+                    'px-3 py-1.5 rounded-full text-xs font-bold border transition-all shadow-sm',
                     selected
-                      ? 'bg-indigo-600 text-white border-indigo-600'
-                      : 'bg-white text-indigo-700 border-indigo-200 hover:bg-indigo-100'
+                      ? 'bg-indigo-600 text-white border-indigo-600 shadow-indigo-200/50'
+                      : 'bg-white text-indigo-800 border-indigo-200/80 hover:border-indigo-400 hover:bg-indigo-50/80'
                   )}
                 >
                   {audience}
@@ -499,18 +557,18 @@ export function CampaignBuilder({
               );
             })}
           </div>
-          <div className="mt-3 flex flex-col sm:flex-row gap-2">
+          <div className="mt-4 flex flex-col sm:flex-row gap-2">
             <input
               value={customAudience}
               onChange={(e) => setCustomAudience(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addCustomAudience())}
-              className="flex-1 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+              className="flex-1 rounded-xl border-indigo-200 bg-white/90 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
               placeholder={isHebrew ? 'קהל מותאם אישית...' : 'Custom audience...'}
             />
             <button
               type="button"
               onClick={addCustomAudience}
-              className="inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-md border border-indigo-300 text-indigo-700 bg-white hover:bg-indigo-50 text-sm font-bold"
+              className="inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl border border-indigo-300 text-indigo-800 bg-white hover:bg-indigo-50 text-sm font-bold shadow-sm"
             >
               <PlusCircle className="w-4 h-4" />
               {text.addCustomAudience}
@@ -519,23 +577,51 @@ export function CampaignBuilder({
         </div>
 
         {/* Media upload */}
-        <div className="rounded-xl border border-gray-200 p-4">
-          <h4 className="text-sm font-bold text-gray-900 flex items-center gap-2 mb-1">
-            <ImagePlus className="w-4 h-4 text-indigo-600" />
-            {text.uploadTitle}
-          </h4>
-          <p className="text-xs text-gray-500 mb-3">{text.uploadHint}</p>
-          <p className="text-[11px] text-gray-500 mb-2">
+        <div className="rounded-2xl border border-slate-200/90 bg-gradient-to-br from-slate-50/80 via-white to-indigo-50/30 p-4 sm:p-5 shadow-sm">
+          <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 mb-3">
+            <div>
+              <h4 className="text-sm font-bold text-slate-900 flex items-center gap-2 mb-1">
+                <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 text-white shadow-md">
+                  <ImagePlus className="w-4 h-4" />
+                </span>
+                {text.uploadTitle}
+              </h4>
+              <p className="text-xs text-slate-600 max-w-2xl">{text.uploadHint}</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => void handleGenerateCreativeImage()}
+              disabled={generateAiImageLoading || isCreatingCampaign}
+              className={cn(
+                'inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-xs font-bold border transition-all shadow-sm',
+                'border-fuchsia-300/80 bg-gradient-to-r from-fuchsia-50 to-violet-50 text-fuchsia-950',
+                'hover:from-fuchsia-100 hover:to-violet-100 hover:border-fuchsia-400',
+                'disabled:opacity-50 disabled:pointer-events-none'
+              )}
+            >
+              {generateAiImageLoading ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Wand2 className="w-4 h-4 text-fuchsia-700" />
+              )}
+              {generateAiImageLoading ? text.generatingAiImage : text.generateAiImage}
+            </button>
+          </div>
+          <p className="text-[11px] text-violet-900/70 mb-3 flex items-start gap-1.5">
+            <Sparkles className="w-3.5 h-3.5 shrink-0 mt-0.5 text-violet-600" />
+            <span>{text.generateAiImageHint}</span>
+          </p>
+          <p className="text-[11px] text-slate-500 mb-3">
             {isHebrew
               ? `תנאי התאמה נוכחיים: תמונה עד ${effectiveMediaLimits.imageMaxMb}MB, וידאו עד ${effectiveMediaLimits.videoMaxMb}MB, מקסימום ${effectiveMediaLimits.maxImageWidth}×${effectiveMediaLimits.maxImageHeight}.`
               : `Current compatibility limits: image up to ${effectiveMediaLimits.imageMaxMb}MB, video up to ${effectiveMediaLimits.videoMaxMb}MB, max ${effectiveMediaLimits.maxImageWidth}×${effectiveMediaLimits.maxImageHeight}.`}
           </p>
-          <label className="inline-flex items-center gap-2 px-4 py-2 rounded-md border border-gray-300 bg-white text-sm font-bold text-gray-700 hover:bg-gray-50 cursor-pointer">
-            <ImagePlus className="w-4 h-4" />
+          <label className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-slate-300 bg-white text-sm font-bold text-slate-800 hover:bg-slate-50 cursor-pointer shadow-sm">
+            <ImagePlus className="w-4 h-4 text-indigo-600" />
             {text.uploadButton}
             <input type="file" accept="image/*,video/*" multiple className="hidden" onChange={handleAssetUpload} />
           </label>
-          <p className="mt-2 text-[11px] text-gray-500">{text.noDataPersistenceNote}</p>
+          <p className="mt-2 text-[11px] text-slate-500">{text.noDataPersistenceNote}</p>
           {uploadedAssets.length > 0 && (
             <div className="mt-3 grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-3">
               {uploadedAssets.map((asset) => (
@@ -599,6 +685,9 @@ export function CampaignBuilder({
           removeTimeRule={removeTimeRule}
           toggleFullDay={toggleFullDay}
           toggleScheduleHour={toggleScheduleHour}
+          syncScheduleToAllSelectedPlatforms={syncScheduleToAllSelectedPlatforms}
+          syncScheduleHint={syncScheduleHint}
+          syncScheduleButton={text.syncScheduleButton}
         />
 
         {/* Ad preview */}

@@ -256,6 +256,22 @@ export function useCampaignBuilder({
     return [...new Set(combined)];
   }, [aiGeneratedAudienceNames, contentType, productType, objective]);
 
+  const [autoMergeSmartAudiences, setAutoMergeSmartAudiences] = useState(true);
+  useEffect(() => {
+    if (!autoMergeSmartAudiences) return;
+    setSelectedAudiences((prev) => {
+      const merged = new Set(prev);
+      let changed = false;
+      audienceSuggestionsWithAi.forEach((a) => {
+        if (!merged.has(a)) {
+          merged.add(a);
+          changed = true;
+        }
+      });
+      return changed ? [...merged] : prev;
+    });
+  }, [autoMergeSmartAudiences, audienceSuggestionsWithAi]);
+
   const getPlatformTitleLimit = (platform: PlatformName) => (platform === 'Google' ? 30 : 40);
   const getPlatformDescriptionLimit = (platform: PlatformName) =>
     platform === 'Google' ? 90 : platform === 'Meta' ? 125 : 100;
@@ -502,6 +518,7 @@ export function useCampaignBuilder({
   // ── Campaign creation ────────────────────────────────────────────────────
   const [isCreatingCampaign, setIsCreatingCampaign] = useState(false);
   const [publishResults, setPublishResults] = useState<Array<{ platform: string; ok: boolean; message: string; campaignId?: string }>>([]);
+  const [generateAiImageLoading, setGenerateAiImageLoading] = useState(false);
 
   const ensureManagedApiSession = async () => {
     const currentUser =
@@ -533,6 +550,65 @@ export function useCampaignBuilder({
         payload?.message ||
           (isHebrew ? 'אימות הסשן נכשל. התחבר מחדש ונסה שוב.' : 'Session bootstrap failed. Please sign in again.')
       );
+    }
+  };
+
+  const handleGenerateCreativeImage = async () => {
+    setBuilderMessage(null);
+    setGenerateAiImageLoading(true);
+    try {
+      await ensureManagedApiSession();
+      const title =
+        shortTitleInput.trim() ||
+        campaignNameInput.trim() ||
+        woo.inferredWooTitle ||
+        woo.selectedWooProduct?.name ||
+        '';
+      if (!title && !campaignBrief.trim() && !aiProcessingBrief.trim()) {
+        setBuilderMessage(
+          isHebrew
+            ? 'הזן כותרת או תיאור קצר כדי ליצור תמונת מודעה.'
+            : 'Add a title or short description to generate an ad image.'
+        );
+        return;
+      }
+      const res = await fetch('/api/campaigns/generate-creative-image', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          title: title || 'Campaign',
+          brief: aiProcessingBrief || campaignBrief,
+          objective,
+          country: targetCountry,
+        }),
+      });
+      const data = (await res.json().catch(() => ({}))) as {
+        success?: boolean;
+        message?: string;
+        imageBase64?: string;
+        mimeType?: string;
+      };
+      if (!res.ok || !data?.success || !data.imageBase64) {
+        throw new Error(data?.message || (isHebrew ? 'יצירת התמונה נכשלה.' : 'Image generation failed.'));
+      }
+      const mime = data.mimeType || 'image/png';
+      const binary = atob(data.imageBase64);
+      const bytes = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
+      const blob = new Blob([bytes], { type: mime });
+      const ext = mime.includes('png') ? 'png' : mime.includes('webp') ? 'webp' : 'jpg';
+      const file = new File([blob], `ai-creative-${Date.now()}.${ext}`, { type: mime });
+      await media.appendMediaFiles([file]);
+      setBuilderMessage(
+        isHebrew
+          ? 'תמונת מודעה נוצרה והתווספה לרשימת המדיה. ניתן לפרסם או ליצור שוב.'
+          : 'Ad image generated and added to media. Publish or generate again if you like.'
+      );
+    } catch (error) {
+      setBuilderMessage(error instanceof Error ? error.message : 'Image generation failed.');
+    } finally {
+      setGenerateAiImageLoading(false);
     }
   };
 
@@ -779,6 +855,10 @@ export function useCampaignBuilder({
     applyPlatformCopyToFields,
     handleAutoAudienceAndStrategy,
     handleGeneratePlatformAdCopies,
+    autoMergeSmartAudiences,
+    setAutoMergeSmartAudiences,
+    generateAiImageLoading,
+    handleGenerateCreativeImage,
     // campaign creation
     isCreatingCampaign,
     publishResults,

@@ -1,5 +1,5 @@
 import React from 'react';
-import { CalendarClock, Clock3, Trash2 } from 'lucide-react';
+import { CalendarClock, Clock3, Copy, Layers, Trash2 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import type { DayKey, PlatformName, RuleAction, TimeRule, WeeklySchedule } from './types';
 import { DAY_KEYS } from './types';
@@ -38,6 +38,9 @@ export type CampaignSchedulePanelProps = {
   removeTimeRule: (id: string) => void;
   toggleFullDay: (platform: string, day: DayKey) => void;
   toggleScheduleHour: (platform: string, day: DayKey, hour: number) => void;
+  syncScheduleToAllSelectedPlatforms: () => void;
+  syncScheduleHint: string;
+  syncScheduleButton: string;
 };
 
 export function CampaignSchedulePanel({
@@ -49,9 +52,10 @@ export function CampaignSchedulePanel({
   setSelectedSchedulePlatform, setSelectedScheduleDay,
   formatHour, formatHourRange, getActiveSlotsCount, isFullDaySelected,
   addTimeRule, removeTimeRule, toggleFullDay, toggleScheduleHour,
+  syncScheduleToAllSelectedPlatforms, syncScheduleHint, syncScheduleButton,
 }: CampaignSchedulePanelProps) {
   return (
-    <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+    <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
       {/* Time rules */}
       <div className="rounded-xl border border-amber-200 bg-amber-50/40 p-4">
         <h4 className="text-sm font-bold text-amber-900 flex items-center gap-2 mb-2">
@@ -175,11 +179,29 @@ export function CampaignSchedulePanel({
       </div>
 
       {/* Weekly schedule */}
-      <div className="rounded-xl border border-emerald-200 bg-emerald-50/40 p-4">
-        <h4 className="text-sm font-bold text-emerald-900 flex items-center gap-2 mb-2">
-          <CalendarClock className="w-4 h-4" />
-          {text.weeklyTitle}
-        </h4>
+      <div className="rounded-2xl border border-emerald-200/80 bg-gradient-to-br from-emerald-50/90 via-white to-teal-50/50 shadow-sm p-4 sm:p-5">
+        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 mb-3">
+          <h4 className="text-sm font-bold text-emerald-900 flex items-center gap-2">
+            <CalendarClock className="w-4 h-4 text-emerald-600" />
+            {text.weeklyTitle}
+          </h4>
+          {selectedPlatforms.length > 1 ? (
+            <button
+              type="button"
+              onClick={syncScheduleToAllSelectedPlatforms}
+              className="inline-flex items-center justify-center gap-2 rounded-xl border border-emerald-300/80 bg-white/90 px-3 py-2 text-xs font-bold text-emerald-800 shadow-sm hover:bg-emerald-50 hover:border-emerald-400 transition-all"
+            >
+              <Copy className="w-3.5 h-3.5" />
+              {syncScheduleButton}
+            </button>
+          ) : null}
+        </div>
+        {selectedPlatforms.length > 1 && (
+          <div className="mb-3 flex items-start gap-2 rounded-xl bg-emerald-100/50 border border-emerald-200/60 px-3 py-2 text-[11px] text-emerald-900 leading-snug">
+            <Layers className="w-3.5 h-3.5 shrink-0 mt-0.5 text-emerald-700" />
+            <span>{syncScheduleHint}</span>
+          </div>
+        )}
         {selectedPlatforms.length > 0 ? (
           <>
             <div className="flex flex-wrap gap-2 mb-3">

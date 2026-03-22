@@ -3,15 +3,15 @@ import { describe, expect, it, vi, afterEach } from 'vitest';
 import React from 'react';
 import { render, screen, fireEvent, cleanup } from '@testing-library/react';
 import { CampaignSchedulePanel } from '../../src/views/campaigns/CampaignSchedulePanel';
-import type { DayKey, TimeRule, WeeklySchedule } from '../../src/views/campaigns/types';
+import type { DayHours, DayKey, TimeRule, WeeklySchedule } from '../../src/views/campaigns/types';
 import { DAY_KEYS } from '../../src/views/campaigns/types';
 
 afterEach(cleanup);
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-const emptySchedule = (): WeeklySchedule =>
-  Object.fromEntries(DAY_KEYS.map((d) => [d, []])) as WeeklySchedule;
+const emptySchedule = (): DayHours =>
+  Object.fromEntries(DAY_KEYS.map((d) => [d, [] as number[]])) as DayHours;
 
 const makeRule = (id: string): TimeRule => ({
   id,
@@ -34,6 +34,11 @@ const text = {
   scheduleTitle: 'Schedule',
   schedulePlatformLabel: 'Platform',
   activeSlotsLabel: 'active slots',
+  weeklyTitle: 'Weekly schedule',
+  weeklyActiveSlots: 'Active hours',
+  markFullDay: 'Mark full day',
+  unmarkFullDay: 'Unmark full day',
+  noConnectedPlatforms: 'No platforms',
 };
 
 const baseProps = {
@@ -70,6 +75,9 @@ const baseProps = {
   removeTimeRule: vi.fn(),
   toggleFullDay: vi.fn(),
   toggleScheduleHour: vi.fn(),
+  syncScheduleToAllSelectedPlatforms: vi.fn(),
+  syncScheduleHint: 'Copies from current tab to all platforms.',
+  syncScheduleButton: 'Copy schedule to all platforms',
 };
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
