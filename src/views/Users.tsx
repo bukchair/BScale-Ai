@@ -43,7 +43,7 @@ interface UserProfile {
   uid: string;
   name: string;
   email: string;
-  role: 'admin' | 'agency' | 'owner' | 'editor' | 'viewer';
+  role: 'admin' | 'agency' | 'owner' | 'editor' | 'viewer' | 'user';
   plan?: string;
   subscriptionStatus?: string;
   createdAt: string;
@@ -58,6 +58,7 @@ const roleLabels: Record<UserProfile['role'], { labelKey: string, icon: React.El
   owner: { labelKey: 'users.roles.owner', icon: Building, color: 'text-indigo-700', bg: 'bg-indigo-50 border-indigo-200' },
   editor: { labelKey: 'users.roles.editor', icon: Edit2, color: 'text-emerald-700', bg: 'bg-emerald-50 border-emerald-200' },
   viewer: { labelKey: 'users.roles.viewer', icon: Search, color: 'text-gray-700', bg: 'bg-gray-50 border-gray-200' },
+  user: { labelKey: 'users.roles.viewer', icon: Search, color: 'text-gray-700', bg: 'bg-gray-50 border-gray-200' },
 };
 
 export function Users() {
