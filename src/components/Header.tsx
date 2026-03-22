@@ -26,7 +26,7 @@ type UserProfile = {
 
 interface HeaderProps {
   onMenuClick: () => void;
-  userProfile?: UserProfile;
+  userProfile?: UserProfile | null;
 }
 
 type NotificationItem = {
