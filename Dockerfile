@@ -1,6 +1,9 @@
 FROM node:22-slim AS builder
 WORKDIR /app
 
+# Install build tools needed for native modules (e.g. better-sqlite3)
+RUN apt-get update && apt-get install -y python3 make g++ && rm -rf /var/lib/apt/lists/*
+
 # Install dependencies (all, including devDeps needed for build)
 COPY package*.json ./
 RUN npm ci
@@ -17,6 +20,9 @@ WORKDIR /app
 
 ENV NODE_ENV=production
 ENV PORT=8080
+
+# Install build tools needed for native modules (e.g. better-sqlite3)
+RUN apt-get update && apt-get install -y python3 make g++ && rm -rf /var/lib/apt/lists/*
 
 COPY package*.json ./
 RUN npm ci --omit=dev
