@@ -5,6 +5,7 @@ import { parsePlatformParam, toRoutePlatform } from '@/src/lib/integrations/util
 import { integrationsEnv } from '@/src/lib/env/integrations-env';
 import { connectionService } from '@/src/lib/integrations/services/connection-service';
 import { MetaProvider } from '@/src/lib/integrations/providers/meta/provider';
+import { TikTokProvider } from '@/src/lib/integrations/providers/tiktok/provider';
 import { googleLegacyBridge } from '@/src/lib/integrations/services/google-legacy-bridge';
 import { ok, toErrorResponse } from '@/src/lib/integrations/utils/api-response';
 import {
@@ -173,14 +174,37 @@ const handleMetaAssets = async (userId: string) => {
   });
 };
 
-const handleTikTokCampaigns = async (request: Request) => {
+const handleTikTokCampaigns = async (request: Request, userId: string) => {
   const url = new URL(request.url);
   const advertiserId = (url.searchParams.get('advertiser_id') || '').trim();
   const startDateParam = (url.searchParams.get('start_date') || '').trim();
   const endDateParam = (url.searchParams.get('end_date') || '').trim();
-  const accessToken = (request.headers.get('authorization') || '').replace(/^Bearer\s+/i, '').trim();
-  if (!accessToken || !advertiserId) {
-    return NextResponse.json({ message: 'Missing access token or advertiser ID' }, { status: 400 });
+  let accessToken = (request.headers.get('authorization') || '').replace(/^Bearer\s+/i, '').trim();
+
+  if (!advertiserId) {
+    return NextResponse.json({ message: 'Missing advertiser ID' }, { status: 400 });
+  }
+
+  const isPlaceholderToken =
+    !accessToken ||
+    accessToken === 'server-managed' ||
+    /^server[-_]?managed$/i.test(accessToken);
+
+  if (isPlaceholderToken) {
+    const connection = await connectionService.getByUserPlatform(userId, 'TIKTOK');
+    if (!connection || connection.status !== 'CONNECTED') {
+      return NextResponse.json(
+        { message: 'TikTok is not connected. Connect TikTok under Integrations first.' },
+        { status: 400 }
+      );
+    }
+    try {
+      const provider = new TikTokProvider();
+      accessToken = await provider.getAccessTokenForConnection(connection.id, userId);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to resolve TikTok access token.';
+      return NextResponse.json({ message }, { status: 401 });
+    }
   }
 
   const campaignUrl = `https://business-api.tiktok.com/open_api/v1.3/campaign/get/?advertiser_id=${encodeURIComponent(advertiserId)}`;
@@ -347,7 +371,7 @@ const runAction = async (request: Request, context: RouteContext) => {
     return handleMetaAssets(user.id);
   }
   if (platformParam === 'tiktok' && action === 'campaigns' && request.method === 'GET') {
-    return handleTikTokCampaigns(request);
+    return handleTikTokCampaigns(request, user.id);
   }
   if (platformParam === 'google' && action === 'gmail-send' && request.method === 'POST') {
     return handleGoogleGmailSend(request, user.id);

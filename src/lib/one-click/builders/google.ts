@@ -19,7 +19,7 @@ const GOOGLE_GEO: Record<string, number> = {
 
 const hl = (text: string) => ({ text: text.trim().slice(0, 30) });
 const desc = (text: string) => ({ text: text.trim().slice(0, 90) });
-const normalizeCustomerId = (value: string) => value.replace(/\D/g, '');
+const normalizeCustomerId = (value: string | null | undefined) => String(value || '').replace(/\D/g, '');
 const normalizeFinalUrl = (value: string | undefined): string => {
   const raw = String(value || '').trim();
   if (!raw) return '';
@@ -163,7 +163,8 @@ export const createGoogleDraft = async (
               status: activateImmediately ? 'ENABLED' : 'PAUSED',
               advertisingChannelType: 'SEARCH',
               campaignBudget: budgetResourceName,
-              maximizeClicks: {},
+              // maximizeClicks is not a Campaign REST field; manual CPC is valid for SEARCH.
+              manualCpc: { enhancedCpcEnabled: false },
               networkSettings: {
                 targetGoogleSearch: true,
                 targetSearchNetwork: false,
