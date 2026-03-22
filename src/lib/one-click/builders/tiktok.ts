@@ -30,7 +30,9 @@ const toTikTokCTA = (o: OneClickObjective) =>
   o === 'sales' ? 'SHOP_NOW' : 'LEARN_MORE';
 
 const toTikTokOptimizationGoal = (o: OneClickObjective) => {
-  if (o === 'sales') return 'CONVERT';
+  // Campaign objective is TRAFFIC for sales (no pixel in this flow). CONVERT here
+  // causes "Invalid optimization goal" on ad group create.
+  if (o === 'sales') return 'CLICK';
   if (o === 'leads') return 'LEAD_GENERATION';
   return 'CLICK';
 };

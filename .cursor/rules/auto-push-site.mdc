@@ -1,11 +1,11 @@
 ---
-description: Push changes to the site (GitHub/Vercel) after making code changes
+description: Push changes to GitHub so Cloud Run (or CI) can deploy
 alwaysApply: true
 ---
 
-# דחיפה אוטומטית לאתר
+# דחיפה אוטומטית ל-repo
 
-אחרי כל שינוי בקוד בפרויקט (קבצים ב-repo), יש **לבצע דחיפה אוטומטית** ל-GitHub כדי שהאתר (Vercel) יתעדכן.
+אחרי כל שינוי בקוד בפרויקט (קבצים ב-repo), יש **לבצע דחיפה אוטומטית** ל-GitHub כדי שהפריסה (למשל **Google Cloud Run** דרך טריגר CI/Cloud Build) תתעדכן.
 
 ## מה לעשות
 
@@ -16,7 +16,7 @@ alwaysApply: true
 
 2. **פקודות ב-PowerShell** (Windows) - השתמש ב-`;` בין פקודות, לא `&&`:
    ```powershell
-   Set-Location "c:\Users\User\Downloads\בי סקייל"; git add -A; git commit -m "Your message"; git push origin main
+   Set-Location "c:\Users\User\Downloads\bscale.co.il"; git add -A; git commit -m "Your message"; git push origin main
    ```
 
 3. **הודעת קומיט** - תמציתית ומתארת את השינוי (למשל: "תיקון אימות Google", "הוספת מדריכים בחיבורים").

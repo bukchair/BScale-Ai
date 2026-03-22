@@ -116,11 +116,9 @@ export function CloudRunLogs() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [severity, setSeverity] = useState<Severity>('');
-  const [errorsOnly, setErrorsOnly] = useState(true);
-  const [search, setSearch] = useState('');
   const [searchInput, setSearchInput] = useState('');
-  const [emailInput, setEmailInput] = useState('');
-  const [userEmail, setUserEmail] = useState('');
+  const [userEmailInput, setUserEmailInput] = useState('');
+  const [errorsOnly, setErrorsOnly] = useState(true);
   const [nextPageToken, setNextPageToken] = useState<string | undefined>();
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const [fetched, setFetched] = useState(false);
@@ -131,13 +129,12 @@ export function CloudRunLogs() {
     try {
       await ensureSession();
       const params = new URLSearchParams({ pageSize: '100' });
-      if (errorsOnly) {
-        params.set('errorsOnly', '1');
-      } else if (severity) {
-        params.set('severity', severity);
-      }
-      if (userEmail) params.set('userEmail', userEmail);
-      if (search) params.set('search', search);
+      if (!errorsOnly && severity) params.set('severity', severity);
+      if (errorsOnly) params.set('errorsOnly', '1');
+      const q = searchInput.trim();
+      if (q) params.set('search', q);
+      const em = userEmailInput.trim();
+      if (em) params.set('userEmail', em);
       if (pageToken) params.set('pageToken', pageToken);
 
       const res = await fetch(`${API_BASE}/api/cloud-run-logs?${params.toString()}`);
@@ -155,14 +152,13 @@ export function CloudRunLogs() {
     } finally {
       setLoading(false);
     }
-  }, [errorsOnly, severity, userEmail, search]);
+  }, [severity, searchInput, userEmailInput, errorsOnly]);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
-    setSearch(searchInput);
-    setUserEmail(emailInput);
     setLogs([]);
     setNextPageToken(undefined);
+    void fetchLogs();
   };
 
   const toggleExpand = (id: string) => {
@@ -174,17 +170,29 @@ export function CloudRunLogs() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 text-[15px] leading-relaxed">
+      <div className="rounded-xl border border-indigo-200/60 dark:border-indigo-500/25 bg-indigo-50/50 dark:bg-indigo-950/30 px-4 py-3 text-sm text-indigo-900 dark:text-indigo-100 flex gap-2 items-start">
+        <Info className="w-5 h-5 shrink-0 mt-0.5 opacity-80" />
+        <div>
+          <p className="font-semibold">נוחות לעיניים</p>
+          <p className="mt-1 opacity-90">
+            בשורת הכותרת העליונה לחץ על כפתור הירח/שמש (ליד בורר השפה) כדי לעבור ל<strong>מצב כהה</strong>.
+            ב-Windows: הגדרות → מערכת → תצוגה → בהירות / <strong>לילה</strong> או <strong>ניגודיות</strong>.
+            אפשר גם להקטין זוהר: <strong>לילה</strong> בדפדפן או זום 90%–110% (Ctrl + גלגלת).
+          </p>
+        </div>
+      </div>
+
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">לוגים של Cloud Run</h1>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white tracking-tight">לוגים של Cloud Run</h1>
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-            לוגים של שירות <code className="bg-gray-100 dark:bg-white/10 px-1 rounded">bscale</code> ב-Cloud Run
+            לוגים של שירות <code className="bg-gray-100 dark:bg-white/10 px-1 rounded text-[13px]">bscale</code> ב-Cloud Run
           </p>
         </div>
         <button
-          onClick={() => { setLogs([]); setNextPageToken(undefined); fetchLogs(); }}
+          onClick={() => { setLogs([]); setNextPageToken(undefined); void fetchLogs(); }}
           disabled={loading}
           className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
         >
@@ -226,12 +234,12 @@ export function CloudRunLogs() {
         {/* Email + text search */}
         <form onSubmit={handleSearch} className="flex flex-wrap gap-2">
           <div className="relative min-w-[200px] flex-1">
-            <Search className="absolute start-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+            <User className="absolute start-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
             <input
               type="email"
-              value={emailInput}
-              onChange={e => setEmailInput(e.target.value)}
-              placeholder="אימייל משתמש..."
+              value={userEmailInput}
+              onChange={e => setUserEmailInput(e.target.value)}
+              placeholder="אימייל משתמש (אופציונלי)..."
               className="w-full ps-9 pe-3 py-1.5 text-sm bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-lg text-gray-900 dark:text-white placeholder-gray-400"
             />
           </div>
@@ -310,7 +318,7 @@ export function CloudRunLogs() {
                             </span>
                           )}
                         </div>
-                        <pre className="text-sm text-gray-800 dark:text-gray-200 whitespace-pre-wrap break-all font-mono leading-relaxed">
+                        <pre className="text-[15px] text-gray-800 dark:text-gray-100 whitespace-pre-wrap break-all font-mono leading-relaxed">
                           {message.length > 400 && !expanded ? message.slice(0, 400) + '…' : message}
                         </pre>
                       </div>
@@ -322,7 +330,7 @@ export function CloudRunLogs() {
                     </div>
                     {expanded && hasDetails && (
                       <div className="px-4 pb-3 ps-11">
-                        <pre className="text-xs bg-gray-50 dark:bg-black/30 rounded-lg p-3 overflow-x-auto text-gray-600 dark:text-gray-400 font-mono">
+                        <pre className="text-[13px] bg-gray-50 dark:bg-zinc-900/80 rounded-lg p-3 overflow-x-auto text-gray-700 dark:text-gray-300 font-mono leading-relaxed">
                           {JSON.stringify(
                             { jsonPayload: entry.jsonPayload, httpRequest: entry.httpRequest, labels: entry.labels },
                             null,

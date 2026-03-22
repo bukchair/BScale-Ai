@@ -67,8 +67,7 @@ export function useMediaAssets({ effectiveMediaLimits, isHebrew, onMessage }: Us
 
   // ── Handlers ──────────────────────────────────────────────────────────────
 
-  const handleAssetUpload: React.ChangeEventHandler<HTMLInputElement> = async (event) => {
-    const files = Array.from(event.target.files || []) as File[];
+  const appendMediaFiles = async (files: File[]) => {
     if (!files.length) return;
     const imageMaxBytes = effectiveMediaLimits.imageMaxMb * 1024 * 1024;
     const videoMaxBytes = effectiveMediaLimits.videoMaxMb * 1024 * 1024;
@@ -122,7 +121,12 @@ export function useMediaAssets({ effectiveMediaLimits, isHebrew, onMessage }: Us
       setUploadedAssets((prev) => [...prev, ...mapped].slice(0, 12));
       onMessage(null);
     }
-    event.target.value = '';
+  };
+
+  const handleAssetUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    e.target.value = '';
+    await appendMediaFiles(files);
   };
 
   const removeAsset = (id: string) => {
@@ -143,6 +147,7 @@ export function useMediaAssets({ effectiveMediaLimits, isHebrew, onMessage }: Us
   return {
     uploadedAssets,
     handleAssetUpload,
+    appendMediaFiles,
     removeAsset,
     clearUploadedMedia,
   };

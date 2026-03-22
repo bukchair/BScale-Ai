@@ -504,9 +504,11 @@ export async function fetchWooCommerceOrdersByRange(
     }
 
     if (!response.ok) {
-      const rawMessage =
-        (parsed && typeof parsed === 'object' && 'message' in parsed && typeof (parsed as Record<string, unknown>).message === 'string' && (parsed as Record<string, unknown>).message as string) ||
-        `WooCommerce API error (${response.status})`;
+      let rawMessage = `WooCommerce API error (${response.status})`;
+      if (parsed && typeof parsed === 'object') {
+        const m = (parsed as Record<string, unknown>).message;
+        if (typeof m === 'string' && m.trim()) rawMessage = m;
+      }
       throw new Error(sanitizeErrorText(rawMessage));
     }
 
@@ -647,9 +649,11 @@ export async function fetchWooCommerceLatestOrders(
   }
 
   if (!response.ok) {
-    const rawMessage =
-      (parsed && typeof parsed === 'object' && 'message' in parsed && typeof (parsed as Record<string, unknown>).message === 'string' && (parsed as Record<string, unknown>).message as string) ||
-      `WooCommerce API error (${response.status})`;
+    let rawMessage = `WooCommerce API error (${response.status})`;
+    if (parsed && typeof parsed === 'object') {
+      const m = (parsed as Record<string, unknown>).message;
+      if (typeof m === 'string' && m.trim()) rawMessage = m;
+    }
     throw new Error(sanitizeWooErrorText(rawMessage));
   }
 

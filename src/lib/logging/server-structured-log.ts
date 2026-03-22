@@ -1,8 +1,7 @@
 /**
  * Structured logging for Cloud Run.
- * Outputs a single JSON line to stdout/stderr so Cloud Logging indexes
- * the fields (userEmail, userId, path, etc.) under jsonPayload,
- * making them searchable in the Cloud Run Logs viewer.
+ * Single-line JSON to stdout/stderr so entries appear in Cloud Run / Cloud Logging.
+ * Searching by `userEmail` in the logs UI (textPayload) will match these lines.
  *
  * Usage:
  *   import { logWithUserContext } from '@/src/lib/logging/server-structured-log';
@@ -27,12 +26,10 @@ export function logWithUserContext(
     severity: level,
     message,
     ...context,
-    time: new Date().toISOString(),
+    ts: new Date().toISOString(),
   };
   const line = JSON.stringify(entry);
-  if (level === 'ERROR' || level === 'CRITICAL') {
-    process.stderr.write(line + '\n');
-  } else {
-    process.stdout.write(line + '\n');
-  }
+  if (level === 'ERROR' || level === 'CRITICAL') console.error(line);
+  else if (level === 'WARNING') console.warn(line);
+  else console.log(line);
 }

@@ -129,13 +129,13 @@ export const createMetaDraft = async (
     const campaignPayload = (await campaignRes.json()) as Record<string, unknown>;
     const campaignId = String(campaignPayload?.id || '');
 
-    // 2. Create ad set — LINK_CLICKS avoids pixel/lead-form requirements
+    // 2. Create ad set — LINK_CLICKS aligns with OUTCOME_TRAFFIC (no pixel required)
     const adSetForm = new URLSearchParams();
     adSetForm.set('name', `${sanitize(name)} – Ad Set`);
     adSetForm.set('campaign_id', campaignId);
     adSetForm.set('status', metaStatus);
     adSetForm.set('billing_event', 'IMPRESSIONS');
-    adSetForm.set('optimization_goal', 'LANDING_PAGE_VIEWS');
+    adSetForm.set('optimization_goal', 'LINK_CLICKS');
     adSetForm.set('bid_strategy', 'LOWEST_COST_WITHOUT_CAP');
     adSetForm.set('destination_type', 'WEBSITE');
     adSetForm.set('daily_budget', String(Math.round(Math.max(dailyBudget, 1) * 100)));
@@ -190,12 +190,13 @@ export const createMetaDraft = async (
     const adTitle = strategy.platformCopy?.Meta?.title || name;
     const adBody  = strategy.platformCopy?.Meta?.description || product?.description || '';
     const finalUrl = normalizeFinalUrl(product?.url);
+    const safeLink = finalUrl || 'https://www.facebook.com';
 
     const linkData: Record<string, unknown> = {
-      link: finalUrl || 'https://facebook.com',
+      link: safeLink,
       name: sanitize(adTitle, 40),
       message: sanitize(adBody, 125),
-      call_to_action: { type: toMetaCTA(objective), value: finalUrl ? { link: finalUrl } : {} },
+      call_to_action: { type: toMetaCTA(objective), value: { link: safeLink } },
     };
     if (imageHash) linkData.image_hash = imageHash;
 

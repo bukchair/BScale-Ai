@@ -72,23 +72,24 @@ export function useProfitability({ connections, startDate, endDate, periodLabel 
         }
 
         const connectedCampaigns = unifiedCampaignRows
-          .map((row: Record<string, unknown>) => {
-            const platformRaw = String(row?.platform || '');
+          .map((row: unknown) => {
+            const r = row as Record<string, unknown>;
+            const platformRaw = String(r?.platform || '');
             const platform =
               platformRaw === 'Google' || platformRaw === 'Meta' || platformRaw === 'TikTok'
                 ? (platformRaw as 'Google' | 'Meta' | 'TikTok')
                 : null;
             if (!platform) return null;
             return {
-              id: String(row?.campaignId || row?.id || `${platform.toLowerCase()}-${row?.name || ''}`),
-              name: String(row?.name || `${platform} Campaign`),
+              id: String(r?.campaignId || r?.id || `${platform.toLowerCase()}-${r?.name || ''}`),
+              name: String(r?.name || `${platform} Campaign`),
               platform,
-              status: String(row?.status || 'Unknown'),
-              spend: toAmount(row?.spend),
-              conversions: toAmount(row?.conversions),
-              conversionValue: toAmount(row?.conversionValue),
-              roas: toAmount(row?.roas),
-              metaChannels: platform === 'Meta' ? (row?.metaChannels || null) : null,
+              status: String(r?.status || 'Unknown'),
+              spend: toAmount(r?.spend),
+              conversions: toAmount(r?.conversions),
+              conversionValue: toAmount(r?.conversionValue),
+              roas: toAmount(r?.roas),
+              metaChannels: platform === 'Meta' ? (r?.metaChannels || null) : null,
             } as CampaignSpendRow;
           })
           .filter((row): row is CampaignSpendRow => Boolean(row))

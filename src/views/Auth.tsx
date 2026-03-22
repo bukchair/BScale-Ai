@@ -1,7 +1,8 @@
 "use client";
 
 import React, { useState } from 'react';
-import { BrainCircuit, Mail, Lock, User, AlertCircle } from 'lucide-react';
+import { signInWithEmailAndPassword } from 'firebase/auth';
+import { BrainCircuit, Mail, Lock, User, AlertCircle, Loader2 } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
 import { auth, googleProvider, signInWithPopup } from '../lib/firebase';
 import { SiteLegalNotice } from '../components/SiteLegalNotice';
@@ -17,9 +18,14 @@ export function Auth({ onLogin, initialMode = 'login' }: AuthProps) {
   const [isLogin, setIsLogin] = useState(initialMode !== 'register');
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [registerSent, setRegisterSent] = useState(false);
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
 
   React.useEffect(() => {
     setIsLogin(initialMode !== 'register');
+    setRegisterSent(false);
   }, [initialMode]);
 
   const handleGoogleLogin = async () => {
@@ -48,25 +54,85 @@ export function Auth({ onLogin, initialMode = 'login' }: AuthProps) {
         page_path: window.location.pathname,
         error_message: err instanceof Error ? err.message : 'unknown_error',
       });
-      setError(err instanceof Error ? err.message :(language === 'he' ? 'אירעה שגיאה בהתחברות עם גוגל.' : 'Google sign-in failed. Please try again.'));
+      setError(
+        err instanceof Error
+          ? err.message
+          : language === 'he'
+            ? 'אירעה שגיאה בהתחברות עם גוגל.'
+            : 'Google sign-in failed. Please try again.'
+      );
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    trackEvent(isLogin ? 'bscale_login_form_submit' : 'bscale_register_form_submit', {
-      method: 'email_form_mock',
-      page_path: window.location.pathname,
-    });
-    // For now, we still allow mock login via form for testing
-    onLogin();
+    setError(null);
+
+    if (isLogin) {
+      setIsLoading(true);
+      trackEvent('bscale_login_email_start', { page_path: window.location.pathname });
+      try {
+        const credential = await signInWithEmailAndPassword(auth, email.trim(), password);
+        const idToken = await credential.user.getIdToken(true);
+        const bootstrapRes = await fetch('/api/auth/session/bootstrap', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ idToken }),
+        });
+        if (!bootstrapRes.ok) {
+          const body = (await bootstrapRes.json().catch(() => null)) as { message?: string } | null;
+          throw new Error(body?.message?.trim() || `HTTP ${bootstrapRes.status}`);
+        }
+        trackEvent('bscale_login_email_ok', { page_path: window.location.pathname });
+        onLogin();
+      } catch (err: unknown) {
+        trackEvent('bscale_login_email_err', {
+          error_message: err instanceof Error ? err.message : 'unknown',
+        });
+        setError(
+          err instanceof Error
+            ? err.message
+            : language === 'he'
+              ? 'התחברות נכשלה. בדוק אימייל וסיסמה.'
+              : 'Sign-in failed. Check email and password.'
+        );
+      } finally {
+        setIsLoading(false);
+      }
+      return;
+    }
+
+    // Register: send confirmation email (no password yet)
+    setIsLoading(true);
+    trackEvent('bscale_register_email_request', { page_path: window.location.pathname });
+    try {
+      const res = await fetch('/api/auth/email-signup/request', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          email: email.trim(),
+          name: name.trim() || undefined,
+          locale: language === 'he' ? 'he' : 'en',
+        }),
+      });
+      const data = (await res.json().catch(() => ({}))) as { success?: boolean; message?: string };
+      if (!res.ok) {
+        throw new Error(data.message || (language === 'he' ? 'שליחת המייל נכשלה.' : 'Could not send email.'));
+      }
+      setRegisterSent(true);
+      trackEvent('bscale_register_email_sent', { page_path: window.location.pathname });
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-[#050505] flex flex-col justify-center py-12 sm:px-6 lg:px-8 relative transition-colors duration-300" dir={dir}>
-      {/* Background Glow */}
       <div className="fixed inset-0 z-0 overflow-hidden pointer-events-none">
         <div className="absolute top-[-20%] left-[-10%] w-[50%] h-[50%] bg-indigo-600/10 dark:bg-indigo-600/20 blur-[120px] rounded-full" />
         <div className="absolute bottom-[-20%] right-[-10%] w-[50%] h-[50%] bg-purple-600/10 dark:bg-purple-600/20 blur-[120px] rounded-full" />
@@ -93,13 +159,19 @@ export function Auth({ onLogin, initialMode = 'login' }: AuthProps) {
             </div>
           )}
 
+          {registerSent && !isLogin ? (
+            <div className="p-4 rounded-xl bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/20 text-emerald-800 dark:text-emerald-200 text-sm">
+              {t('auth.registerCheckEmail')}
+            </div>
+          ) : null}
+
           <button
             onClick={handleGoogleLogin}
             disabled={isLoading}
             className="w-full flex justify-center items-center gap-3 py-3 px-4 border border-gray-300 dark:border-white/20 rounded-xl shadow-sm bg-white dark:bg-white/5 text-sm font-medium text-gray-700 dark:text-white hover:bg-gray-50 dark:hover:bg-white/10 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {isLoading ? (
-              <div className="w-5 h-5 border-2 border-gray-300 border-t-indigo-600 rounded-full animate-spin" />
+              <Loader2 className="w-5 h-5 animate-spin text-indigo-600" />
             ) : (
               <svg className="w-5 h-5" viewBox="0 0 24 24">
                 <path
@@ -136,68 +208,88 @@ export function Auth({ onLogin, initialMode = 'login' }: AuthProps) {
             </div>
           </div>
 
-          <form className="mt-6 space-y-6" onSubmit={handleSubmit}>
-            {!isLogin && (
+          {!registerSent || isLogin ? (
+            <form className="mt-6 space-y-6" onSubmit={handleSubmit}>
+              {!isLogin && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                    {t('auth.name')}
+                  </label>
+                  <div className="mt-1 relative">
+                    <div className="absolute inset-y-0 start-0 ps-3 flex items-center pointer-events-none">
+                      <User className="h-5 w-5 text-gray-400 dark:text-gray-500" />
+                    </div>
+                    <input
+                      type="text"
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      className="appearance-none block w-full ps-10 pe-3 py-3 border border-gray-300 dark:border-white/10 rounded-xl bg-white dark:bg-white/5 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent sm:text-sm transition-colors duration-300"
+                    />
+                  </div>
+                  <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{t('auth.registerEmailHint')}</p>
+                </div>
+              )}
+
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                  {t('auth.name')}
+                  {t('auth.email')}
                 </label>
                 <div className="mt-1 relative">
                   <div className="absolute inset-y-0 start-0 ps-3 flex items-center pointer-events-none">
-                    <User className="h-5 w-5 text-gray-400 dark:text-gray-500" />
+                    <Mail className="h-5 w-5 text-gray-400 dark:text-gray-500" />
                   </div>
                   <input
-                    type="text"
+                    type="email"
                     required
+                    autoComplete="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
                     className="appearance-none block w-full ps-10 pe-3 py-3 border border-gray-300 dark:border-white/10 rounded-xl bg-white dark:bg-white/5 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent sm:text-sm transition-colors duration-300"
                   />
                 </div>
               </div>
-            )}
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                {t('auth.email')}
-              </label>
-              <div className="mt-1 relative">
-                <div className="absolute inset-y-0 start-0 ps-3 flex items-center pointer-events-none">
-                  <Mail className="h-5 w-5 text-gray-400 dark:text-gray-500" />
+              {isLogin && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                    {t('auth.password')}
+                  </label>
+                  <div className="mt-1 relative">
+                    <div className="absolute inset-y-0 start-0 ps-3 flex items-center pointer-events-none">
+                      <Lock className="h-5 w-5 text-gray-400 dark:text-gray-500" />
+                    </div>
+                    <input
+                      type="password"
+                      required
+                      autoComplete="current-password"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      className="appearance-none block w-full ps-10 pe-3 py-3 border border-gray-300 dark:border-white/10 rounded-xl bg-white dark:bg-white/5 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent sm:text-sm transition-colors duration-300"
+                    />
+                  </div>
                 </div>
-                <input
-                  type="email"
-                  required
-                  className="appearance-none block w-full ps-10 pe-3 py-3 border border-gray-300 dark:border-white/10 rounded-xl bg-white dark:bg-white/5 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent sm:text-sm transition-colors duration-300"
-                />
-              </div>
-            </div>
+              )}
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                {t('auth.password')}
-              </label>
-              <div className="mt-1 relative">
-                <div className="absolute inset-y-0 start-0 ps-3 flex items-center pointer-events-none">
-                  <Lock className="h-5 w-5 text-gray-400 dark:text-gray-500" />
-                </div>
-                <input
-                  type="password"
-                  required
-                  className="appearance-none block w-full ps-10 pe-3 py-3 border border-gray-300 dark:border-white/10 rounded-xl bg-white dark:bg-white/5 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent sm:text-sm transition-colors duration-300"
-                />
-              </div>
-            </div>
-
-            <button
-              type="submit"
-              className="w-full flex justify-center py-3 px-4 border border-transparent rounded-xl shadow-sm text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors"
-            >
-              {isLogin ? t('auth.login') : t('auth.register')}
-            </button>
-          </form>
+              <button
+                type="submit"
+                disabled={isLoading}
+                className="w-full flex justify-center items-center gap-2 py-3 px-4 border border-transparent rounded-xl shadow-sm text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors disabled:opacity-50"
+              >
+                {isLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : null}
+                {isLogin ? t('auth.login') : t('auth.sendInvite')}
+              </button>
+            </form>
+          ) : null}
 
           <div className="mt-6 text-center">
             <button
-              onClick={() => setIsLogin(!isLogin)}
+              type="button"
+              onClick={() => {
+                setIsLogin(!isLogin);
+                setError(null);
+                setRegisterSent(false);
+                setPassword('');
+              }}
               className="text-sm text-indigo-600 dark:text-indigo-400 hover:text-indigo-500 dark:hover:text-indigo-300 font-medium transition-colors"
             >
               {isLogin ? t('auth.noAccount') : t('auth.hasAccount')}{' '}

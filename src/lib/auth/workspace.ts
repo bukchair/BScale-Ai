@@ -1,5 +1,17 @@
+import { Prisma } from '@prisma/client';
 import { prisma } from '@/src/lib/db/prisma';
 import { IntegrationError } from '@/src/lib/integrations/core/errors';
+import { logger } from '@/src/lib/integrations/utils/logger';
+
+function isMissingSharedAccessTable(err: unknown): boolean {
+  if (err instanceof Prisma.PrismaClientKnownRequestError) {
+    return err.code === 'P2021';
+  }
+  if (err instanceof Error) {
+    return /shared_access|SharedAccess|does not exist/i.test(err.message);
+  }
+  return false;
+}
 
 /**
  * Resolves the effective owner userId for a request.
@@ -24,14 +36,29 @@ export async function resolveEffectiveOwnerUserId(
     return authenticatedUserId;
   }
 
-  const access = await prisma.sharedAccess.findFirst({
-    where: {
-      ownerUserId: requestedOwnerUserId,
-      sharedUserId: authenticatedUserId,
-      status: 'accepted',
-    },
-    select: { id: true },
-  });
+  let access: { id: string } | null;
+  try {
+    access = await prisma.sharedAccess.findFirst({
+      where: {
+        ownerUserId: requestedOwnerUserId,
+        sharedUserId: authenticatedUserId,
+        status: 'accepted',
+      },
+      select: { id: true },
+    });
+  } catch (err) {
+    if (isMissingSharedAccessTable(err)) {
+      logger.error('sharedAccess table missing or unreadable; run Prisma migrations.', {
+        message: err instanceof Error ? err.message : String(err),
+      });
+      throw new IntegrationError(
+        'CONFIGURATION_ERROR',
+        'Workspace sharing database is not ready. Run migrations or contact support.',
+        503
+      );
+    }
+    throw err;
+  }
 
   if (!access) {
     throw new IntegrationError(

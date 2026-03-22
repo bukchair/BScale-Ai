@@ -34,7 +34,7 @@ describe('ga4Connector.fetchSiteMetricsByDay', () => {
   it('normalises YYYYMMDD date strings to YYYY-MM-DD', async () => {
     mockFetch.mockResolvedValueOnce(makeGa4Response([{ date: '20260101', values: [100, 80, 500, 1200, 5] }]));
 
-    const rows = await ga4Connector.fetchSiteMetricsByDay('conn1', '123456789', '2026-01-01', '2026-01-07');
+    const rows = await ga4Connector.fetchSiteMetricsByDay('conn1', 'user-test', '123456789', '2026-01-01', '2026-01-07');
 
     expect(rows).toHaveLength(1);
     expect(rows[0].date).toBe('2026-01-01');
@@ -43,7 +43,7 @@ describe('ga4Connector.fetchSiteMetricsByDay', () => {
   it('maps metric values to the correct fields', async () => {
     mockFetch.mockResolvedValueOnce(makeGa4Response([{ date: '20260315', values: [250, 180, 900, 3000, 12] }]));
 
-    const rows = await ga4Connector.fetchSiteMetricsByDay('conn1', '123456789', '2026-03-15', '2026-03-15');
+    const rows = await ga4Connector.fetchSiteMetricsByDay('conn1', 'user-test', '123456789', '2026-03-15', '2026-03-15');
 
     expect(rows[0]).toMatchObject({
       sessions: 250,
@@ -57,7 +57,7 @@ describe('ga4Connector.fetchSiteMetricsByDay', () => {
   it('returns empty array when API returns no rows', async () => {
     mockFetch.mockResolvedValueOnce(new Response(JSON.stringify({}), { status: 200 }));
 
-    const rows = await ga4Connector.fetchSiteMetricsByDay('conn1', '123456789', '2026-01-01', '2026-01-07');
+    const rows = await ga4Connector.fetchSiteMetricsByDay('conn1', 'user-test', '123456789', '2026-01-01', '2026-01-07');
 
     expect(rows).toEqual([]);
   });
@@ -65,7 +65,7 @@ describe('ga4Connector.fetchSiteMetricsByDay', () => {
   it('passes the property ID and date range to the GA4 Data API', async () => {
     mockFetch.mockResolvedValueOnce(new Response(JSON.stringify({ rows: [] }), { status: 200 }));
 
-    await ga4Connector.fetchSiteMetricsByDay('conn1', '987654321', '2026-02-01', '2026-02-28');
+    await ga4Connector.fetchSiteMetricsByDay('conn1', 'user-test', '987654321', '2026-02-01', '2026-02-28');
 
     const [url, init] = mockFetch.mock.calls[0] as [string, RequestInit];
     expect(url).toContain('properties/987654321:runReport');

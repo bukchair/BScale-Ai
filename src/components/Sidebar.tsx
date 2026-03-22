@@ -34,7 +34,7 @@ type UserProfile = {
   uid?: string;
   role?: string;
   subscriptionStatus?: string;
-  trialEndsAt?: string;
+  trialEndsAt?: string | null;
 };
 
 interface SidebarProps {

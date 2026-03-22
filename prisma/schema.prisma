@@ -62,6 +62,18 @@ enum ActionRequestStatus {
   FAILED
 }
 
+model EmailSignupInvite {
+  id        String    @id @default(cuid())
+  tokenHash String    @unique
+  email     String
+  name      String?
+  createdAt DateTime  @default(now())
+  expiresAt DateTime
+  usedAt    DateTime?
+
+  @@index([email])
+}
+
 model User {
   id                  String               @id @default(cuid())
   email               String               @unique
