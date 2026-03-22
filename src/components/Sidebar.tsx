@@ -42,7 +42,7 @@ interface SidebarProps {
   setActiveTab: (tab: string) => void;
   isOpen: boolean;
   setIsOpen: (isOpen: boolean) => void;
-  userProfile?: UserProfile;
+  userProfile?: UserProfile | null;
 }
 
 type NavItem = {

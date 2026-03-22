@@ -10,7 +10,7 @@ type UserProfile = {
   createdAt?: string;
 };
 
-export function useTrialCountdown(userProfile: UserProfile | undefined, dir: string) {
+export function useTrialCountdown(userProfile: UserProfile | undefined | null, dir: string) {
   const isTrialUser =
     userProfile?.subscriptionStatus === 'trial' && userProfile?.role !== 'admin';
 
