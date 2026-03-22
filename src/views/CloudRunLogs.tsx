@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useCallback } from 'react';
-import { RefreshCw, Search, AlertCircle, Info, AlertTriangle, XCircle, ChevronDown, ChevronUp, Mail } from 'lucide-react';
+import { RefreshCw, Search, AlertCircle, Info, AlertTriangle, XCircle, ChevronDown, ChevronUp, User } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { API_BASE } from '../lib/utils/client-api-base';
 import { auth, onAuthStateChanged } from '../lib/firebase';
@@ -192,7 +192,7 @@ export function CloudRunLogs() {
           </p>
         </div>
         <button
-          onClick={() => { setLogs([]); setNextPageToken(undefined); fetchLogs(); }}
+          onClick={() => { setLogs([]); setNextPageToken(undefined); void fetchLogs(); }}
           disabled={loading}
           className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
         >
@@ -203,49 +203,64 @@ export function CloudRunLogs() {
 
       {/* Filters */}
       <div className="bg-white dark:bg-[#111] rounded-xl border border-gray-200 dark:border-white/10 p-4 space-y-3">
-        <div className="flex flex-wrap gap-3">
-          {/* Severity filter */}
-          <div className="flex items-center gap-2">
+        <div className="flex flex-wrap gap-3 items-center">
+          {/* Errors only checkbox */}
+          <label className="flex items-center gap-2 cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={errorsOnly}
+              onChange={e => setErrorsOnly(e.target.checked)}
+              className="w-4 h-4 accent-indigo-600"
+            />
+            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">שגיאות ומעלה בלבד</span>
+          </label>
+
+          {/* Severity filter — disabled when errorsOnly */}
+          <div className={cn('flex items-center gap-2', errorsOnly && 'opacity-40 pointer-events-none')}>
             <label className="text-sm font-medium text-gray-700 dark:text-gray-300">חומרה:</label>
             <select
               value={severity}
               onChange={e => setSeverity(e.target.value as Severity)}
-              className="text-sm bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-lg px-3 py-1.5 text-gray-900 dark:text-white"
+              disabled={errorsOnly}
+              className="text-sm bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-lg px-3 py-1.5 text-gray-900 dark:text-white disabled:opacity-50"
             >
               {SEVERITIES.map(s => (
                 <option key={s.value} value={s.value}>{s.label}</option>
               ))}
             </select>
           </div>
-
-          {/* Text search */}
-          <form onSubmit={handleSearch} className="flex items-center gap-2 flex-1 min-w-[200px]">
-            <div className="relative flex-1">
-              <Search className="absolute start-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-              <input
-                type="text"
-                value={searchInput}
-                onChange={e => setSearchInput(e.target.value)}
-                placeholder="חיפוש בטקסט הלוג..."
-                className="w-full ps-9 pe-3 py-1.5 text-sm bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-lg text-gray-900 dark:text-white placeholder-gray-400"
-              />
-            </div>
-            <button
-              type="submit"
-              className="px-3 py-1.5 bg-gray-100 dark:bg-white/10 hover:bg-gray-200 dark:hover:bg-white/20 text-gray-700 dark:text-gray-300 rounded-lg text-sm transition-colors"
-            >
-              חפש
-            </button>
-          </form>
         </div>
 
-        <button
-          onClick={() => { setLogs([]); setNextPageToken(undefined); fetchLogs(); }}
-          disabled={loading}
-          className="w-full py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
-        >
-          {loading && !logs.length ? 'טוען...' : 'טען לוגים'}
-        </button>
+        {/* Email + text search */}
+        <form onSubmit={handleSearch} className="flex flex-wrap gap-2">
+          <div className="relative min-w-[200px] flex-1">
+            <User className="absolute start-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+            <input
+              type="email"
+              value={userEmailInput}
+              onChange={e => setUserEmailInput(e.target.value)}
+              placeholder="אימייל משתמש (אופציונלי)..."
+              className="w-full ps-9 pe-3 py-1.5 text-sm bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-lg text-gray-900 dark:text-white placeholder-gray-400"
+            />
+          </div>
+          <div className="relative min-w-[200px] flex-1">
+            <Search className="absolute start-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+            <input
+              type="text"
+              value={searchInput}
+              onChange={e => setSearchInput(e.target.value)}
+              placeholder="חיפוש בטקסט הלוג..."
+              className="w-full ps-9 pe-3 py-1.5 text-sm bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-lg text-gray-900 dark:text-white placeholder-gray-400"
+            />
+          </div>
+          <button
+            type="submit"
+            disabled={loading}
+            className="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
+          >
+            {loading && !logs.length ? 'טוען...' : 'טען לוגים'}
+          </button>
+        </form>
       </div>
 
       {/* Error */}
@@ -274,6 +289,10 @@ export function CloudRunLogs() {
                 const expanded = expandedIds.has(id);
                 const message = logMessage(entry);
                 const hasDetails = !!(entry.jsonPayload || entry.httpRequest || entry.labels);
+                const entryEmail =
+                  typeof entry.jsonPayload?.userEmail === 'string' ? entry.jsonPayload.userEmail :
+                  typeof entry.jsonPayload?.user_email === 'string' ? entry.jsonPayload.user_email :
+                  null;
                 return (
                   <div key={id} className="hover:bg-gray-50 dark:hover:bg-white/5 transition-colors">
                     <div
@@ -282,11 +301,17 @@ export function CloudRunLogs() {
                     >
                       <SeverityIcon severity={entry.severity} />
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-3 text-xs text-gray-500 dark:text-gray-500 mb-1">
+                        <div className="flex items-center flex-wrap gap-3 text-xs text-gray-500 dark:text-gray-500 mb-1">
                           <span className={cn('font-semibold uppercase', severityColor(entry.severity))}>
                             {entry.severity || 'DEFAULT'}
                           </span>
                           <span>{formatTimestamp(entry.timestamp)}</span>
+                          {entryEmail && (
+                            <span className="flex items-center gap-1 bg-indigo-50 dark:bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 px-1.5 py-0.5 rounded text-[11px] font-medium">
+                              <User className="w-3 h-3" />
+                              {entryEmail}
+                            </span>
+                          )}
                           {entry.resource?.labels?.revision_name && (
                             <span className="bg-gray-100 dark:bg-white/10 px-1.5 py-0.5 rounded text-[10px]">
                               {entry.resource.labels.revision_name}

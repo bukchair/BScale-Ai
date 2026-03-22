@@ -51,13 +51,13 @@ export async function GET(request: Request) {
     } else if (severity) {
       filter += ` severity=${severity}`;
     }
-    if (search) {
-      const safeSearch = sanitizeFilterFragment(search);
-      filter += ` textPayload:"${safeSearch}"`;
-    }
     if (userEmail) {
       const safeEmail = sanitizeFilterFragment(userEmail);
       filter += ` (textPayload:"${safeEmail}" OR jsonPayload.userEmail="${safeEmail}" OR jsonPayload.user_email="${safeEmail}")`;
+    }
+    if (search) {
+      const safeSearch = sanitizeFilterFragment(search);
+      filter += ` textPayload:"${safeSearch}"`;
     }
 
     const accessToken = await getAccessToken();
