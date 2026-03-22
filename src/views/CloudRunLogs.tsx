@@ -116,8 +116,11 @@ export function CloudRunLogs() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [severity, setSeverity] = useState<Severity>('');
+  const [errorsOnly, setErrorsOnly] = useState(true);
   const [search, setSearch] = useState('');
   const [searchInput, setSearchInput] = useState('');
+  const [emailInput, setEmailInput] = useState('');
+  const [userEmail, setUserEmail] = useState('');
   const [nextPageToken, setNextPageToken] = useState<string | undefined>();
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const [fetched, setFetched] = useState(false);
@@ -128,7 +131,12 @@ export function CloudRunLogs() {
     try {
       await ensureSession();
       const params = new URLSearchParams({ pageSize: '100' });
-      if (severity) params.set('severity', severity);
+      if (errorsOnly) {
+        params.set('errorsOnly', '1');
+      } else if (severity) {
+        params.set('severity', severity);
+      }
+      if (userEmail) params.set('userEmail', userEmail);
       if (search) params.set('search', search);
       if (pageToken) params.set('pageToken', pageToken);
 
@@ -147,11 +155,12 @@ export function CloudRunLogs() {
     } finally {
       setLoading(false);
     }
-  }, [severity, search]);
+  }, [errorsOnly, severity, userEmail, search]);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     setSearch(searchInput);
+    setUserEmail(emailInput);
     setLogs([]);
     setNextPageToken(undefined);
   };
@@ -186,49 +195,64 @@ export function CloudRunLogs() {
 
       {/* Filters */}
       <div className="bg-white dark:bg-[#111] rounded-xl border border-gray-200 dark:border-white/10 p-4 space-y-3">
-        <div className="flex flex-wrap gap-3">
-          {/* Severity filter */}
-          <div className="flex items-center gap-2">
+        <div className="flex flex-wrap gap-3 items-center">
+          {/* Errors only checkbox */}
+          <label className="flex items-center gap-2 cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={errorsOnly}
+              onChange={e => setErrorsOnly(e.target.checked)}
+              className="w-4 h-4 accent-indigo-600"
+            />
+            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">שגיאות ומעלה בלבד</span>
+          </label>
+
+          {/* Severity filter — disabled when errorsOnly */}
+          <div className={cn('flex items-center gap-2', errorsOnly && 'opacity-40 pointer-events-none')}>
             <label className="text-sm font-medium text-gray-700 dark:text-gray-300">חומרה:</label>
             <select
               value={severity}
               onChange={e => setSeverity(e.target.value as Severity)}
-              className="text-sm bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-lg px-3 py-1.5 text-gray-900 dark:text-white"
+              disabled={errorsOnly}
+              className="text-sm bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-lg px-3 py-1.5 text-gray-900 dark:text-white disabled:opacity-50"
             >
               {SEVERITIES.map(s => (
                 <option key={s.value} value={s.value}>{s.label}</option>
               ))}
             </select>
           </div>
-
-          {/* Text search */}
-          <form onSubmit={handleSearch} className="flex items-center gap-2 flex-1 min-w-[200px]">
-            <div className="relative flex-1">
-              <Search className="absolute start-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-              <input
-                type="text"
-                value={searchInput}
-                onChange={e => setSearchInput(e.target.value)}
-                placeholder="חיפוש בטקסט הלוג..."
-                className="w-full ps-9 pe-3 py-1.5 text-sm bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-lg text-gray-900 dark:text-white placeholder-gray-400"
-              />
-            </div>
-            <button
-              type="submit"
-              className="px-3 py-1.5 bg-gray-100 dark:bg-white/10 hover:bg-gray-200 dark:hover:bg-white/20 text-gray-700 dark:text-gray-300 rounded-lg text-sm transition-colors"
-            >
-              חפש
-            </button>
-          </form>
         </div>
 
-        <button
-          onClick={() => { setLogs([]); setNextPageToken(undefined); fetchLogs(); }}
-          disabled={loading}
-          className="w-full py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
-        >
-          {loading && !logs.length ? 'טוען...' : 'טען לוגים'}
-        </button>
+        {/* Email + text search */}
+        <form onSubmit={handleSearch} className="flex flex-wrap gap-2">
+          <div className="relative min-w-[200px] flex-1">
+            <Search className="absolute start-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+            <input
+              type="email"
+              value={emailInput}
+              onChange={e => setEmailInput(e.target.value)}
+              placeholder="אימייל משתמש..."
+              className="w-full ps-9 pe-3 py-1.5 text-sm bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-lg text-gray-900 dark:text-white placeholder-gray-400"
+            />
+          </div>
+          <div className="relative min-w-[200px] flex-1">
+            <Search className="absolute start-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+            <input
+              type="text"
+              value={searchInput}
+              onChange={e => setSearchInput(e.target.value)}
+              placeholder="חיפוש בטקסט הלוג..."
+              className="w-full ps-9 pe-3 py-1.5 text-sm bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-lg text-gray-900 dark:text-white placeholder-gray-400"
+            />
+          </div>
+          <button
+            type="submit"
+            disabled={loading}
+            className="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
+          >
+            {loading && !logs.length ? 'טוען...' : 'טען לוגים'}
+          </button>
+        </form>
       </div>
 
       {/* Error */}

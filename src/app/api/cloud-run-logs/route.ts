@@ -35,12 +35,20 @@ export async function GET(request: Request) {
     const url = new URL(request.url);
     const severity = url.searchParams.get('severity') || '';
     const search = url.searchParams.get('search') || '';
+    const errorsOnly = url.searchParams.get('errorsOnly') === '1';
+    const userEmail = url.searchParams.get('userEmail') || '';
     const pageSize = Math.min(parseInt(url.searchParams.get('pageSize') || '100', 10), 500);
     const pageToken = url.searchParams.get('pageToken') || undefined;
 
     let filter = `resource.type="cloud_run_revision" resource.labels.service_name="${CLOUD_RUN_SERVICE}" resource.labels.location="${CLOUD_RUN_REGION}"`;
-    if (severity) {
+    if (errorsOnly) {
+      filter += ` severity>=ERROR`;
+    } else if (severity) {
       filter += ` severity=${severity}`;
+    }
+    if (userEmail) {
+      const safeEmail = userEmail.replace(/["\\]/g, '');
+      filter += ` (textPayload:"${safeEmail}" OR jsonPayload.userEmail="${safeEmail}" OR jsonPayload.user_email="${safeEmail}")`;
     }
     if (search) {
       // Sanitize: only allow printable non-quote characters to avoid injection in filter
