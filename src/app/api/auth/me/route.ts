@@ -119,8 +119,8 @@ export async function GET() {
   let ownerUserId = dbUser.id;
   let accessMode: 'owner' | 'shared' = 'owner';
   let sharedRole: string | undefined;
-  let ownerName: string | undefined;
-  let ownerEmail: string | undefined;
+  let ownerName: string | undefined = dbUser.name ?? undefined;
+  let ownerEmail: string | undefined = dbUser.email;
 
   try {
     const sharedAccess = await prisma.sharedAccess.findFirst({
