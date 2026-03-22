@@ -19,6 +19,14 @@ const GOOGLE_GEO: Record<string, number> = {
 
 const hl = (text: string) => ({ text: text.trim().slice(0, 30) });
 const desc = (text: string) => ({ text: text.trim().slice(0, 90) });
+
+/** Google Ads keyword / RSA text is more reliable with Latin script in automated drafts. */
+const isMostlyLatinScript = (text: string) => {
+  const letters = text.replace(/[\s\d\p{P}\p{S}]/gu, '');
+  if (!letters.length) return true;
+  const latin = letters.replace(/[^A-Za-z]/g, '').length;
+  return latin / letters.length >= 0.5;
+};
 const normalizeCustomerId = (value: string | null | undefined) => String(value || '').replace(/\D/g, '');
 const normalizeFinalUrl = (value: string | undefined): string => {
   const raw = String(value || '').trim();
@@ -40,7 +48,7 @@ const buildRsaHeadlines = (
     traffic: ['Visit Our Website', 'Discover More Today', 'Learn More Here'],
   };
 
-  const candidates = [
+  const raw = [
     aiTitle,
     productName,
     strategy.campaignName,
@@ -50,10 +58,17 @@ const buildRsaHeadlines = (
     .map((t) => t.trim().slice(0, 30))
     .filter(Boolean);
 
+  const latinFirst = raw.filter((t) => isMostlyLatinScript(t));
+  const ordered =
+    latinFirst.length >= 3 ? [...latinFirst, ...raw.filter((t) => !latinFirst.includes(t))] : [...(objectivePhrases[objective] || []), ...raw];
+
   const seen = new Set<string>();
   const unique: string[] = [];
-  for (const c of candidates) {
-    if (!seen.has(c)) { seen.add(c); unique.push(c); }
+  for (const c of ordered) {
+    if (!seen.has(c)) {
+      seen.add(c);
+      unique.push(c);
+    }
   }
   return unique.slice(0, 15).map(hl);
 };
@@ -63,28 +78,50 @@ const buildRsaDescriptions = (
   productDescription?: string
 ): Array<{ text: string }> => {
   const aiDesc = strategy.platformCopy?.Google?.description?.trim() || '';
-  const candidates = [
+  const raw = [
     aiDesc,
     productDescription?.trim() || '',
     `${strategy.campaignName} — click to learn more`.slice(0, 90),
-  ].map((t) => t.slice(0, 90)).filter(Boolean);
+  ]
+    .map((t) => t.slice(0, 90))
+    .filter(Boolean);
+
+  const latinFirst = raw.filter((t) => isMostlyLatinScript(t));
+  const ordered =
+    latinFirst.length >= 2 ? [...latinFirst, ...raw.filter((t) => !latinFirst.includes(t))] : [raw[0] || 'Shop online today.', ...raw];
 
   const seen = new Set<string>();
   const unique: string[] = [];
-  for (const c of candidates) {
-    if (!seen.has(c)) { seen.add(c); unique.push(c); }
+  for (const c of ordered) {
+    if (!seen.has(c)) {
+      seen.add(c);
+      unique.push(c);
+    }
   }
   return unique.slice(0, 4).map(desc);
 };
 
 const buildKeywords = (productName: string, audiences: string[]): string[] => {
+  const asciiToken = (s: string) =>
+    s
+      .normalize('NFKD')
+      .replace(/[^\x00-\x7F]+/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
   const kws: string[] = [];
-  if (productName) kws.push(productName.slice(0, 80));
-  for (const w of productName.split(/\s+/).filter((w) => w.length > 2).slice(0, 3)) {
+  const nameAscii = asciiToken(productName);
+  if (nameAscii.length >= 2) kws.push(nameAscii.slice(0, 80));
+  for (const w of nameAscii.split(/\s+/).filter((w) => w.length > 2).slice(0, 3)) {
     kws.push(w);
   }
-  for (const a of audiences.slice(0, 3)) kws.push(a.slice(0, 80));
-  return [...new Set(kws)].slice(0, 10);
+  for (const a of audiences.slice(0, 3)) {
+    const t = asciiToken(a);
+    if (t.length >= 2) kws.push(t.slice(0, 80));
+  }
+  const generic = ['online shopping', 'best deals', 'shop now'];
+  const merged = [...new Set(kws.filter(Boolean))];
+  if (merged.length === 0) return generic;
+  return merged.slice(0, 10);
 };
 
 // ─── Builder ──────────────────────────────────────────────────────────────────

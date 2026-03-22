@@ -654,6 +654,24 @@ export function useCampaignBuilder({
       );
       return;
     }
+    const urlFromBrief =
+      (campaignBrief.match(/https?:\/\/[^\s<>"']+/i)?.[0] || '').trim() || '';
+    const { storeUrl: earlyStoreUrl } = resolveWooCredentials(
+      wooConnection?.settings as Record<string, unknown> | undefined
+    );
+    const hasGoogleLandingUrl = Boolean(
+      (isWooConnected && woo.useWooProductData && woo.selectedWooProduct?.productUrl?.trim()) ||
+        earlyStoreUrl?.trim() ||
+        urlFromBrief
+    );
+    if (resolvedPlatforms.includes('Google') && !hasGoogleLandingUrl) {
+      setBuilderMessage(
+        isHebrew
+          ? 'לפרסום ב-Google Ads נדרש קישור יעד: מוצר WooCommerce, כתובת חנות בחיבור Woo, או URL בתיאור הקמפיין.'
+          : 'Google Ads needs a landing URL: Woo product link, store URL in your WooCommerce connection, or paste a URL in the campaign brief.'
+      );
+      return;
+    }
     try {
       await ensureManagedApiSession();
       const { storeUrl: resolvedStoreUrl } = resolveWooCredentials(
@@ -677,6 +695,7 @@ export function useCampaignBuilder({
         url:
           (isWooConnected && woo.useWooProductData ? woo.selectedWooProduct?.productUrl : '') ||
           resolvedStoreUrl ||
+          urlFromBrief ||
           '',
         imageUrl:
           isWooConnected && woo.useWooProductData && woo.selectedWooProduct?.imageUrl

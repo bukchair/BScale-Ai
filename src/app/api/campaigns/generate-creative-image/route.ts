@@ -11,9 +11,9 @@ type Body = {
   country?: string;
 };
 
-const buildImagePrompt = (body: Body): string => {
+const buildImagePrompt = (body: Body, maxBrief = 400): string => {
   const title = String(body.title || 'Product promotion').trim().slice(0, 120);
-  const brief = String(body.brief || '').trim().slice(0, 400);
+  const brief = String(body.brief || '').trim().slice(0, maxBrief);
   const objective = String(body.objective || 'sales').trim();
   const country = String(body.country || '').trim();
   return [
@@ -29,6 +29,19 @@ const buildImagePrompt = (body: Body): string => {
     .filter(Boolean)
     .join(' ');
 };
+
+const POLLINATIONS_MAX_URL_CHARS = 1900;
+
+async function fetchPollinationsWithPrompt(prompt: string): Promise<Response> {
+  const url = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=1024&height=1024&nologo=true&seed=${Date.now() % 1_000_000}`;
+  const controller = new AbortController();
+  const t = setTimeout(() => controller.abort(), 25_000);
+  try {
+    return await fetch(url, { redirect: 'follow', signal: controller.signal });
+  } finally {
+    clearTimeout(t);
+  }
+}
 
 async function tryGeminiImage(apiKey: string, prompt: string): Promise<{ base64: string; mimeType: string } | null> {
   const models = [
@@ -83,7 +96,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, message: 'Invalid JSON body.' }, { status: 400 });
     }
 
-    const prompt = buildImagePrompt(body);
+    let prompt = buildImagePrompt(body);
     const geminiKey = process.env.GEMINI_API_KEY?.trim();
     if (geminiKey) {
       try {
@@ -101,9 +114,20 @@ export async function POST(request: Request) {
       }
     }
 
-    const pollinationsUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=1024&height=1024&nologo=true&seed=${Date.now() % 1_000_000}`;
-    const imgRes = await fetch(pollinationsUrl, { redirect: 'follow' });
-    if (!imgRes.ok) {
+    let imgRes: Response | null = null;
+    const promptVariants = [
+      prompt,
+      buildImagePrompt(body, 120),
+      `Professional ad image 1:1, ${String(body.title || 'product').trim().slice(0, 80)}, clean modern, no text overlay`,
+    ];
+    for (const p of promptVariants) {
+      const urlLen =
+        `https://image.pollinations.ai/prompt/${encodeURIComponent(p)}?width=1024&height=1024&nologo=true&seed=0`.length;
+      if (urlLen > POLLINATIONS_MAX_URL_CHARS) continue;
+      imgRes = await fetchPollinationsWithPrompt(p);
+      if (imgRes.ok) break;
+    }
+    if (!imgRes?.ok) {
       return NextResponse.json(
         {
           success: false,

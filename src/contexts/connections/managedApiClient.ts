@@ -73,6 +73,7 @@ export const fetchManagedConnections = async (
   const response = await fetch('/api/connections', {
     method: 'GET',
     cache: 'no-store',
+    credentials: 'include',
     headers: buildWorkspaceHeaders(dataOwnerUid),
   });
   const text = await response.text();

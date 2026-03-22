@@ -1,4 +1,4 @@
-import type { Prisma } from '@prisma/client';
+import { Prisma } from '@prisma/client';
 import { prisma } from '@/src/lib/db/prisma';
 import type { Platform } from '@/src/lib/integrations/core/types';
 import { providerFactory } from '@/src/lib/integrations/core/provider-factory';
@@ -10,9 +10,33 @@ import { syncService } from '@/src/lib/integrations/services/sync-service';
 import { IntegrationError, OAuthStateMismatchError } from '@/src/lib/integrations/core/errors';
 import { logger } from '@/src/lib/integrations/utils/logger';
 
+/** Ensure values survive JSON.stringify (no BigInt / exotic types from drivers). */
+const jsonSafe = (value: unknown): unknown => {
+  if (value === null || value === undefined) return value;
+  if (typeof value === 'bigint') return Number(value);
+  if (value instanceof Date) return value.toISOString();
+  if (Array.isArray(value)) return value.map(jsonSafe);
+  if (typeof value === 'object') {
+    return Object.fromEntries(
+      Object.entries(value as Record<string, unknown>).map(([k, v]) => [k, jsonSafe(v)])
+    );
+  }
+  return value;
+};
+
 export const integrationOrchestrator = {
   async listConnections(userId: string) {
-    const connections = await connectionService.listForUser(userId);
+    let connections;
+    try {
+      connections = await connectionService.listForUser(userId);
+    } catch (err) {
+      logger.error('listConnections: listForUser failed', {
+        userId,
+        message: err instanceof Error ? err.message : String(err),
+        code: err instanceof Prisma.PrismaClientKnownRequestError ? err.code : undefined,
+      });
+      throw err;
+    }
     if (connections.length === 0) return [];
 
     const connectionIds = connections.map((c) => c.id);
@@ -58,9 +82,9 @@ export const integrationOrchestrator = {
         id: connection.id,
         platform: connection.platform,
         status: connection.status,
-        lastSyncAt: connection.lastSyncAt,
+        lastSyncAt: connection.lastSyncAt?.toISOString() ?? null,
         lastError: connection.lastError,
-        updatedAt: connection.updatedAt,
+        updatedAt: connection.updatedAt.toISOString(),
         connectedAccountCount: connection.connectedAccounts.length,
         selectedAccountCount: connection.connectedAccounts.filter((account) => account.isSelected).length,
         accounts: connection.connectedAccounts.map((account) => ({
@@ -71,15 +95,15 @@ export const integrationOrchestrator = {
           isSelected: account.isSelected,
           currency: account.currency,
           timezone: account.timezone,
-          metadata: account.metadata,
+          metadata: jsonSafe(account.metadata),
         })),
         history: history.map((run) => ({
           id: run.id,
           status: run.status,
-          startedAt: run.startedAt,
-          completedAt: run.completedAt,
+          startedAt: run.startedAt.toISOString(),
+          completedAt: run.completedAt?.toISOString() ?? null,
           errorMessage: run.errorMessage,
-          resultSummary: run.resultSummary,
+          resultSummary: jsonSafe(run.resultSummary),
           jobType: run.syncJob.type,
         })),
       };
