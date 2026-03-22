@@ -1,11 +1,45 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useLanguage } from '../contexts/LanguageContext';
-import { Users as UsersIcon, Shield, UserPlus, MoreVertical, Search, Edit2, Trash2, Building, Mail, CheckCircle2, XCircle, Loader2 } from 'lucide-react';
+import { Users as UsersIcon, Shield, UserPlus, Search, Edit2, Trash2, Building, CheckCircle2, Loader2 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { db, auth } from '../lib/firebase';
 import { collection, onSnapshot, query, doc, updateDoc, deleteDoc } from 'firebase/firestore';
+
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+type ShareRole = 'manager' | 'viewer';
+
+interface SharedAccessRow {
+  email: string;
+  role: ShareRole;
+}
+
+interface IncomingShare {
+  ownerUid: string;
+  ownerName: string;
+  ownerEmail: string;
+  role: ShareRole;
+}
+
+function normalizeEmail(value: string | undefined | null) {
+  return (value || '').trim().toLowerCase();
+}
+
+function parseSharedAccess(raw: unknown): SharedAccessRow[] {
+  if (!Array.isArray(raw)) return [];
+  const out: SharedAccessRow[] = [];
+  raw.forEach((item) => {
+    if (!item || typeof item !== 'object') return;
+    const row = item as Record<string, unknown>;
+    const email = normalizeEmail(typeof row.email === 'string' ? row.email : '');
+    if (!email || !EMAIL_REGEX.test(email)) return;
+    const role: ShareRole = row.role === 'viewer' ? 'viewer' : 'manager';
+    out.push({ email, role });
+  });
+  return out;
+}
 
 interface UserProfile {
   uid: string;
@@ -16,6 +50,7 @@ interface UserProfile {
   subscriptionStatus?: string;
   createdAt: string;
   storeIds?: string[];
+  sharedAccess?: unknown;
   photoURL?: string;
 }
 
@@ -37,9 +72,13 @@ export function Users() {
   useEffect(() => {
     const q = query(collection(db, 'users'));
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      const usersData = snapshot.docs.map(doc => ({
-        ...doc.data()
-      })) as UserProfile[];
+      const usersData = snapshot.docs.map((d) => {
+        const data = d.data() as Record<string, unknown>;
+        return {
+          ...data,
+          uid: typeof data.uid === 'string' ? data.uid : d.id,
+        } as UserProfile;
+      });
       setUsers(usersData);
       setLoading(false);
     }, (error) => {
@@ -100,6 +139,23 @@ export function Users() {
       console.error("Error deleting user:", error);
     }
   };
+
+  const incomingSharesByEmail = useMemo(() => {
+    const map = new Map<string, IncomingShare[]>();
+    for (const u of users) {
+      for (const entry of parseSharedAccess(u.sharedAccess)) {
+        const list = map.get(entry.email) ?? [];
+        list.push({
+          ownerUid: u.uid,
+          ownerName: u.name || '',
+          ownerEmail: u.email || '',
+          role: entry.role,
+        });
+        map.set(entry.email, list);
+      }
+    }
+    return map;
+  }, [users]);
 
   const filteredUsers = users.filter(user => {
     const matchesSearch = (user.name?.toLowerCase() || '').includes(searchTerm.toLowerCase()) || 
@@ -216,7 +272,7 @@ export function Users() {
                 <th className="px-6 py-4 font-medium">{t('users.user')}</th>
                 <th className="px-6 py-4 font-medium">{t('users.role')}</th>
                 <th className="px-6 py-4 font-medium">{t('users.subscriptionAccess')}</th>
-                <th className="px-6 py-4 font-medium">{t('users.managedStores')}</th>
+                <th className="px-6 py-4 font-medium min-w-[220px]">{t('users.accessSharing')}</th>
                 <th className="px-6 py-4 font-medium">{t('users.status')}</th>
                 <th className="px-6 py-4 font-medium">{t('users.lastActivity')}</th>
                 <th className="px-6 py-4 font-medium"></th>
@@ -225,8 +281,12 @@ export function Users() {
             <tbody className="divide-y divide-gray-100">
               {filteredUsers.map((user) => {
                 const roleInfo = roleLabels[user.role];
-                const RoleIcon = roleInfo.icon;
-                
+                const outgoing = parseSharedAccess(user.sharedAccess);
+                const incoming =
+                  incomingSharesByEmail.get(normalizeEmail(user.email)) ?? [];
+                const managersOut = outgoing.filter((e) => e.role === 'manager');
+                const viewersOut = outgoing.filter((e) => e.role === 'viewer');
+
                 return (
                    <tr key={user.uid} className="hover:bg-gray-50/50 transition-colors group">
                     <td className="px-6 py-4">
@@ -308,22 +368,138 @@ export function Users() {
                         })()
                       )}
                     </td>
-                    <td className="px-6 py-4">
-                      <div className="flex flex-wrap gap-1.5">
-                        {(user.storeIds || []).slice(0, 2).map((store, idx) => (
-                          <span key={idx} className="bg-gray-100 text-gray-700 px-2 py-1 rounded-md text-xs font-medium border border-gray-200/50">
-                            {store}
-                          </span>
-                        ))}
-                        {(user.storeIds || []).length > 2 && (
-                          <span className="bg-gray-100 text-gray-500 px-2 py-1 rounded-md text-xs font-medium border border-gray-200/50">
-                            +{(user.storeIds || []).length - 2}
-                          </span>
+                    <td className="px-6 py-4 align-top">
+                      {user.role === 'admin' ? (
+                        <span className="text-gray-400 text-xs font-medium">—</span>
+                      ) : (
+                      <div className="max-w-[280px] space-y-2 text-xs text-gray-700">
+                        {user.role === 'agency' && incoming.length > 0 && (
+                          <div>
+                            <p className="font-semibold text-gray-600 mb-1">{t('users.agencyLinkedOwners')}</p>
+                            <ul className="space-y-1">
+                              {incoming.map((row, idx) => (
+                                <li key={`${row.ownerUid}-${idx}`} className="leading-snug">
+                                  <span className="font-medium">{row.ownerName || row.ownerEmail}</span>
+                                  {row.ownerName ? (
+                                    <span className="text-gray-500 block text-[11px]">{row.ownerEmail}</span>
+                                  ) : null}
+                                  <span
+                                    className={cn(
+                                      'mt-0.5 inline-block rounded px-1.5 py-0.5 text-[10px] font-bold border',
+                                      row.role === 'manager'
+                                        ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                                        : 'bg-slate-50 text-slate-700 border-slate-200'
+                                    )}
+                                  >
+                                    {row.role === 'manager' ? t('users.shareBadgeManager') : t('users.shareBadgeViewer')}
+                                  </span>
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
                         )}
-                        {(user.storeIds || []).length === 0 && (
-                          <span className="text-gray-400 text-xs italic">{t('users.noStores')}</span>
+                        {user.role === 'agency' && incoming.length === 0 && (
+                          <p className="text-gray-400 italic">{t('users.noAgencyLinkedOwners')}</p>
+                        )}
+
+                        {(user.role === 'owner' || outgoing.length > 0) && outgoing.length > 0 && (
+                          <div>
+                            <p className="font-semibold text-gray-600 mb-1">{t('users.ownerOutgoingShares')}</p>
+                            {managersOut.length > 0 && (
+                              <div className="mb-1.5">
+                                <span className="text-[10px] uppercase tracking-wide text-gray-500 font-bold">
+                                  {t('users.shareEmployees')}
+                                </span>
+                                <div className="flex flex-wrap gap-1 mt-0.5">
+                                  {managersOut.map((e) => (
+                                    <span
+                                      key={e.email}
+                                      className="bg-emerald-50 text-emerald-800 px-2 py-0.5 rounded-md text-[11px] font-medium border border-emerald-200"
+                                    >
+                                      {e.email}
+                                    </span>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                            {viewersOut.length > 0 && (
+                              <div>
+                                <span className="text-[10px] uppercase tracking-wide text-gray-500 font-bold">
+                                  {t('users.shareViewers')}
+                                </span>
+                                <div className="flex flex-wrap gap-1 mt-0.5">
+                                  {viewersOut.map((e) => (
+                                    <span
+                                      key={e.email}
+                                      className="bg-slate-50 text-slate-800 px-2 py-0.5 rounded-md text-[11px] font-medium border border-slate-200"
+                                    >
+                                      {e.email}
+                                    </span>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        {user.role !== 'agency' &&
+                          user.role !== 'owner' &&
+                          incoming.length > 0 && (
+                            <div>
+                              <p className="font-semibold text-gray-600 mb-1">{t('users.workspaceAccessFrom')}</p>
+                              <ul className="space-y-1">
+                                {incoming.map((row, idx) => (
+                                  <li key={`${row.ownerUid}-${idx}`} className="leading-snug">
+                                    <span className="font-medium">{row.ownerName || row.ownerEmail}</span>
+                                    <span
+                                      className={cn(
+                                        'ms-1 inline-block rounded px-1.5 py-0.5 text-[10px] font-bold border',
+                                        row.role === 'manager'
+                                          ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                                          : 'bg-slate-50 text-slate-700 border-slate-200'
+                                      )}
+                                    >
+                                      {row.role === 'manager' ? t('users.shareBadgeManager') : t('users.shareBadgeViewer')}
+                                    </span>
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+
+                        {user.role !== 'agency' &&
+                          user.role !== 'owner' &&
+                          user.role !== 'admin' &&
+                          incoming.length === 0 && (
+                            <p className="text-gray-400 italic">{t('users.noWorkspaceAccess')}</p>
+                          )}
+
+                        {user.role === 'owner' && outgoing.length === 0 && (
+                          <p className="text-gray-400 italic">{t('users.noOutgoingShares')}</p>
+                        )}
+
+                        {(user.storeIds || []).length > 0 && (
+                          <div className="pt-1 border-t border-gray-100">
+                            <span className="text-[10px] text-gray-500 font-bold uppercase tracking-wide">
+                              {t('users.legacyStoreIds')}
+                            </span>
+                            <div className="flex flex-wrap gap-1 mt-0.5">
+                              {(user.storeIds || []).slice(0, 4).map((store, idx) => (
+                                <span
+                                  key={idx}
+                                  className="bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded text-[10px] font-mono border border-gray-200/50"
+                                >
+                                  {store}
+                                </span>
+                              ))}
+                              {(user.storeIds || []).length > 4 && (
+                                <span className="text-gray-400 text-[10px]">+{(user.storeIds || []).length - 4}</span>
+                              )}
+                            </div>
+                          </div>
                         )}
                       </div>
+                      )}
                     </td>
                     <td className="px-6 py-4">
                       <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
