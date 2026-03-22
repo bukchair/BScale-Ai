@@ -349,7 +349,7 @@ export function CreativeLab() {
                         {isHebrew ? 'פרומט שינוי רקע (לשליחה למנוע AI)' : 'Background-change prompt (send to AI engine)'}
                       </span>
                       <button
-                        onClick={() => handleCopyText(generatedContent.bgPrompt)}
+                        onClick={() => handleCopyText(generatedContent.bgPrompt ?? '')}
                         className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-white border border-violet-200 text-xs text-violet-700 hover:bg-violet-50"
                       >
                         <Copy className="w-3 h-3" />
@@ -462,8 +462,10 @@ export function CreativeLab() {
                     </span>
                     <button
                       onClick={() => {
+                        const url = generatedContent.url;
+                        if (!url) return;
                         const a = document.createElement('a');
-                        a.href = generatedContent.url;
+                        a.href = url;
                         a.download = 'creative-main.jpg';
                         a.click();
                       }}
@@ -474,12 +476,14 @@ export function CreativeLab() {
                     </button>
                   </div>
                   <div className="relative group">
-                  <img src={generatedContent.url} alt="Generated Ad" className="w-full h-auto object-cover" referrerPolicy="no-referrer" />
+                  <img src={generatedContent.url ?? ''} alt="Generated Ad" className="w-full h-auto object-cover" referrerPolicy="no-referrer" />
                   <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-4 flex-wrap">
                     <button
                       onClick={() => {
+                        const url = generatedContent.url;
+                        if (!url) return;
                         const a = document.createElement('a');
-                        a.href = generatedContent.url;
+                        a.href = url;
                         a.download = 'creative-main.jpg';
                         a.click();
                       }}
@@ -512,7 +516,7 @@ export function CreativeLab() {
                   </div>{/* close relative group */}
                 </div>{/* close outer rounded-xl */}
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-                  {generatedContent.variations.map((url: string, idx: number) => (
+                  {(generatedContent.variations ?? []).map((url: string, idx: number) => (
                     <button
                       key={idx}
                       onClick={() => {
@@ -555,7 +559,7 @@ export function CreativeLab() {
                 </div>
                 
                 <div className="space-y-4">
-                  {generatedContent.options.map((option, idx: number) => (
+                  {(generatedContent.options ?? []).map((option, idx: number) => (
                     <div key={idx} className="p-4 border border-gray-200 rounded-xl bg-white shadow-sm hover:shadow-md transition-shadow relative">
                       <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
                         <span className="text-[10px] font-black text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded uppercase">אופציה {idx + 1}</span>
@@ -651,7 +655,7 @@ export function CreativeLab() {
                 </div>
                 
                 <div className="space-y-4">
-                  {generatedContent.script.map((scene, idx: number) => (
+                  {(generatedContent.script ?? []).map((scene, idx: number) => (
                     <div key={idx} className="grid grid-cols-1 md:grid-cols-12 gap-4 p-4 border border-gray-100 rounded-xl bg-gray-50/50">
                       <div className="md:col-span-2">
                         <span className="text-[10px] font-black text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded uppercase">{scene.time}</span>

@@ -5,8 +5,8 @@ import { useEffect, useMemo, useState } from 'react';
 type UserProfile = {
   subscriptionStatus?: string;
   role?: string;
-  trialEndsAt?: string;
-  trialStartedAt?: string;
+  trialEndsAt?: string | null;
+  trialStartedAt?: string | null;
   createdAt?: string;
 };
 

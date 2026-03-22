@@ -123,8 +123,9 @@ export function useBudget({ connections, dataOwnerUid, isWorkspaceReadOnly, star
           });
 
         const allRows: CampaignBudgetRow[] = unifiedCampaignRows
-          .map((row: Record<string, unknown>) => {
-            const platformRaw = String(row?.platform || '').toLowerCase();
+          .map((row: unknown) => {
+            const r = row as Record<string, unknown>;
+            const platformRaw = String(r?.platform || '').toLowerCase();
             const platform: PlatformId | null =
               platformRaw === 'google'
                 ? 'google'
@@ -135,17 +136,17 @@ export function useBudget({ connections, dataOwnerUid, isWorkspaceReadOnly, star
                 : null;
             if (!platform) return null;
             return {
-              id: String(row?.campaignId || row?.id || `${platform}-${row?.name || ''}`),
-              name: String(row?.name || `${platform} campaign`),
+              id: String(r?.campaignId || r?.id || `${platform}-${r?.name || ''}`),
+              name: String(r?.name || `${platform} campaign`),
               platform,
-              status: String(row?.status || 'Unknown'),
-              spend: toAmount(row?.spend),
-              conversionValue: toAmount(row?.conversionValue),
-              roas: toAmount(row?.roas),
+              status: String(r?.status || 'Unknown'),
+              spend: toAmount(r?.spend),
+              conversionValue: toAmount(r?.conversionValue),
+              roas: toAmount(r?.roas),
               budget:
-                toAmount(row?.dailyBudget) ||
-                toAmount(row?.budget) ||
-                toAmount(row?.lifetimeBudget),
+                toAmount(r?.dailyBudget) ||
+                toAmount(r?.budget) ||
+                toAmount(r?.lifetimeBudget),
             };
           })
           .filter((row): row is CampaignBudgetRow => Boolean(row));

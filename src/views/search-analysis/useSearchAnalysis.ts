@@ -158,7 +158,9 @@ export function useSearchAnalysis({
   ): Map<string, { clicks: number; impressions: number; position: number; ctr: number }> => {
     const map = new Map<string, { clicks: number; impressions: number; position: number; ctr: number }>();
     rows.forEach((row) => {
-      const term = String(row?.keys?.[0] || '').trim().toLowerCase();
+      const keys = row.keys;
+      const key0 = Array.isArray(keys) ? keys[0] : undefined;
+      const term = String(key0 ?? '').trim().toLowerCase();
       if (!term) return;
       const impressions = Number(row?.impressions || 0);
       const clicks = Number(row?.clicks || 0);
@@ -274,7 +276,9 @@ export function useSearchAnalysis({
 
       if (gscResult.status === 'fulfilled') {
         gscRows.forEach((row: Record<string, unknown>) => {
-          const term = String(row?.keys?.[0] || '').trim();
+          const keys = row.keys;
+          const key0 = Array.isArray(keys) ? keys[0] : undefined;
+          const term = String(key0 ?? '').trim();
           if (!term) return;
           const impressions = Number(row?.impressions || 0);
           const clicks = Number(row?.clicks || 0);

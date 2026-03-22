@@ -17,8 +17,8 @@ type UserProfile = {
   uid?: string;
   role?: string;
   subscriptionStatus?: string;
-  trialEndsAt?: string;
-  trialStartedAt?: string;
+  trialEndsAt?: string | null;
+  trialStartedAt?: string | null;
   createdAt?: string;
   name?: string;
   email?: string | null;

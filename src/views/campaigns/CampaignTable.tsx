@@ -258,7 +258,7 @@ export function CampaignTable({
                                 <span className="inline-flex items-center rounded-full bg-pink-50 text-pink-700 border border-pink-200 px-1.5 py-0.5 text-[10px] font-semibold">
                                   IG {metaInstagramSpend > 0 ? formatCurrency(metaInstagramSpend) : '—'}
                                 </span>
-                                {metaChannels?.whatsapp?.enabled && (
+                                {Boolean(metaChannels?.whatsapp?.enabled) && (
                                   <span className="inline-flex items-center rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 px-1.5 py-0.5 text-[10px] font-semibold">
                                     WA {metaWhatsappSpend > 0 ? formatCurrency(metaWhatsappSpend) : ''}
                                     {metaWhatsappConversations > 0 ? ` · ${Math.round(metaWhatsappConversations)}` : ''}
