@@ -10,7 +10,7 @@ export type UserProfile = {
   subscriptionStatus?: string;
   uid?: string;
   name?: string;
-  email?: string;
+  email?: string | null;
 } | null;
 
 const UserProfileContext = createContext<UserProfile>(null);
