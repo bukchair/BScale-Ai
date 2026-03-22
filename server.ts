@@ -13,6 +13,10 @@ async function runMigrations() {
     console.warn('[startup] DATABASE_URL not set — skipping prisma migrate deploy.');
     return;
   }
+  if (process.env.SKIP_MIGRATIONS === 'true') {
+    console.info('[startup] SKIP_MIGRATIONS=true — skipping prisma migrate deploy.');
+    return;
+  }
   const prismaBin = path.resolve(__dirname, 'node_modules', '.bin', 'prisma');
   console.info('[startup] Prisma binary path:', prismaBin);
   try {
