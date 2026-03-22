@@ -208,6 +208,8 @@ export const createGoogleDraft = async (
                 targetContentNetwork: false,
               },
               startDate: new Date().toISOString().slice(0, 10),
+              // Required for new campaigns (EU political ads regulation) — avoids INVALID_ARGUMENT.
+              containsEuPoliticalAdvertising: 'DOES_NOT_CONTAIN_EU_POLITICAL_ADVERTISING',
             },
           }],
         }),
@@ -244,6 +246,11 @@ export const createGoogleDraft = async (
 
     // 4. Create Ad Group
     const adGroupStatus = activateImmediately ? 'ENABLED' : 'PAUSED';
+    // Manual CPC search campaigns require a positive CPC bid on the ad group (micros).
+    const cpcBidMicros = Math.min(
+      Math.max(Math.round(Math.max(dailyBudget, 1) * 100_000), 500_000),
+      50_000_000
+    );
     const adGroupRes = await fetch(
       `${GOOGLE_ADS_API_BASE}/customers/${customerId}/adGroups:mutate`,
       {
@@ -256,6 +263,7 @@ export const createGoogleDraft = async (
               campaign: resourceName,
               status: adGroupStatus,
               type: 'SEARCH_STANDARD',
+              cpcBidMicros,
             },
           }],
         }),

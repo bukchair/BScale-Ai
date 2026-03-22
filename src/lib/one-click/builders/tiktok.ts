@@ -155,6 +155,9 @@ export const createTikTokDraft = async (
     // 2. Create Ad Group
     const scheduleStart = new Date().toISOString().replace('T', ' ').slice(0, 19);
     const buildAdGroupBody = (mode: 'primary' | 'fallback') => {
+      const billing = toTikTokBillingEvent(objective);
+      // CPC requires an explicit bid; OCPM / lead flows often use lowest cost (no custom bid).
+      const minBidFromBudget = Math.max(Number((dailyBudget * 0.1).toFixed(2)), 1);
       const base: Record<string, unknown> = {
         advertiser_id: account.externalAccountId,
         campaign_id: campaignId,
@@ -164,11 +167,17 @@ export const createTikTokDraft = async (
         schedule_type: 'SCHEDULE_FROM_NOW',
         schedule_start_time: scheduleStart,
         optimization_goal: toTikTokOptimizationGoal(objective),
-        billing_event: toTikTokBillingEvent(objective),
+        billing_event: billing,
         operation_status: activateImmediately ? 'ENABLE' : 'DISABLE',
         promotion_type: 'WEBSITE',
         pacing: 'PACING_MODE_SMOOTH',
       };
+      if (billing === 'CPC') {
+        base.bid_type = 'BID_TYPE_CUSTOM';
+        base.bid_price = minBidFromBudget;
+      } else {
+        base.bid_type = 'BID_TYPE_NO_BID';
+      }
       if (mode === 'primary') {
         base.placement_type = 'PLACEMENT_TYPE_AUTOMATIC';
       } else {

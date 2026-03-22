@@ -138,7 +138,9 @@ export const createMetaDraft = async (
     adSetForm.set('optimization_goal', 'LINK_CLICKS');
     adSetForm.set('bid_strategy', 'LOWEST_COST_WITHOUT_CAP');
     adSetForm.set('destination_type', 'WEBSITE');
-    adSetForm.set('daily_budget', String(Math.round(Math.max(dailyBudget, 1) * 100)));
+    // Meta daily_budget is in minor units (e.g. cents); enforce a sane floor to avoid INVALID_PARAMETER.
+    const metaBudgetMinor = Math.round(Math.max(dailyBudget, 2) * 100);
+    adSetForm.set('daily_budget', String(metaBudgetMinor));
     adSetForm.set('targeting', JSON.stringify({
       age_min: 18,
       age_max: 65,
@@ -199,6 +201,10 @@ export const createMetaDraft = async (
       call_to_action: { type: toMetaCTA(objective), value: { link: safeLink } },
     };
     if (imageHash) linkData.image_hash = imageHash;
+    else if (product?.imageUrl) {
+      // Link ads often fail without a visual; use product image URL when hash upload missing.
+      linkData.picture = product.imageUrl;
+    }
 
     const creativeForm = new URLSearchParams();
     creativeForm.set('name', `${sanitize(name)} – Creative`);

@@ -626,8 +626,12 @@ export function useCampaignBuilder({
       setBuilderMessage(isHebrew ? 'נדרש שם קמפיין ובחירת לפחות פלטפורמה אחת.' : 'Campaign name and at least one platform are required.');
       return;
     }
-    if (Math.max(Number(dailyBudgetInput) || 0, 0) < 1) {
-      setBuilderMessage(isHebrew ? 'נדרש תקציב יומי של לפחות 1.' : 'Daily budget must be at least 1.');
+    if (Math.max(Number(dailyBudgetInput) || 0, 0) < 2) {
+      setBuilderMessage(
+        isHebrew
+          ? 'נדרש תקציב יומי של לפחות 2 (מטבע החשבון) לפרסום יציב ב-Meta/TikTok.'
+          : 'Daily budget must be at least 2 (account currency) for reliable Meta/TikTok publishing.'
+      );
       return;
     }
     if (woo.useWooProductData && isWooConnected && woo.wooProducts.length > 0) {
@@ -645,12 +649,21 @@ export function useCampaignBuilder({
     const selectedImageAsset =
       media.uploadedAssets.find((asset) => asset.mediaType === 'image') || null;
     const hasTikTokTarget = resolvedPlatforms.includes('TikTok');
+    const hasMetaTarget = resolvedPlatforms.includes('Meta');
     const hasWooImage = Boolean(woo.selectedWooProduct?.imageUrl);
     if (hasTikTokTarget && !selectedImageAsset && !hasWooImage) {
       setBuilderMessage(
         isHebrew
           ? 'כדי לפרסם ב-TikTok נדרשת לפחות תמונה אחת (או תמונת מוצר מ-WooCommerce).'
           : 'TikTok publishing requires at least one image (or a WooCommerce product image).'
+      );
+      return;
+    }
+    if (hasMetaTarget && !selectedImageAsset && !hasWooImage) {
+      setBuilderMessage(
+        isHebrew
+          ? 'כדי לפרסם ב-Meta מומלץ להעלות תמונה או לבחור מוצר Woo עם תמונה (למודעת קישור).'
+          : 'For Meta, upload an ad image or pick a WooCommerce product with an image (required for most link ads).'
       );
       return;
     }
