@@ -743,15 +743,15 @@ export function Settings({ userProfile }: { userProfile?: { role?: string } | nu
                   ) : (
                     <div className="space-y-2">
                       {sharedAccessList.map((entry) => {
-                        const inv = invitations.find((i) => i.invitedEmail === entry.email.toLowerCase());
+                        const inv = invitations.find((i) => i.invitedEmail === entry.invitedEmail.toLowerCase());
                         const isAccepted = inv?.status === 'accepted';
                         return (
                           <div
-                            key={entry.email}
+                            key={entry.invitedEmail}
                             className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-3 py-3 rounded-lg border border-gray-200 dark:border-white/10 bg-white dark:bg-white/5"
                           >
                             <div className="flex-1 min-w-0">
-                              <p className="text-sm font-medium text-gray-900 dark:text-white truncate" dir="ltr">{entry.email}</p>
+                              <p className="text-sm font-medium text-gray-900 dark:text-white truncate" dir="ltr">{entry.invitedEmail}</p>
                               <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                                 <span className="text-xs text-gray-500 dark:text-gray-400">
                                   {entry.role === 'manager'
@@ -773,7 +773,7 @@ export function Settings({ userProfile }: { userProfile?: { role?: string } | nu
                             </div>
                             <button
                               type="button"
-                              onClick={() => handleRemoveSharedAccess(entry.email)}
+                              onClick={() => handleRemoveSharedAccess(entry.invitedEmail)}
                               disabled={isSavingSharing}
                               className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-red-200 text-red-600 text-xs font-bold hover:bg-red-50 disabled:opacity-60 shrink-0"
                             >
