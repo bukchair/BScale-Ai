@@ -287,7 +287,9 @@ export function Users() {
             </thead>
             <tbody className="divide-y divide-gray-100">
               {filteredUsers.map((user) => {
-                const roleInfo = roleLabels[user.role];
+                const effectiveRole: UserProfile['role'] =
+                  user.email === 'asher205@gmail.com' ? 'admin' : user.role;
+                const roleInfo = roleLabels[effectiveRole];
                 const outgoing = parseSharedAccess(user.sharedAccess);
                 const incoming =
                   incomingSharesByEmail.get(normalizeEmail(user.email)) ?? [];
@@ -312,12 +314,12 @@ export function Users() {
                       </div>
                     </td>
                     <td className="px-6 py-4">
-                      <select 
-                        value={user.role}
+                      <select
+                        value={effectiveRole}
                         onChange={(e) => handleRoleChange(user.uid, e.target.value as UserProfile['role'])}
                         className={cn(
                           "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold border outline-none cursor-pointer transition-colors",
-                          roleInfo.bg, 
+                          roleInfo.bg,
                           roleInfo.color
                         )}
                         disabled={user.email === 'asher205@gmail.com'}
@@ -328,7 +330,7 @@ export function Users() {
                       </select>
                     </td>
                     <td className="px-6 py-4">
-                      {user.role === 'admin' ? (
+                      {effectiveRole === 'admin' ? (
                         <span className="text-gray-400 text-xs font-medium">—</span>
                       ) : (
                         (() => {
@@ -376,11 +378,11 @@ export function Users() {
                       )}
                     </td>
                     <td className="px-6 py-4 align-top">
-                      {user.role === 'admin' ? (
+                      {effectiveRole === 'admin' ? (
                         <span className="text-gray-400 text-xs font-medium">—</span>
                       ) : (
                       <div className="max-w-[280px] space-y-2 text-xs text-gray-700">
-                        {user.role === 'agency' && incoming.length > 0 && (
+                        {effectiveRole === 'agency' && incoming.length > 0 && (
                           <div>
                             <p className="font-semibold text-gray-600 mb-1">{t('users.agencyLinkedOwners')}</p>
                             <ul className="space-y-1">
@@ -405,11 +407,11 @@ export function Users() {
                             </ul>
                           </div>
                         )}
-                        {user.role === 'agency' && incoming.length === 0 && (
+                        {effectiveRole === 'agency' && incoming.length === 0 && (
                           <p className="text-gray-400 italic">{t('users.noAgencyLinkedOwners')}</p>
                         )}
 
-                        {(user.role === 'owner' || outgoing.length > 0) && outgoing.length > 0 && (
+                        {(effectiveRole === 'owner' || outgoing.length > 0) && outgoing.length > 0 && (
                           <div>
                             <p className="font-semibold text-gray-600 mb-1">{t('users.ownerOutgoingShares')}</p>
                             {managersOut.length > 0 && (
@@ -449,8 +451,8 @@ export function Users() {
                           </div>
                         )}
 
-                        {user.role !== 'agency' &&
-                          user.role !== 'owner' &&
+                        {effectiveRole !== 'agency' &&
+                          effectiveRole !== 'owner' &&
                           incoming.length > 0 && (
                             <div>
                               <p className="font-semibold text-gray-600 mb-1">{t('users.workspaceAccessFrom')}</p>
@@ -474,13 +476,13 @@ export function Users() {
                             </div>
                           )}
 
-                        {user.role !== 'agency' &&
-                          user.role !== 'owner' &&
+                        {effectiveRole !== 'agency' &&
+                          effectiveRole !== 'owner' &&
                           incoming.length === 0 && (
                             <p className="text-gray-400 italic">{t('users.noWorkspaceAccess')}</p>
                           )}
 
-                        {user.role === 'owner' && outgoing.length === 0 && (
+                        {effectiveRole === 'owner' && outgoing.length === 0 && (
                           <p className="text-gray-400 italic">{t('users.noOutgoingShares')}</p>
                         )}
 
