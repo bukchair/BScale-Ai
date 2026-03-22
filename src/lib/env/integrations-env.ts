@@ -89,6 +89,12 @@ export const integrationsEnv = {
     process.env.GOOGLE_REDIRECT_URI,
     `${appBaseUrl}/api/connections/google-ads/callback`
   ),
+  GOOGLE_AUTH_CLIENT_ID: process.env.GOOGLE_AUTH_CLIENT_ID ?? '',
+  GOOGLE_AUTH_CLIENT_SECRET: process.env.GOOGLE_AUTH_CLIENT_SECRET ?? '',
+  GOOGLE_AUTH_REDIRECT_URI: toUrl(
+    process.env.GOOGLE_AUTH_REDIRECT_URI,
+    `${appBaseUrl}/api/auth/google/callback`
+  ),
   GOOGLE_ADS_DEVELOPER_TOKEN: process.env.GOOGLE_ADS_DEVELOPER_TOKEN ?? '',
   GOOGLE_ADS_MANAGER_CUSTOMER_ID: process.env.GOOGLE_ADS_MANAGER_CUSTOMER_ID,
   META_APP_ID: process.env.META_APP_ID ?? '',
