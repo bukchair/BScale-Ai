@@ -66,43 +66,48 @@ async function findUser(id: string) {
 }
 
 async function createUser(id: string, email: string, name: string | null) {
+  const now = new Date();
   try {
     return await prisma.user.create({
-      data: { id, email, name },
+      // Explicit timestamps — some DB/adapters omit @updatedAt on insert and hit NOT NULL (23502).
+      data: { id, email, name, createdAt: now, updatedAt: now },
       select: { id: true, email: true, name: true, role: true },
     });
   } catch (err) {
     if (!isMissingColumnError(err)) throw err;
     // role column missing in DB (migration pending).
     // Prisma adds `role` to INSERT from schema @default, so we must use raw SQL
-    // to insert without that column. ON CONFLICT handles the race where the
-    // first attempt already committed the row before failing on RETURNING.
+    // to insert without that column. Timestamps are required — omitting updatedAt
+    // causes NOT NULL violation (23502).
     type RawRow = { id: string; email: string; name: string | null };
     const rows = await prisma.$queryRaw<RawRow[]>`
-      INSERT INTO "User" (id, email, name)
-      VALUES (${id}, ${email}, ${name})
+      INSERT INTO "User" (id, email, name, "createdAt", "updatedAt")
+      VALUES (${id}, ${email}, ${name}, NOW(), NOW())
       ON CONFLICT (id) DO NOTHING
       RETURNING id, email, name`;
     if (rows.length > 0) return { ...rows[0], role: 'user' as const };
-    // Row already existed (conflict); fetch it.
     const existing = await prisma.$queryRaw<RawRow[]>`
       SELECT id, email, name FROM "User" WHERE id = ${id}`;
+    if (!existing[0]) {
+      throw new Error('User insert conflict but row not found after ON CONFLICT.');
+    }
     return { ...existing[0], role: 'user' as const };
   }
 }
 
 async function updateUser(id: string, email: string, name: string | null) {
+  const now = new Date();
   try {
     return await prisma.user.update({
       where: { id },
-      data: { email, name },
+      data: { email, name, updatedAt: now },
       select: { id: true, email: true, name: true, role: true },
     });
   } catch (err) {
     if (!isMissingColumnError(err)) throw err;
     const row = await prisma.user.update({
       where: { id },
-      data: { email, name },
+      data: { email, name, updatedAt: now },
       select: { id: true, email: true, name: true },
     });
     return { ...row, role: 'user' as const };
