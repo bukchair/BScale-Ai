@@ -1,11 +1,20 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
+import { scrypt, randomBytes } from 'crypto';
+import { promisify } from 'util';
 import { prisma } from '@/src/lib/db/prisma';
 import { rateLimit } from '@/src/lib/rate-limit';
 import { hashSignupToken } from '@/src/lib/auth/email-signup-server';
-import { getFirebaseAdminAuth, getFirebaseAdminDb } from '@/src/lib/auth/firebase-admin-server';
 
 export const dynamic = 'force-dynamic';
+
+const scryptAsync = promisify(scrypt);
+
+async function hashPassword(password: string): Promise<string> {
+  const salt = randomBytes(16).toString('hex');
+  const derivedKey = (await scryptAsync(password, salt, 64)) as Buffer;
+  return `${salt}:${derivedKey.toString('hex')}`;
+}
 
 const bodySchema = z.object({
   token: z.string().min(32).max(128),
@@ -52,34 +61,29 @@ export async function POST(request: Request) {
     );
   }
 
-  const auth = getFirebaseAdminAuth();
-  const db = getFirebaseAdminDb();
-  let uid: string | undefined;
+  // Check if user already exists
+  const existing = await prisma.user.findUnique({ where: { email: invite.email } });
+  if (existing) {
+    await prisma.emailSignupInvite.update({
+      where: { id: invite.id },
+      data: { usedAt: new Date() },
+    });
+    return NextResponse.json(
+      { success: false, message: 'This email is already registered. Sign in with email and password.' },
+      { status: 409 }
+    );
+  }
 
   try {
-    const record = await auth.createUser({
-      email: invite.email,
-      password: parsed.data.password,
-      displayName: invite.name?.trim() || undefined,
-      emailVerified: true,
-    });
-    uid = record.uid;
+    const passwordHash = await hashPassword(parsed.data.password);
 
-    await db.doc(`users/${uid}`).set({
-      uid,
-      email: invite.email,
-      name: invite.name?.trim() || 'User',
-      role: 'owner',
-      plan: 'demo',
-      subscriptionStatus: 'demo',
-      trialStartedAt: null,
-      trialEndsAt: null,
-      createdAt: new Date().toISOString(),
-      storeIds: [],
-      photoURL: null,
-      sharedAccess: [],
-      sharedAccessEmails: [],
-      sharedEditorsEmails: [],
+    await prisma.user.create({
+      data: {
+        email: invite.email,
+        name: invite.name?.trim() || null,
+        passwordHash,
+        role: 'user',
+      },
     });
 
     await prisma.emailSignupInvite.update({
@@ -92,21 +96,7 @@ export async function POST(request: Request) {
       message: 'Account created. You can sign in.',
       email: invite.email,
     });
-  } catch (err: unknown) {
-    if (uid) {
-      await auth.deleteUser(uid).catch(() => {});
-    }
-    const code = err && typeof err === 'object' && 'code' in err ? String((err as { code: string }).code) : '';
-    if (code === 'auth/email-already-exists') {
-      await prisma.emailSignupInvite.update({
-        where: { id: invite.id },
-        data: { usedAt: new Date() },
-      });
-      return NextResponse.json(
-        { success: false, message: 'This email is already registered. Sign in with email and password.' },
-        { status: 409 }
-      );
-    }
+  } catch (err) {
     console.error('[email-signup/complete]', err);
     return NextResponse.json(
       {
