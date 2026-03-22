@@ -151,8 +151,12 @@ export function ConnectionsProvider({ children }: { children: ReactNode }) {
           isExpiredTrialStatus(me.user as Record<string, unknown>)
         );
 
-        // Load saved connections
-        const connRes = await fetch('/api/user/connections', { credentials: 'include' });
+        // Load saved connections (include owner UID so server can merge owner's AI keys)
+        const connHeaders: Record<string, string> = {};
+        if (workspace?.accessMode === 'shared' && scopedOwnerUid && scopedOwnerUid !== me.user.id) {
+          connHeaders['X-Owner-UID'] = scopedOwnerUid;
+        }
+        const connRes = await fetch('/api/user/connections', { credentials: 'include', headers: connHeaders });
         const connData = connRes.ok ? (await connRes.json()) as { connections?: Connection[] } : { connections: [] };
         if (cancelled) return;
 

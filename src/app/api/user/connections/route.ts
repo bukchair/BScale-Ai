@@ -3,8 +3,12 @@ import { requireAuthenticatedUser } from '@/src/lib/auth/session';
 import { prisma } from '@/src/lib/db/prisma';
 import { Prisma } from '@prisma/client';
 
-// GET /api/user/connections — returns saved connection items for the current user
-export async function GET() {
+const AI_IDS = new Set(['gemini', 'openai', 'claude']);
+
+// GET /api/user/connections — returns saved connection items for the current user.
+// When X-Owner-UID header is present and the current user has accepted shared access
+// to that workspace, owner's AI connections are merged in (owner keys take priority).
+export async function GET(request: Request) {
   let user;
   try {
     user = await requireAuthenticatedUser();
@@ -24,7 +28,38 @@ export async function GET() {
   }
 
   const settings = (dbUser?.settings ?? {}) as Record<string, unknown>;
-  const connections = (settings.connections as unknown[]) ?? [];
+  const connections = (settings.connections as Array<{ id: string; [k: string]: unknown }>) ?? [];
+
+  // Merge owner's AI connections when user is accessing a shared workspace
+  const requestedOwnerUid = request.headers.get('X-Owner-UID');
+  if (requestedOwnerUid && requestedOwnerUid !== user.id) {
+    try {
+      const access = await prisma.sharedAccess.findFirst({
+        where: { ownerUserId: requestedOwnerUid, sharedUserId: user.id, status: 'accepted' },
+        select: { id: true },
+      });
+      if (access) {
+        const ownerDbUser = await prisma.user.findUnique({
+          where: { id: requestedOwnerUid },
+          select: { settings: true },
+        });
+        const ownerSettings = (ownerDbUser?.settings ?? {}) as Record<string, unknown>;
+        const ownerConns = (ownerSettings.connections as Array<{ id: string; [k: string]: unknown }>) ?? [];
+        const ownerAiById = new Map(ownerConns.filter((c) => AI_IDS.has(c.id)).map((c) => [c.id, c]));
+        if (ownerAiById.size > 0) {
+          const merged = connections.map((c) => AI_IDS.has(c.id) && ownerAiById.has(c.id) ? ownerAiById.get(c.id)! : c);
+          // Add owner AI connections not present in user's list
+          for (const [id, ownerConn] of ownerAiById) {
+            if (!merged.find((c) => c.id === id)) merged.push(ownerConn);
+          }
+          return NextResponse.json({ connections: merged });
+        }
+      }
+    } catch (err) {
+      // Non-fatal: fall through and return user's own connections
+      console.warn('[/api/user/connections GET] shared AI merge failed:', err instanceof Error ? err.message : err);
+    }
+  }
 
   return NextResponse.json({ connections });
 }
