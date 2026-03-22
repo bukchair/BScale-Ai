@@ -34,6 +34,7 @@ RUN npm ci --omit=dev
 # Copy build artifacts
 COPY --from=builder /app/.next ./.next
 COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
+COPY --from=builder /app/.env.production ./.env.production
 
 # Copy runtime source files
 COPY server.ts .
