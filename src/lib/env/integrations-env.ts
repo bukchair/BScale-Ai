@@ -66,7 +66,7 @@ const toBase64Key = (value: string | undefined, fallback: string): string => {
   }
 };
 
-const appBaseUrl = toUrl(process.env.APP_BASE_URL, DEFAULT_APP_BASE_URL);
+const appBaseUrl = toUrl(process.env.APP_BASE_URL || process.env.APP_URL, DEFAULT_APP_BASE_URL);
 
 export const integrationsEnv = {
   NODE_ENV:
